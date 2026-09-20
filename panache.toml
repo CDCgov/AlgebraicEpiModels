@@ -1,0 +1,8 @@
+flavor = "gfm"
+extend-exclude = [".github/"]
+
+[format]
+wrap = "sentence"
+
+[extensions]
+four-space-rule = true
