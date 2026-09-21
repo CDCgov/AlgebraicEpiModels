@@ -2,53 +2,10 @@
 # Augmented-noise ensemble Kalman filter
 # ============================================================================
 #
-# `LowLevelParticleFilters.EnsembleKalmanFilter` is additive-only: it calls
-# `f(xᵢ, u, p, t) .+ wᵢ` and `h(xᵢ, u, p, t)`, adds `R2` to the sample innovation
-# covariance, and then perturbs the observation with a *second* `R2` draw. ConfigurableEpi's
-# shared dynamics and measurement functions are augmented — `dynamics(x, u, p, t, w)` and
-# `measurement(x, u, p, t, v)` — for reasons that are load-bearing rather than cosmetic:
+# `AugmentedEnsembleKalmanFilter` extends `LowLevelParticleFilters.EnsembleKalmanFilter`
+# to work with ConfigurableEpi's shared dynamics and measurement functions which are augmented
+# e.g `dynamics(x, u, p, t, w)` and `measurement(x, u, p, t, v)`.
 #
-#   * the latent (`Rt`) innovation must be applied at the START of the step, before the weekly
-#     ODE flow, so the flow is driven by the same coefficients the output state carries
-#     (see `build_full_dynamics`, src/full_dynamics.jl — "noise → flow");
-#   * the observation noise scale is a function of the state,
-#     `y = μ(x) + sqrt(μ + μ²/φ + (σμ)²)·v` (see `apply_noise`, src/measurement_model.jl), so
-#     it cannot be expressed as an additive `R2` at all; `R2 = I` and the transformation lives
-#     inside `measurement`.
-#
-# Handing those functions to the additive interface would apply the innovation after the flow
-# and discard the variance transformation, giving the ensemble path different model semantics
-# from the UKF — which is already built as `UnscentedKalmanFilter{false, false, true, true}`,
-# i.e. augmented on both axes. "basic_seir under UKF" and "basic_seir under EnKF" have to be
-# the same model or `supports` is a fiction.
-#
-# So: a ConfigurableEpi-owned `AbstractKalmanFilter` subtype, with methods added to LLPF's own
-# generic functions. This is an EXTENSION, not a fork and not a copy of the filter:
-#
-#   * every method here dispatches on `AugmentedEnsembleKalmanFilter`, a type we own, so there
-#     is no type piracy for Aqua to flag and stock LLPF behaviour is untouched;
-#   * `forward_trajectory`, `KalmanFilteringSolution`, the `pre_/post_correct_cb` callbacks,
-#     `smooth` and ConfigurableEpi's own `marginal_loglik` all work unchanged, because they are
-#     generic over `AbstractKalmanFilter`. Field names below match the ones
-#     `forward_trajectory` reaches for directly (`Ts`, `R1`, `R2`, `x`, `names`);
-#   * no non-exported LLPF internal is called. The Gaussian log-density is computed from the
-#     Cholesky factor of `S` rather than through `SimpleMvNormal`/`extended_logpdf`, and
-#     `get_mat` is never needed because `R1`/`R2` here are constant matrices (`build_R1` is the
-#     identity; every noise magnitude rides in `p`).
-#
-# Algorithm — the stochastic EnKF in its "noisy predicted observations" form:
-#
-#   predict:  wᵢ ~ N(0, R1),  xᵢ⁻ = f(xᵢ, u, p, t, wᵢ)
-#   correct:  vᵢ ~ N(0, R2),  Yᵢ  = h(xᵢ⁻, u, p, t, vᵢ)
-#             S = Ya Yaᵀ / (N-1)                      # NOT + R2 — the noise is already in Y
-#             K = Xa Yaᵀ / (N-1) · S⁻¹
-#             xᵢ = xᵢ⁻ + K (y - Yᵢ)                   # NOT y + εᵢ — likewise
-#
-# Adding `R2` to `S` *and* drawing a perturbation would double-count the observation noise; the
-# variant implemented here puts it in exactly once, on the predicted-observation side. Both
-# noise vectors are drawn for ALL members before the propagation loop, which is what makes a
-# seeded run reproducible under `threads = true` — a threaded loop drawing from a shared RNG is
-# both a data race and order-dependent.
 
 """
     AugmentedEnsembleKalmanFilter
@@ -189,10 +146,6 @@ function _update_ensemble_stats!(f::AugmentedEnsembleKalmanFilter)
 end
 
 # --- noise draws -------------------------------------------------------------------
-# Pre-drawn per member, before any loop: a threaded loop pulling from a shared RNG is a data
-# race, and even without one the draw order would depend on thread scheduling, so seeded runs
-# would not reproduce. `_noise_factor` is a Cholesky factor `L` with `L Lᵀ = R`; the diagonal
-# fast path covers this codebase's `R1 = R2 = I`.
 
 _noise_factor(R::Diagonal) = Diagonal(sqrt.(diag(R)))
 _noise_factor(R::AbstractMatrix) = _is_diagonal(R) ? Diagonal(sqrt.(diag(R))) :
@@ -210,20 +163,7 @@ end
 _draw_noise(rng, L, n::Int, N::Int) = [L * randn(rng, n) for _ in 1:N]
 
 # --- interface accessors -----------------------------------------------------------
-# Qualified definitions (`LLPF.f(...) = …`) rather than `import LowLevelParticleFilters: f`,
-# so no LLPF function name is pulled into ConfigurableEpi's namespace. `dynamics` and
-# `measurement` in particular would collide with the local closures of that name that
-# `build_dynamics_and_measurement` and `build_full_dynamics` define.
-#
-# `u` and `y` on `predict!`/`correct!`/`update!` below are annotated `::AbstractVector` for a
-# non-obvious reason: DO NOT loosen them. LLPF carries measurement-model overloads of the shape
-# `correct!(kf::AbstractKalmanFilter, mm::LinearMeasurementModel, u, y[, p])` (and the same for
-# the EKF/IEKF/UKF model types). With `u` untyped, our `correct!(f, u, y, p)` has the same arity
-# with `Any` in the slot their measurement model occupies, and since
-# `AugmentedEnsembleKalmanFilter <: AbstractKalmanFilter` neither method is more specific —
-# Aqua's ambiguity check in test/aqua.jl reports twenty of them. A measurement model is not an
-# `AbstractVector`, so the annotation makes the signatures disjoint. Every caller in this
-# codebase passes `Float64[]` for `u` (`nu = 0`) and a count vector for `y`.
+
 
 LLPF.num_particles(f::AugmentedEnsembleKalmanFilter) = length(f.ensemble)
 LLPF.particles(f::AugmentedEnsembleKalmanFilter) = f.ensemble
