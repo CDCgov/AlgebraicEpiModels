@@ -1,0 +1,284 @@
+# Helpers for constructing compartmental model UWDs
+# Not exported - used internally by create_model_uwd methods
+
+"""
+Create the structural skeleton of an undirected wiring diagram (UWD) for a compartmental model.
+
+This function allocates the correct number and types of outer ports based on the model's
+compartment count and the schema's type system. The resulting empty UWD provides the
+foundation for compositional model building - junctions and mechanisms are added later
+via `setup_basic!` and extension methods.
+
+# Compositional Role
+This is the first step in model construction, creating a "typed canvas" that ensures
+all subsequent junction and mechanism additions respect the schema's type constraints when
+composing models using `AlgebraicPetri.oapply_typed`. The outer ports in the UWD allow
+composition with other UWDs although this is not main compositional focus.
+"""
+function create_relation_diagram(schema::EpidemiologicalSchema, model::CompartmentalModel)
+    error("create_relation_diagram not implemented for schema type $(typeof(schema)). Implement a method for this combination.")
+end
+
+function create_relation_diagram(schema::OnePopulationSchema, model::CompartmentalModel)
+    pop_type = schema.population_type
+    number_of_variables = model.number_of_states
+    return RelationDiagram(fill(pop_type, number_of_variables))
+end
+
+function create_relation_diagram(
+        schema::UninfectedInfectedSchema, model::CompartmentalModel
+    )
+    uninfected_type = schema.uninfected_type
+    infected_type = schema.infected_type
+    number_of_variables = model.number_of_states
+    types_for_relation_diagram = vcat(
+        [uninfected_type], fill(
+            infected_type, number_of_variables -
+                1
+        )
+    )
+
+    return RelationDiagram(types_for_relation_diagram)
+end
+
+function create_relation_diagram(schema::OnePopulationSchema, model::ContactStratification)
+    pop_type = schema.population_type
+    number_of_variables = length(model.stratum_names)
+    return RelationDiagram(fill(pop_type, number_of_variables))
+end
+
+function create_relation_diagram(
+        schema::UninfectedInfectedSchema, model::ContactStratification
+    )
+    uninfected_type = schema.uninfected_type
+    infected_type = schema.infected_type
+    number_of_variables = length(model.stratum_names)
+    return RelationDiagram(
+        vcat(
+            fill(uninfected_type, number_of_variables),
+            fill(infected_type, number_of_variables)
+        )
+    )
+end
+
+"""
+Create and connect the Susceptible (S) compartment junction to the first outer port.
+
+# Compositional Role
+All epidemiological models start with a susceptible population. This function establishes
+the S compartment as the entry point for the UWD construction, always connecting to the first outer port
+by convention. This standardization enables predictable composition - extended models can
+reliably find and reference the S junction when adding reversion mechanisms (e.g., I→S in SIS).
+
+Returns the S junction ID for use in mechanism construction.
+"""
+function set_S_junction!(uwd::RelationDiagram, schema::OnePopulationSchema)
+    pop_type = schema.population_type
+    # Add junctions for S compartment
+    S_junction = add_junction!(uwd, pop_type, variable = :S)
+    # Connect outer ports to S junctions
+    set_junction!(uwd, ports(uwd, outer = true)[1], S_junction, outer = true)
+    return S_junction
+end
+
+function set_S_junction!(uwd::RelationDiagram, schema::UninfectedInfectedSchema)
+    uninfected_type = schema.uninfected_type
+    # Add junctions for S compartment
+    S_junction = add_junction!(uwd, uninfected_type, variable = :S)
+    # Connect outer ports to S junctions
+    set_junction!(uwd, ports(uwd, outer = true)[1], S_junction, outer = true)
+    return S_junction
+end
+
+"""
+Create age group junctions, either one per age group (OnePopulationSchema) or pairs per age group
+(UninfectedInfectedSchema).
+
+# Compositional Role
+Enables contact stratification by creating junctions for each stratum.
+
+Returns a tuple of junction IDs for the stratum:
+- For `OnePopulationSchema`: (stratum_junction, stratum_junction)
+- For `UninfectedInfectedSchema`: (uninfected_stratum_junction, infected_stratum_junction)
+"""
+function set_stratum_junction!(
+        uwd::RelationDiagram, schema::OnePopulationSchema, stratum::Symbol
+    )
+    pop_type = schema.population_type
+    stratum_junction = add_junction!(uwd, pop_type, variable = stratum)
+    return (stratum_junction, stratum_junction)
+end
+
+function set_stratum_junction!(
+        uwd::RelationDiagram, schema::UninfectedInfectedSchema, stratum::Symbol
+    )
+    uninfected_type = schema.uninfected_type
+    infected_type = schema.infected_type
+    # Use unique variable names by prefixing with type
+    uninfected_stratum_junction = add_junction!(
+        uwd, uninfected_type, variable = Symbol(
+            string(stratum) *
+                "_U"
+        )
+    )
+    infected_stratum_junction = add_junction!(
+        uwd, infected_type, variable = Symbol(
+            string(stratum) *
+                "_I"
+        )
+    )
+    return (uninfected_stratum_junction, infected_stratum_junction)
+end
+
+"""
+Generate junction variable names for multi-stage compartments.
+
+# Compositional Role
+Enables Erlang-distributed dwell times by creating sequential stages (E1, E2, ... or I1, I2, ...).
+When number_of_stages=1, returns the base name (:E or :I) for backward compatibility.
+When number_of_stages>1, appends stage numbers for clarity in visualization and debugging.
+This naming convention is crucial for connecting progression mechanisms in the correct sequence.
+
+# Examples
+```julia
+variable_name(:E, 1, 1)  # Returns :E (single stage)
+variable_name(:E, 2, 3)  # Returns :E2 (stage 2 of 3)
+variable_name(:I, 1, 4)  # Returns :I1 (stage 1 of 4)
+```
+"""
+function variable_name(var_name, stage, number_of_stages)
+    if number_of_stages == 1
+        return var_name
+    else
+        return Symbol("$(var_name)$(stage)")
+    end
+end
+
+"""
+Create a sequence of compartment stages with progression transitions between them.
+
+# Compositional Role
+This is the workhorse for multi-stage compartments, enabling Erlang-distributed dwell times.
+Creates N junctions (e.g., E1→E2→E3 or I1→I2→I3), connects each to an outer port for composition,
+and chains them with progression mechanisms.
+
+Key for composition:
+- Returns the vector of ALL junction IDs (not just first/last) for flexible mechanism attachment
+- Returns updated outer_port_counter for sequential port allocation
+- First stage receives incoming transitions (e.g., S+I→E1), last stage feeds next compartment
+
+# Arguments
+- `uwd`: The undirected wiring diagram to modify (follows convention of other mutation functions)
+- `variable_symbol`: Base compartment name (:E or :I)
+- `number_of_stages`: Number of sequential stages to create
+- `pop_type`: The population type symbol for the junctions
+- `outer_port_counter`: Current position in outer port allocation (incremented for each stage)
+- `schema`: The epidemiological schema for mechanism dispatch
+"""
+function add_stages!(
+        uwd::RelationDiagram, variable_symbol::Symbol, number_of_stages::Int,
+        pop_type::Symbol, outer_port_counter::Int, schema::EpidemiologicalSchema
+    )
+    # Create junctions for each stage
+    junctions = [
+        add_junction!(
+                uwd,
+                pop_type,
+                variable = variable_name(variable_symbol, stage, number_of_stages)
+            )
+            for stage in 1:number_of_stages
+    ]
+    # Connect outer ports to junctions
+    for (i, junction) in enumerate(junctions)
+        set_junction!(
+            uwd, ports(uwd, outer = true)[outer_port_counter], junction, outer = true
+        )
+        outer_port_counter += 1
+    end
+    # Add progression between stages
+    for stage in 1:(number_of_stages - 1)
+        add_disease_progression!(uwd, junctions[stage], junctions[stage + 1], schema)  # e.g. E_stage → E_(stage+1) or I_stage → I_(stage+1)
+    end
+    return junctions, outer_port_counter
+end
+
+"""
+Populate an SI model UWD with junctions and infection mechanisms.
+
+# Compositional Role
+This is the base layer for all direct-infection models (SI, SIR, SIS). It establishes:
+1. S compartment (via `set_S_junction!`)
+2. I compartment chain (potentially multi-stage via `add_stages!`)
+3. Infection dynamics: every I stage can infect S, but new infections enter I1 only
+
+Returns (uwd, S_junction, last_I_junction) to enable extensions:
+- SIR adds last_I_junction → R
+- SIS adds last_I_junction → S_junction (reversion)
+
+The multi-stage capability means SI can represent gamma-distributed infectious periods
+even before extending to SIR.
+"""
+function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalSchema, model::SI)
+    # Add junctions for S compartment
+    S_junction = set_S_junction!(uwd, schema)
+    pop_type = get_infected_type(schema)
+    outer_port_counter = 2
+
+    I_junctions,
+        outer_port_counter = add_stages!(
+        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, schema
+    )
+
+    # Add infection to first I stage
+    for I_junction in I_junctions
+        add_infection!(uwd, S_junction, I_junction, I_junctions[1], schema)  # S + I → I + I
+    end
+
+    return (uwd, S_junction, I_junctions[end])
+end
+
+"""
+Populate an SEI model UWD with junctions, exposure, and progression mechanisms.
+
+# Compositional Role
+This is the base layer for all exposure-based models (SEI, SEIR, SEIS, SEIRS). It establishes:
+1. S compartment (via `set_S_junction!`)
+2. E compartment chain (potentially multi-stage for gamma-distributed latent period)
+3. I compartment chain (potentially multi-stage for gamma-distributed infectious period)
+4. Exposure dynamics: every I stage can expose S, but new exposures enter E1 only
+5. Progression: E_last → I_1 connects the latent and infectious stages
+
+Returns (uwd, S_junction, last_I_junction) to enable extensions:
+- SEIR adds last_I_junction → R
+- SEIS adds last_I_junction → S_junction (reversion)
+- SEIRS adds both (recovery then waning)
+
+The dual multi-stage capability enables independent control of latent and infectious period
+distributions - critical for realistic disease modeling.
+"""
+function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalSchema, model::SEI)
+    # Add junctions for S compartment
+    S_junction = set_S_junction!(uwd, schema)
+    pop_type = get_infected_type(schema)
+    outer_port_counter = 2
+
+    # For multiple E and I stages, create junctions for each stage
+    E_junctions,
+        outer_port_counter = add_stages!(
+        uwd, :E, model.number_E_stages, pop_type, outer_port_counter, schema
+    )
+    I_junctions,
+        outer_port_counter = add_stages!(
+        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, schema
+    )
+
+    # add infection to first E stage from any infection stage
+    for I_junction in I_junctions
+        add_infection!(uwd, S_junction, I_junction, E_junctions[1], schema)  # S + I → E + I
+    end
+
+    # Add progression from last E stage to first I stage
+    add_disease_progression!(uwd, E_junctions[end], I_junctions[1], schema)  # E_last → I_1
+
+    return (uwd, S_junction, I_junctions[end])
+end
