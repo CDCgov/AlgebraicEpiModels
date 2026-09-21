@@ -57,19 +57,21 @@ specific model formulation.
 """
 abstract type EpiMechModel end
 
+# Epidemiological dynamics
 include("typing.jl")
 include("mechanisms.jl")
 include("CompartmentalModel.jl")
 include("MultiStrainModel.jl")
 include("ImmuneHistory.jl")
 include("Stratification.jl")
-include("ObservationLayout.jl")
 include("construction_helpers.jl")
 include("create_model_uwd.jl")
 include("generate_transition_names.jl")
 include("create_model.jl")
 include("vectorfield_flat.jl")
-# Observation attachment. Runs AFTER composition, so it comes last.
-include("observation_rewriting.jl")
+
+# Observation attachment.
+include("ObservationTarget.jl")
+include("ObservationLayout.jl")
 
 end
