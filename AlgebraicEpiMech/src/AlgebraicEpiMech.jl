@@ -40,23 +40,6 @@ export flatten_symbols, vectorfield_flat
 # Documentation strings
 include("docstrings.jl")
 
-"""
-Abstract base type for all epidemiological-mechanical models in the AlgebraicEpiMech framework.
-
-All concrete epidemiological-mechanical model types should be subtypes of `EpiMechModel`.
-This abstract type serves as the root of the type hierarchy for models that combine
-epidemiological dynamics with mechanical or algebraic structures.
-
-# Extended help
-
-Subtypes of `EpiMechModel` should implement the necessary interface methods for their
-specific model formulation.
-
-# See also
-- Related concrete model types (define as needed)
-"""
-abstract type EpiMechModel end
-
 # Epidemiological dynamics
 include("typing.jl")
 include("mechanisms.jl")

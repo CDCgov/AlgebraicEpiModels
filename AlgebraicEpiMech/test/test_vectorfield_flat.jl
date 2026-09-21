@@ -33,6 +33,33 @@ end
     @test result == :single
 end
 
+@testitem "flatten_symbols - singleton tuple" begin
+    using AlgebraicEpiMech
+
+    @test flatten_symbols((:single,)) == :single
+    @test flatten_symbols((((:single,),),)) == :single
+end
+
+@testitem "vectorfield_flat rejects flattened-name collisions" begin
+    using AlgebraicPetri
+    using AlgebraicEpiMech
+
+    TupleNamedPetriNet = AlgebraicPetri.LabelledPetriNetUntyped{Tuple{Symbol, Symbol}}
+
+    species_collision = TupleNamedPetriNet()
+    add_species!(
+        species_collision, 2; sname = [(:a_b, :c), (:a, :b_c)]
+    )
+    @test_throws ArgumentError vectorfield_flat(species_collision)
+
+    transition_collision = TupleNamedPetriNet()
+    add_species!(transition_collision, 1; sname = [(:state, :one)])
+    add_transitions!(
+        transition_collision, 2; tname = [(:a_b, :c), (:a, :b_c)]
+    )
+    @test_throws ArgumentError vectorfield_flat(transition_collision)
+end
+
 @testitem "vectorfield_flat - function signature and type" begin
     using AlgebraicPetri, LabelledArrays
     using AlgebraicEpiMech

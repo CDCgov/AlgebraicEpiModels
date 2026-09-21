@@ -1,4 +1,19 @@
-# Type system for compartmental epidemiological models
+"""
+Abstract base type for all epidemiological-mechanical models in the AlgebraicEpiMech framework.
+
+All concrete epidemiological-mechanical model types should be subtypes of `EpiMechModel`.
+This abstract type serves as the root of the type hierarchy for models that combine
+epidemiological dynamics with mechanical or algebraic structures.
+
+# Extended help
+
+Subtypes of `EpiMechModel` should implement the necessary interface methods for their
+specific model formulation.
+
+# See also
+- Related concrete model types (define as needed)
+"""
+abstract type EpiMechModel end
 
 """
 Abstract base type for compartmental epidemiological models.
@@ -7,6 +22,11 @@ Compartmental models define the specific disease dynamics and transitions
 between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.
 """
 abstract type CompartmentalModel <: EpiMechModel end
+
+function _validate_stage_count(name::Symbol, count::Int)
+    count >= 1 || throw(ArgumentError("$name must be at least 1"))
+    return count
+end
 
 # Base compartmental models - concrete structs for clean dispatch
 
@@ -26,7 +46,10 @@ struct SI <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
 
-    SI(; number_I_stages::Int = 1) = new(number_I_stages, 1 + number_I_stages)
+    function SI(; number_I_stages::Int = 1)
+        _validate_stage_count(:number_I_stages, number_I_stages)
+        return new(number_I_stages, 1 + number_I_stages)
+    end
 end
 
 """
@@ -49,6 +72,8 @@ struct SEI <: CompartmentalModel
     number_of_states::Int
 
     function SEI(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+        _validate_stage_count(:number_E_stages, number_E_stages)
+        _validate_stage_count(:number_I_stages, number_I_stages)
         return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages)
     end
 end
@@ -73,7 +98,10 @@ struct SIR <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
 
-    SIR(; number_I_stages::Int = 1) = new(number_I_stages, 2 + number_I_stages)
+    function SIR(; number_I_stages::Int = 1)
+        _validate_stage_count(:number_I_stages, number_I_stages)
+        return new(number_I_stages, 2 + number_I_stages)
+    end
 end
 
 """
@@ -98,6 +126,8 @@ struct SEIR <: CompartmentalModel
     number_of_states::Int
 
     function SEIR(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+        _validate_stage_count(:number_E_stages, number_E_stages)
+        _validate_stage_count(:number_I_stages, number_I_stages)
         return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages)
     end
 end
@@ -119,7 +149,10 @@ struct SIS <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
 
-    SIS(; number_I_stages::Int = 1) = new(number_I_stages, 1 + number_I_stages)
+    function SIS(; number_I_stages::Int = 1)
+        _validate_stage_count(:number_I_stages, number_I_stages)
+        return new(number_I_stages, 1 + number_I_stages)
+    end
 end
 
 """
@@ -143,6 +176,8 @@ struct SEIS <: CompartmentalModel
     number_of_states::Int
 
     function SEIS(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+        _validate_stage_count(:number_E_stages, number_E_stages)
+        _validate_stage_count(:number_I_stages, number_I_stages)
         return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages)
     end
 end
@@ -170,6 +205,8 @@ struct SEIRS <: CompartmentalModel
     number_of_states::Int
 
     function SEIRS(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+        _validate_stage_count(:number_E_stages, number_E_stages)
+        _validate_stage_count(:number_I_stages, number_I_stages)
         return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages)
     end
 end

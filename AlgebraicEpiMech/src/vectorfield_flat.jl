@@ -22,13 +22,32 @@ end
 
 # Handle recursive flattening of tuples
 function _flatten_recursive(name::Tuple)
-    return mapreduce(vcat, name) do element
-        _flatten_recursive(element)
+    isempty(name) && throw(ArgumentError("cannot flatten an empty tuple"))
+    flattened = Symbol[]
+    for element in name
+        append!(flattened, _flatten_recursive(element))
     end
+    return flattened
 end
 
 # Handle single symbol case
-_flatten_recursive(name::Symbol) = name
+_flatten_recursive(name::Symbol) = Symbol[name]
+
+function _require_unique_flattened_names(names::Vector{Symbol}, part::AbstractString)
+    seen = Set{Symbol}()
+    collisions = Set{Symbol}()
+    for name in names
+        name in seen && push!(collisions, name)
+        push!(seen, name)
+    end
+    isempty(collisions) || throw(
+        ArgumentError(
+            "flattened $part names must be unique; underscore joining produced " *
+                "duplicate name(s): $(join(sort!(collect(collisions)), ", "))",
+        ),
+    )
+    return nothing
+end
 
 """
 Generate an ODE vectorfield function from a Petri net using mass action kinetics as per
@@ -63,6 +82,8 @@ function vectorfield_flat(pn::AbstractPetriNet)
     T = nt(pn)
     species_syms = [flatten_symbols(sname(pn, j)) for j in 1:S]
     transition_syms = [flatten_symbols(tname(pn, i)) for i in 1:T]
+    _require_unique_flattened_names(species_syms, "species")
+    _require_unique_flattened_names(transition_syms, "transition")
 
     tm = TransitionMatrices(pn)
     # Mass-action inputs as `(species, multiplicity)`, ascending species: the factor is `u_j^k`

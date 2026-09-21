@@ -31,6 +31,26 @@ end
     @test :h3n2 in transition_names
 end
 
+@testitem "multistrain constructors reject duplicate strain names" begin
+    using AlgebraicEpiMech
+
+    @test_throws ArgumentError NoCrossImmunity([:a, :a])
+    @test_throws ArgumentError CompleteCrossImmunity([:a, :a])
+end
+
+@testitem "multistrain models require their documented typing" setup = [MultistrainSetup] begin
+    no_cross = NoCrossImmunity([:a, :b])
+    complete = CompleteCrossImmunity([:a, :b])
+
+    @test applicable(create_model_uwd, one_pop_typing, no_cross)
+    @test !applicable(create_model_uwd, uninfected_infected_typing, no_cross)
+    @test applicable(create_model_uwd, uninfected_infected_typing, complete)
+    @test !applicable(create_model_uwd, one_pop_typing, complete)
+
+    @test_throws MethodError create_model(uninfected_infected_typing, no_cross)
+    @test_throws MethodError create_model(one_pop_typing, complete)
+end
+
 @testitem "create_model - verify state structure" setup = [MultistrainSetup] begin
     model = NoCrossImmunity([:wild, :variant])
     typed_model = create_model(one_pop_typing, model)

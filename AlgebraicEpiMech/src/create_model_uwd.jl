@@ -231,7 +231,7 @@ Construct an undirected wiring diagram (UWD) for a no cross-immunity multistrain
 
 Creates a strain-stratified UWD where each strain operates independently. The strains
 are represented as separate junctions, and each strain has its own set of disease
-transition boxes (`:transmission`, `:disease`, `:reversion`, `:observation`) that will
+transition boxes (`:transmission`, `:disease`, `:reversion`) that will
 compose with corresponding boxes from a compartmental model via `typed_product`.
 
 All box types are always included; `typed_product` will only compose boxes that exist in
@@ -240,11 +240,10 @@ transition present in one factor and absent from the other is dropped without er
 why each factor carries a reflexive box per transition type it wants preserved.
 
 There is deliberately no reflexive observation box. Observation is attached to the COMPOSED net
-by pushout (`attach_observation`), so a stratification factor never has to know it exists; see
-`docs/concepts/composition-and-observation.md`.
+by `attach_observation`, so a stratification factor never has to know it exists.
 
 # Arguments
-- `typing::EpidemiologicalTyping`: The population typing (typically OnePopulationTyping)
+- `typing::OnePopulationTyping`: The required single-population typing
 - `multistrain::NoCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -258,13 +257,13 @@ multistrain = NoCrossImmunity([:h1n1, :h3n2, :b])
 strain_uwd = create_model_uwd(typing, multistrain)
 
 # Compose with compartmental model
-sir_typed = create_compartmental_model(typing, SIR())
-strain_typed = create_multistrain_model(typing, multistrain)
+sir_typed = create_model(typing, SIR())
+strain_typed = create_model(typing, multistrain)
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        typing::EpidemiologicalTyping,
+        typing::OnePopulationTyping,
         multistrain::NoCrossImmunity
     )
     strain_names = multistrain.strain_names
@@ -312,7 +311,7 @@ The UWD has:
 - Reversion boxes to return to shared susceptible pool
 
 # Arguments
-- `typing::EpidemiologicalTyping`: The population typing (must be UninfectedInfectedTyping)
+- `typing::UninfectedInfectedTyping`: The required uninfected/infected typing
 - `multistrain::CompleteCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -326,13 +325,13 @@ multistrain = CompleteCrossImmunity([:wild_type, :variant])
 strain_uwd = create_model_uwd(typing, multistrain)
 
 # Compose with compartmental model
-sir_typed = create_compartmental_model(typing, SIR())
-strain_typed = create_multistrain_model(typing, multistrain)
+sir_typed = create_model(typing, SIR())
+strain_typed = create_model(typing, multistrain)
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        typing::EpidemiologicalTyping,
+        typing::UninfectedInfectedTyping,
         multistrain::CompleteCrossImmunity
     )
     strain_names = multistrain.strain_names
@@ -429,8 +428,8 @@ function create_model_uwd(
     end
 
     # Add per-stratum reflexive boxes for non-transmission transitions.
-    # These ensure typed_product preserves disease, reversion, waning, and
-    # observation transitions when composing with compartmental models.
+    # These ensure typed_product preserves disease, reversion, and waning transitions
+    # when composing with compartmental models.
     # Can be disabled via include_reflexives=false for standalone use.
     if include_reflexives
         for stratum in stratum_junction_tuples
@@ -471,8 +470,8 @@ This is a stratification factor (like `ContactStratification`), meant to be
 - **`:transmission`** (escape-selective): `U_h + (h',i) → (h,i)` for every susceptible
   class `h` (`i ∉ h`) and every infector `(h',i)`. A class immune to `i` simply has no
   such box, so the pullback drops that infection — the escape.
-- **`:disease`** and **`:observation`** are reflexive on each `(h,i)`, so the base
-  model's progression and observation chains run inside a fixed `(h,i)`.
+- **`:disease`** is reflexive on each `(h,i)`, so the base model's progression runs
+  inside a fixed `(h,i)`.
 - **`:reversion`** is off-diagonal: `(h,i) → U_{recover}` with `recover = h∪{i}`
   (`FullHistory`) or `{i}` (`LatestInfection`). This is the one stratum-changing move
   — recovering from `i` folds it into the immune history.
@@ -514,8 +513,7 @@ function create_model_uwd(typing::UninfectedInfectedTyping, model::ImmuneHistory
         for inf_j in infectors[i]
             add_infection!(uwd, U[h], inf_j, Iof[(h, i)], typing)
         end
-        # Reflexive :disease and :observation so the base's E→I→R and obs chain
-        # run within this (h,i).
+        # Reflexive :disease so the base's E→I→R progression runs within this (h,i).
         add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], typing)
         # Off-diagonal :reversion — the history-incrementing move.
         add_reversion_progression!(uwd, Iof[(h, i)], U[_recover_to(mode, h, i)], typing)

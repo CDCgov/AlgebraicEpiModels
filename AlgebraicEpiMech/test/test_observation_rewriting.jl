@@ -193,6 +193,28 @@ end
     @test :P_I_1_a in names(both)               # prevalence chain, distinct prefix
 end
 
+@testitem "reusing an observation namespace requires the same chain shape" setup = [RewriteSetup] begin
+    base = dom(create_model(OnePopulationTyping(), SEIR()))
+
+    event_one = attach_observation(base, AtEvent(:transmission); n_stages = 1)
+    event_two = attach_observation(base, AtEvent(:transmission); n_stages = 2)
+    @test_throws ArgumentError attach_observation(
+        event_one, AtEvent(:transmission); n_stages = 2
+    )
+    @test_throws ArgumentError attach_observation(
+        event_two, AtEvent(:transmission); n_stages = 1
+    )
+
+    compartment_one = attach_observation(base, AtCompartment(:I); n_stages = 1)
+    compartment_two = attach_observation(base, AtCompartment(:I); n_stages = 2)
+    @test_throws ArgumentError attach_observation(
+        compartment_one, AtCompartment(:I); n_stages = 2
+    )
+    @test_throws ArgumentError attach_observation(
+        compartment_two, AtCompartment(:I); n_stages = 1
+    )
+end
+
 @testitem "gluing a shared chain identifies every stage, not just the first" setup = [RewriteSetup] begin
     # Regression: `L` originally carried only the FIRST stage when gluing, so each additional
     # route into a stratum re-created the later stages and delay transitions. The duplicates

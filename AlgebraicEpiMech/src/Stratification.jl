@@ -21,7 +21,7 @@ create product strata (e.g., age × geography).
 - `stratum_names::Vector{Symbol}`: Names of strata (e.g., [:child, :adult] or [:urban, :rural])
 - `label::Symbol`: Semantic label for the stratification (e.g., :age, :geography, :risk)
 
-Reflexive boxes (disease, reversion, waning, observation) are controlled via the
+Reflexive boxes (disease, reversion, and waning) are controlled via the
 `include_reflexives` keyword on `create_model`, not on the struct itself.
 
 # Examples

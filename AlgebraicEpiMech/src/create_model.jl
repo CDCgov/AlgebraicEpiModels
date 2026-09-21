@@ -30,7 +30,7 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
 # Keyword Arguments
 Keyword arguments are forwarded to `create_model_uwd`. Model-specific keywords include:
 - `include_reflexives::Bool=true` (for `ContactStratification`): Controls whether per-stratum
-  reflexive boxes (disease, reversion, waning, observation) are added. Required for `typed_product`
+  reflexive boxes (disease, reversion, and waning) are added. Required for `typed_product`
   composition; disable for standalone use to avoid zero-effect transitions.
 
 # Returns

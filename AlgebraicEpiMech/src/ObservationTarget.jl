@@ -95,11 +95,15 @@ built by pushout).
 subsequent one takes flow from the last, and the final stage is cumulative (no outflow), i.e. the
 accumulator the observation model reads.
 
+Reapplying the same target, prefix, and stage count is idempotent. Reusing a target and prefix
+for an incompatible chain shape throws an `ArgumentError`; choose a different prefix when both
+observation layouts are required.
+
 Chains are grouped by stratum. For [`AtEvent`](@ref) the group is the transition's net product —
 for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count
 into `x`'s chain. For [`AtCompartment`](@ref) each matched species gets its own chain.
 
-Apply this AFTER all composition; see `docs/concepts/composition-and-observation.md`.
+Apply this after all `typed_product` composition so chains are grouped over the final strata.
 """
 function attach_observation(pn, target::ObservationTarget; n_stages::Int = 1, prefix::Symbol = :O)
     n_stages >= 1 || throw(ArgumentError("n_stages must be >= 1"))
@@ -112,26 +116,18 @@ end
 # against the ORIGINAL parts only: everything appended carries the `prefix` head, which the name
 # filters cannot match, and freezing the bound makes that explicit.
 function _attach_all!(net, target::AtEvent, n_stages, prefix)
-    chain_head = Dict{Any, Int}()   # chain head label -> species index of stage 1
+    chain_heads = Dict{Any, Int}()   # chain head label -> species index of stage 1
     for t in 1:nt(net)
         _startswith(tname(net, t), target.transition) || continue
-        chain, delays = _chain_labels(
-            net, _net_product(net, t), n_stages, prefix, target.transition
-        )
-        # Already recorded into this chain (re-application)? Then this transition is done.
-        any(s -> sname(net, s) == chain[1], AlgebraicPetri.outputs(net, t)) && continue
-        head = get!(chain_head, chain[1]) do
-            # A chain may pre-exist from an earlier `attach_observation` call: glue, don't rebuild.
-            existing = findfirst(s -> sname(net, s) == chain[1], 1:ns(net))
-            if existing === nothing
-                first_new = ns(net) + 1
-                _build_chain!(net, chain, delays, first_new)
-                first_new
-            else
-                existing
-            end
+        key = _net_product(net, t)
+        chain, _ = _chain_labels(net, key, n_stages, prefix, target.transition)
+        head = get!(chain_heads, chain[1]) do
+            # A chain may pre-exist from an earlier `attach_observation` call: validate and glue.
+            first(_ensure_chain!(net, key, n_stages, prefix, target.transition))
         end
-        add_outputs!(net, 1, [t], [head])                   # the recorded event
+        # An identical re-application already has this output arc.
+        any(==(head), AlgebraicPetri.outputs(net, t)) ||
+            add_outputs!(net, 1, [t], [head])               # the recorded event
     end
     return net
 end
@@ -139,19 +135,22 @@ end
 function _attach_all!(net, target::AtCompartment, n_stages, prefix)
     for s in 1:ns(net)
         _startswith(sname(net, s), target.species) || continue
-        chain, delays = _chain_labels(
-            net, s, n_stages, prefix, _head_symbol(sname(net, s))
-        )
-        _has_species(net, chain[1]) && continue             # already tapped
         src = sname(net, s)
+        source = _head_symbol(src)
+        chain, _ = _chain_labels(net, s, n_stages, prefix, source)
         tap = _relabel_head(src, Symbol("obs_inflow_", _flat(src)))
-        add_transitions!(net, 1; tname = [tap])
-        t = nt(net)
-        add_inputs!(net, 1, [t], [s])
-        add_outputs!(net, 1, [t], [s])                      # catalytic: source returned
-        first_new = ns(net) + 1
-        _build_chain!(net, chain, delays, first_new)
-        add_outputs!(net, 1, [t], [first_new])              # into the chain
+        head, built = _ensure_chain!(net, s, n_stages, prefix, source)
+        taps = [t for t in 1:nt(net) if tname(net, t) == tap]
+        if built
+            isempty(taps) || _incompatible_chain(chain[1], n_stages)
+            add_transitions!(net, 1; tname = [tap])
+            t = nt(net)
+            add_inputs!(net, 1, [t], [s])
+            add_outputs!(net, 1, [t], [s])                  # catalytic: source returned
+            add_outputs!(net, 1, [t], [head])               # into the chain
+        elseif length(taps) != 1 || !_is_observation_tap(net, only(taps), s, head)
+            _incompatible_chain(chain[1], n_stages)
+        end
     end
     return net
 end
@@ -180,7 +179,65 @@ function _chain_labels(net, key_idx, n_stages, prefix, source)
     return species, delays
 end
 
-_has_species(net, label) = any(s -> sname(net, s) == label, 1:ns(net))
+function _ensure_chain!(net, key_idx, n_stages, prefix, source)
+    chain, delays = _chain_labels(net, key_idx, n_stages, prefix, source)
+    extended_chain, extended_delays = _chain_labels(
+        net, key_idx, n_stages + 1, prefix, source
+    )
+
+    species_matches = [
+        [s for s in 1:ns(net) if sname(net, s) == label] for label in chain
+    ]
+    delay_matches = [
+        [t for t in 1:nt(net) if tname(net, t) == label] for label in delays
+    ]
+    next_species = [s for s in 1:ns(net) if sname(net, s) == extended_chain[end]]
+    next_delay = [t for t in 1:nt(net) if tname(net, t) == extended_delays[end]]
+
+    has_existing_parts =
+        any(matches -> !isempty(matches), species_matches) ||
+        any(matches -> !isempty(matches), delay_matches) ||
+        !isempty(next_species) || !isempty(next_delay)
+
+    if !has_existing_parts
+        first_new = ns(net) + 1
+        _build_chain!(net, chain, delays, first_new)
+        return first_new, true
+    end
+
+    valid =
+        all(matches -> length(matches) == 1, species_matches) &&
+        all(matches -> length(matches) == 1, delay_matches) &&
+        isempty(next_species) && isempty(next_delay)
+
+    if valid
+        stages = only.(species_matches)
+        for (i, matches) in enumerate(delay_matches)
+            transition = only(matches)
+            valid &= AlgebraicPetri.inputs(net, transition) == [stages[i]]
+            valid &= AlgebraicPetri.outputs(net, transition) == [stages[i + 1]]
+        end
+    end
+
+    valid || _incompatible_chain(chain[1], n_stages)
+    return only(first(species_matches)), false
+end
+
+function _incompatible_chain(head, n_stages)
+    throw(
+        ArgumentError(
+            "observation chain $head already exists with structure incompatible with " *
+                "n_stages=$n_stages; reuse its original stage count or choose a different prefix",
+        ),
+    )
+end
+
+function _is_observation_tap(net, transition, source, head)
+    inputs = AlgebraicPetri.inputs(net, transition)
+    outputs = AlgebraicPetri.outputs(net, transition)
+    return inputs == [source] && length(outputs) == 2 &&
+        count(==(source), outputs) == 1 && count(==(head), outputs) == 1
+end
 
 # The compartment part of a (possibly nested) label: `(:I1, :a)` -> `:I1`, `:I1` -> `:I1`.
 _head_symbol(label::Symbol) = label

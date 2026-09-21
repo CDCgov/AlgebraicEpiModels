@@ -32,8 +32,8 @@ multistrain = NoCrossImmunity(2)  # Creates [:strain_1, :strain_2]
 
 # Compose to create strain-structured SIR
 typing = OnePopulationTyping()
-strain_typed = create_multistrain_model(typing, multistrain)
-sir_typed = create_compartmental_model(typing, SIR())
+strain_typed = create_model(typing, multistrain)
+sir_typed = create_model(typing, SIR())
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
@@ -44,6 +44,9 @@ struct NoCrossImmunity <: MultiStrainModel
     function NoCrossImmunity(strain_names::Vector{Symbol})
         if length(strain_names) < 1
             throw(ArgumentError("strain_names must contain at least 1 strain"))
+        end
+        if length(strain_names) != length(unique(strain_names))
+            throw(ArgumentError("strain_names must be unique"))
         end
         return new(length(strain_names), strain_names)
     end
@@ -80,8 +83,8 @@ multistrain = CompleteCrossImmunity(3)  # Creates [:strain_1, :strain_2, :strain
 
 # Compose to create competing strain SIR
 typing = UninfectedInfectedTyping()
-strain_typed = create_multistrain_model(typing, multistrain)
-sir_typed = create_compartmental_model(typing, SIR())
+strain_typed = create_model(typing, multistrain)
+sir_typed = create_model(typing, SIR())
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
@@ -92,6 +95,9 @@ struct CompleteCrossImmunity <: MultiStrainModel
     function CompleteCrossImmunity(strain_names::Vector{Symbol})
         if length(strain_names) < 1
             throw(ArgumentError("strain_names must contain at least 1 strain"))
+        end
+        if length(strain_names) != length(unique(strain_names))
+            throw(ArgumentError("strain_names must be unique"))
         end
         return new(length(strain_names), strain_names)
     end

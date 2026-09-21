@@ -103,6 +103,8 @@ function add_stages!(
         uwd::RelationDiagram, variable_symbol::Symbol, number_of_stages::Int,
         pop_type::Symbol, typing::EpidemiologicalTyping
     )
+    number_of_stages >= 1 || throw(ArgumentError("number_of_stages must be at least 1"))
+
     # Create junctions for each stage
     junctions = [
         add_junction!(

@@ -75,4 +75,18 @@
         @test SEIS() isa CompartmentalModel
         @test SEIRS() isa CompartmentalModel
     end
+
+    @testset "Stage counts must be positive" begin
+        @test_throws ArgumentError SI(number_I_stages = 0)
+        @test_throws ArgumentError SIR(number_I_stages = -1)
+        @test_throws ArgumentError SIS(number_I_stages = 0)
+        @test_throws ArgumentError SEI(number_E_stages = 0)
+        @test_throws ArgumentError SEI(number_I_stages = -1)
+        @test_throws ArgumentError SEIR(number_E_stages = -1)
+        @test_throws ArgumentError SEIR(number_I_stages = 0)
+        @test_throws ArgumentError SEIS(number_E_stages = 0)
+        @test_throws ArgumentError SEIS(number_I_stages = -1)
+        @test_throws ArgumentError SEIRS(number_E_stages = -1)
+        @test_throws ArgumentError SEIRS(number_I_stages = 0)
+    end
 end

@@ -118,7 +118,7 @@ function generate_transition_names(uwd, model::ContactStratification)
             input_names = [string(input1_name), string(input2_name)]
             push!(transition_names, Symbol(join(input_names, "_")))
         elseif num_ports == 2 || num_ports == 3
-            # Per-stratum reflexive boxes (disease, reversion, waning, observation):
+            # Per-stratum reflexive boxes (disease, reversion, and waning):
             # Use first port's junction variable as the stratum name.
             # After typed_product, these compose as e.g. (:I_to_R, :child) → I_to_R_child
             first_name = subpart(uwd, box_junctions[1], :variable)
@@ -196,8 +196,8 @@ the second component of the composed `typed_product` transition names.
   exposing the infecting strain (recovered from the infector junction) so the composed
   name stays keyable per strain.
 - **reflexive / reversion boxes** (2–3 port) → the first junction's variable, mirroring
-  `ContactStratification` — e.g. the `:disease`/`:observation` reflexives and the
-  off-diagonal `:reversion` on `(h,i)` are named by that `(h,i)`, and `:waning` by its
+  `ContactStratification` — e.g. the `:disease` reflexives and the off-diagonal
+  `:reversion` on `(h,i)` are named by that `(h,i)`, and `:waning` by its
   `U_h`. Composition with the base disambiguates them (base name differs).
 
 # Examples

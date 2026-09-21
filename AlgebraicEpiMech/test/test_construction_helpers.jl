@@ -101,6 +101,18 @@ end
         @test length(boxes(uwd)) == 3
         @test isempty(ports(uwd, outer = true))
     end
+
+    @testset "Rejects non-positive stage counts before mutating the UWD" begin
+        for count in (0, -1)
+            uwd = RelationDiagram(Symbol[])
+            pop_type = aem.get_infected_type(one_pop_typing)
+            @test_throws ArgumentError aem.add_stages!(
+                uwd, :I, count, pop_type, one_pop_typing
+            )
+            @test isempty(junctions(uwd))
+            @test isempty(boxes(uwd))
+        end
+    end
 end
 
 @testitem "setup_basic! for SI" setup = [HelperSetup] begin
