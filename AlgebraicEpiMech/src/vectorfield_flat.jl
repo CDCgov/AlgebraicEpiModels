@@ -51,16 +51,12 @@ This function complies with SciML conventions for in-place ODE vectorfields.
 # Performance
 
 Everything that can be resolved from the net alone — flattened names, the mass-action input
-lists, the nonzero stoichiometry — is resolved ONCE at build time, and the right-hand side is a
+lists, the nonzero stoichiometry — is resolved once at build time, and the right-hand side is a
 sparse loop over arcs rather than a dense loop over `transitions × species`. Name lookup into the
 arguments is also done once per concrete argument type: `u`, `du` and `p` may be anything whose
 `propertynames` lists the flattened names in the same order as its integer indexing (`LVector`,
 `NamedTuple`, ...), and that position map is cached on first sight of the type; an `AbstractDict`
-is looked up by name on every call. At the 50-state geographic model (2700 transitions × 300
-species) this is the difference between ~13 ms and ~40 µs per evaluation. The results are bit-for-bit
-identical to the dense resolve-everything-per-call form this replaced — same factor and
-summation order — which `test/test_vectorfield_flat.jl` keeps as a local reference and
-compares against exactly.
+is looked up by name on every call.
 """
 function vectorfield_flat(pn::AbstractPetriNet)
     S = ns(pn)
@@ -83,6 +79,7 @@ function vectorfield_flat(pn::AbstractPetriNet)
         c == 0 || push!(stoichiometry[i], (j, c))
     end
 
+    # Caching objects for inplace calculations
     u_positions = _NamePositions()
     du_positions = _NamePositions()
     p_positions = _NamePositions()
@@ -91,32 +88,26 @@ function vectorfield_flat(pn::AbstractPetriNet)
         u_m = _values_by_name(u_positions, species_syms, u)
         p_m = _values_by_name(p_positions, transition_syms, p)
         du_m = _slots_by_name(du_positions, species_syms, du)
-        # Same numeric path as the dense form: each rate converted to `valtype(du)`, then the
-        # contributions summed from a Float64 zero (`sum(...; init = 0.0)`) and written once. For
-        # Float64 and Dual-over-Float64 outputs that accumulator IS `du`'s element type, so the
-        # sums go straight into `du` with no per-call allocation; a narrower output type (Float32)
-        # keeps the wider accumulator and converts on the final write. `du` must not alias `u`.
+
         Ty = valtype(du)
-        acc = _accumulator(promote_type(Float64, Ty), Ty, du_m, S)
-        @inbounds for k in 1:S
-            acc[k] = zero(eltype(acc))
-        end
+        acc = _zeroed_accumulator(promote_type(Float64, Ty), Ty, du_m, S)
         @inbounds for i in 1:T
             factor = one(eltype(u_m))
             for (j, k) in inputs[i]
                 factor *= u_m[j]^k
             end
             rate = convert(Ty, AlgebraicPetri.valueat(p_m[i], u, t) * factor)
+            # only non-zero stoichoimetry looped over
             for (j, c) in stoichiometry[i]
                 acc[j] += rate * c
             end
         end
-        _finish!(acc, du_m, S)
+        _writeback_accumulator!(acc, du_m, S)
         return du
     end
 end
 
-# Position of each flattened name inside an argument, resolved once per concrete argument type.
+# Cache for position of each flattened name inside an argument, resolved once per concrete argument type.
 # Single-entry and lock-free: the right-hand side is called from threaded ensemble propagation, so
 # readers take an acquire load and a miss publishes an immutable `(type, positions)` pair with a
 # release store — two threads racing on the same miss compute identical content.
@@ -149,7 +140,6 @@ end
 
 # An argument read in net order without copying it: `v[k]` is the value of the k-th net name.
 # Materializing the gather would cost one allocation of `length(syms)` per right-hand-side call
-# — 2700 rates per call on the geographic model, inside threaded ensemble propagation.
 struct _ByName{X}
     x::X
     positions::Vector{Int}
@@ -180,13 +170,18 @@ _slots_by_name(cache::_NamePositions, syms::Vector{Symbol}, du) =
     _ByName(du, _positions(cache, syms, du))
 _slots_by_name(::_NamePositions, syms::Vector{Symbol}, du::AbstractDict) = _ByKey(du, syms)
 
-# The accumulator is `du` itself when its element type already is the dense form's
-# accumulation type, and a temporary of that type otherwise (both cases resolved by dispatch).
-_accumulator(::Type{A}, ::Type{A}, du_m, S) where {A} = du_m
-_accumulator(::Type{A}, ::Type{Ty}, du_m, S) where {A, Ty} = zeros(A, S)
-_finish!(acc::_ByName, du_m::_ByName, S) = nothing
-_finish!(acc::_ByKey, du_m::_ByKey, S) = nothing
-_finish!(acc, du_m, S) = (
+# The accumulator is a cleared `du` when its element type already is the dense form's
+# accumulation type, and a zeroed temporary of that type otherwise (both cases resolved by dispatch).
+function _zeroed_accumulator(::Type{A}, ::Type{A}, du_m, S) where {A}
+    @inbounds for k in 1:S
+        du_m[k] = zero(A)
+    end
+    return du_m
+end
+_zeroed_accumulator(::Type{A}, ::Type{Ty}, du_m, S) where {A, Ty} = zeros(A, S)
+_writeback_accumulator!(acc::_ByName, du_m::_ByName, S) = nothing
+_writeback_accumulator!(acc::_ByKey, du_m::_ByKey, S) = nothing
+_writeback_accumulator!(acc, du_m, S) = (
     @inbounds for k in 1:S
         du_m[k] = acc[k]
     end

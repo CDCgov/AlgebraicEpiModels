@@ -7,10 +7,13 @@ Create a typed Petri net model from an epidemiological typing strategy and model
 
 This is the unified entry point for creating all model types in AlgebraicEpiMech. Through
 multiple dispatch on the `model` parameter, it supports any subtype of `EpiMechModel`.
+The undirected wiring diagram (UWD) provides an intermediate structural representation, recording
+how compartments and mechanisms connect independently of the final typed Petri net constructed by
+`oapply_typed`.
 
 # Functionality Overview
-The `create_model` function follows a consistent four-step pattern to build the typed
-Petri net representation of the epidemiological-mechanical model:
+The `create_model` function builds the typed
+Petri net representation of the epidemiological-mechanical model in four steps:
 
 1. **Build Type System**: Materializes the typing strategy as a `LabelledPetriNet`
 2. **Create UWD**: Builds an undirected wiring diagram with model structure and box names
@@ -86,7 +89,7 @@ function create_model(
         model::EpiMechModel;
         include_reflexives::Bool = true
     )
-    # Materialize the typing strategy as the Petri-net codomain.
+    # Materialize the typing strategy as the Petri-net codomain for the typed petri net.
     codomain = type_system(typing)
 
     # Create the UWD for the model (dispatch on include_reflexives via positional arg)
