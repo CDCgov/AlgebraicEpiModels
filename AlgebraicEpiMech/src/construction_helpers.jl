@@ -4,16 +4,10 @@
 """
 Create the structural skeleton of an undirected wiring diagram (UWD) for a compartmental model.
 
-This function allocates the correct number and types of outer ports based on the model's
-compartment count and the typing's type system. The resulting empty UWD provides the
-foundation for compositional model building - junctions and mechanisms are added later
-via `setup_basic!` and extension methods.
-
-# Compositional Role
-This is the first step in model construction, creating a "typed canvas" that ensures
-all subsequent junction and mechanism additions respect the typing's type constraints when
-composing models using `AlgebraicPetri.oapply_typed`. The outer ports in the UWD allow
-composition with other UWDs although this is not main compositional focus.
+This function allocates one typed outer port for each compartment represented by the
+model. Junctions and mechanisms are added later by `setup_basic!` and extension methods,
+which attach each compartment junction to its corresponding outer-port slot. The completed
+UWD is subsequently materialized as a typed Petri net by `AlgebraicPetri.oapply_typed`.
 """
 function create_relation_diagram(typing::EpidemiologicalTyping, model::CompartmentalModel)
     error("create_relation_diagram not implemented for typing type $(typeof(typing)). Implement a method for this combination.")
@@ -62,15 +56,10 @@ function create_relation_diagram(
 end
 
 """
-Create and connect the Susceptible (S) compartment junction to the first outer port.
+Create the Susceptible (S) compartment junction and attach it to the first outer port.
 
-# Compositional Role
-All epidemiological models start with a susceptible population. This function establishes
-the S compartment as the entry point for the UWD construction, always connecting to the first outer port
-by convention. This standardization enables predictable composition - extended models can
-reliably find and reference the S junction when adding reversion mechanisms (e.g., I→S in SIS).
-
-Returns the S junction ID for use in mechanism construction.
+The first compartment slot is reserved for S by convention. The returned junction ID is
+used directly when adding infection and reversion mechanisms (for example, I→S in SIS).
 """
 function set_S_junction!(uwd::RelationDiagram, typing::OnePopulationTyping)
     pop_type = typing.population_type
@@ -91,11 +80,8 @@ function set_S_junction!(uwd::RelationDiagram, typing::UninfectedInfectedTyping)
 end
 
 """
-Create age group junctions, either one per age group (OnePopulationTyping) or pairs per age group
-(UninfectedInfectedTyping).
-
-# Compositional Role
-Enables contact stratification by creating junctions for each stratum.
+Create stratum junctions: one per stratum for `OnePopulationTyping`, or an uninfected and
+infected pair per stratum for `UninfectedInfectedTyping`.
 
 Returns a tuple of junction IDs for the stratum:
 - For `OnePopulationTyping`: (stratum_junction, stratum_junction)
@@ -133,11 +119,10 @@ end
 """
 Generate junction variable names for multi-stage compartments.
 
-# Compositional Role
-Enables Erlang-distributed dwell times by creating sequential stages (E1, E2, ... or I1, I2, ...).
-When number_of_stages=1, returns the base name (:E or :I) for backward compatibility.
-When number_of_stages>1, appends stage numbers for clarity in visualization and debugging.
-This naming convention is crucial for connecting progression mechanisms in the correct sequence.
+When `number_of_stages == 1`, return the conventional base name (`:E` or `:I`).
+For multiple stages, append the stage number to produce stable, readable names such as
+`:E1`, `:E2`, and `:I1`. These names aid visualization, inspection, and downstream lookup;
+progression mechanisms themselves are connected using junction IDs.
 
 # Examples
 ```julia
@@ -157,12 +142,11 @@ end
 """
 Create a sequence of compartment stages with progression transitions between them.
 
-# Compositional Role
 This is the workhorse for multi-stage compartments, enabling Erlang-distributed dwell times.
-Creates N junctions (e.g., E1→E2→E3 or I1→I2→I3), connects each to an outer port for composition,
-and chains them with progression mechanisms.
+It creates N junctions (for example, E1→E2→E3 or I1→I2→I3), attaches each to the
+next preallocated outer-port slot, and chains them with progression mechanisms.
 
-Key for composition:
+# Construction behavior
 - Returns the vector of ALL junction IDs (not just first/last) for flexible mechanism attachment
 - Returns updated outer_port_counter for sequential port allocation
 - First stage receives incoming transitions (e.g., S+I→E1), last stage feeds next compartment
@@ -205,7 +189,7 @@ end
 """
 Populate an SI model UWD with junctions and infection mechanisms.
 
-# Compositional Role
+# Construction Role
 This is the base layer for all direct-infection models (SI, SIR, SIS). It establishes:
 1. S compartment (via `set_S_junction!`)
 2. I compartment chain (potentially multi-stage via `add_stages!`)
@@ -240,7 +224,7 @@ end
 """
 Populate an SEI model UWD with junctions, exposure, and progression mechanisms.
 
-# Compositional Role
+# Construction Role
 This is the base layer for all exposure-based models (SEI, SEIR, SEIS, SEIRS). It establishes:
 1. S compartment (via `set_S_junction!`)
 2. E compartment chain (potentially multi-stage for gamma-distributed latent period)
