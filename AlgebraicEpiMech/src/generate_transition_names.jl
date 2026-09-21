@@ -156,34 +156,28 @@ typing = OnePopulationTyping()
 multistrain = NoCrossImmunity([:h1n1, :h3n2])
 uwd = create_model_uwd(typing, multistrain)
 names = generate_transition_names(uwd, multistrain)
-# Returns one strain name per box; 4 boxes per strain
-# (transmission, disease, reversion, observation), so 2 strains → 8 names.
+# Returns one strain name per box; 3 boxes per strain
+# (transmission, disease, reversion), so 2 strains → 6 names.
 ```
 """
-function generate_transition_names(uwd, multistrain::MultiStrainModel)
-    strain_names = multistrain.strain_names
+function _strain_junction(uwd, box_id, ::NoCrossImmunity)
+    box_junctions = unique([junction(uwd, port) for port in ports(uwd, box_id)])
+    return only(box_junctions)
+end
+
+function _strain_junction(uwd, box_id, ::CompleteCrossImmunity)
+    box_junctions = unique([junction(uwd, port) for port in ports(uwd, box_id)])
+    strain_junctions = filter(box_junctions) do junction_id
+        return subpart(uwd, junction_id, :variable) != :susceptible
+    end
+    return only(strain_junctions)
+end
+
+function generate_transition_names(uwd, model::MultiStrainModel)
     transition_names = Symbol[]
 
     for box_id in boxes(uwd)
-        box_ports = ports(uwd, box_id)
-
-        # Get the junctions this box connects to
-        box_junctions = [junction(uwd, port) for port in box_ports]
-
-        # For NoCrossImmunity: all ports connect to the same strain junction
-        # For CompleteCrossImmunity: find the infected (strain-specific) junction
-        # The shared susceptible junction has variable :susceptible
-        strain_junction = if multistrain isa NoCrossImmunity
-            box_junctions[1]  # All ports connect to same strain
-        else
-            # Find the junction that is NOT :susceptible (i.e., the strain-specific infected)
-            idx = findfirst(j -> subpart(uwd, j, :variable) != :susceptible, box_junctions)
-            if idx === nothing
-                error("Could not find strain-specific junction for box $box_id")
-            end
-            box_junctions[idx]
-        end
-
+        strain_junction = _strain_junction(uwd, box_id, model)
         strain_variable = subpart(uwd, strain_junction, :variable)
 
         # Transition name is just the strain name
