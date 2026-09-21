@@ -9,7 +9,7 @@ template for "typing" each species and transition in the Petri net.
 
 [Libkind et al. (2023) _An algebraic framework for structured epidemic modelling_](https://royalsocietypublishing.org/rsta/article/380/2233/20210309/112239)
 """
-abstract type EpidemiologicalSchema end
+abstract type EpidemiologicalTyping end
 
 """
 Schema for a single-population epidemiological model.
@@ -26,7 +26,7 @@ schema = OnePopulationSchema()
 schema = OnePopulationSchema(population_type = :CityPopulation)
 ```
 """
-@kwdef struct OnePopulationSchema <: EpidemiologicalSchema
+@kwdef struct OnePopulationSchema <: EpidemiologicalTyping
     "The symbolic name for the population type. Defaults to `:Population`."
     population_type::Symbol = :Population
 end
@@ -57,21 +57,23 @@ schema = UninfectedInfectedSchema(
 
 See also: [`create_schema`](@ref), [`OnePopulationSchema`](@ref)
 """
-@kwdef struct UninfectedInfectedSchema <: EpidemiologicalSchema
+@kwdef struct UninfectedInfectedSchema <: EpidemiologicalTyping
     "The symbolic name for the uninfected population. Defaults to `:Uninfected`."
     uninfected_type::Symbol = :Uninfected
     "The symbolic name for the infected population. Defaults to `:Infected`."
     infected_type::Symbol = :Infected
 end
 
-function create_schema(schema::EpidemiologicalSchema)
+function create_schema(schema::EpidemiologicalTyping)
     error("`create_schema` not implemented for schema type $(typeof(schema)). Implement a method for this schema type or use OnePopulationSchema/UninfectedInfectedSchema.")
 end
 
 """
     create_schema(schema::OnePopulationSchema, population_transitions...)
 
-Create a labelled Petri net to be a single-population group schema.
+Create a labelled Petri net schema for a single population epidemiological model, where all the population
+have the same stratification. This function constructs a `LabelledPetriNet` that defines the structure for
+modelling epidemiological dynamics within a single population.
 
 Delegates to [`create_one_population_schema`](@ref) with the population type
 specified in the schema.
@@ -90,9 +92,20 @@ net = create_schema(schema, :birth => (:Individual => (:Individual, :Individual)
 ```
 """
 function create_schema(schema::OnePopulationSchema, population_transitions...)
-    return create_one_population_schema(
-        population_transitions...; population_type = schema.population_type
+    population_type = schema.population_type
+    schema = LabelledPetriNet(
+        [population_type],
+        :transmission => (
+            (
+                population_type, population_type,
+            ) => (population_type, population_type)
+        ),
+        :disease => (population_type => population_type),
+        :reversion => (population_type => population_type),
+        :waning => (population_type => population_type),
+        population_transitions...
     )
+    return schema
 end
 
 """
@@ -145,23 +158,23 @@ new transitions within the population (e.g., aging, different locations)
 # Returns
 - `LabelledPetriNet`: A Petri net schema with the specified population type and transitions
 """
-function create_one_population_schema(
-        population_transitions...; population_type::Symbol = :Population
-    )
-    schema = LabelledPetriNet(
-        [population_type],
-        :transmission => (
-            (
-                population_type, population_type,
-            ) => (population_type, population_type)
-        ),
-        :disease => (population_type => population_type),
-        :reversion => (population_type => population_type),
-        :waning => (population_type => population_type),
-        population_transitions...
-    )
-    return schema
-end
+# function create_one_population_schema(
+#         population_transitions...; population_type::Symbol = :Population
+#     )
+#     schema = LabelledPetriNet(
+#         [population_type],
+#         :transmission => (
+#             (
+#                 population_type, population_type,
+#             ) => (population_type, population_type)
+#         ),
+#         :disease => (population_type => population_type),
+#         :reversion => (population_type => population_type),
+#         :waning => (population_type => population_type),
+#         population_transitions...
+#     )
+#     return schema
+# end
 
 """
 Create a labelled Petri net schema for a two-population epidemiological model with

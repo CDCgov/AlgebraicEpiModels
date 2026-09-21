@@ -6,8 +6,8 @@ using DocStringExtensions
 import Base: *
 
 # Schemas
-export EpidemiologicalSchema, OnePopulationSchema, UninfectedInfectedSchema,
-    create_schema, create_one_population_schema, create_uninfected_infected_schema
+export EpidemiologicalTyping, OnePopulationSchema, UninfectedInfectedSchema,
+    create_schema, create_uninfected_infected_schema
 
 # Epi mechanism functions
 export add_infection!, add_disease_progression!,

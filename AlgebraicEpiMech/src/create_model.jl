@@ -21,7 +21,7 @@ The resulting typed Petri net can be used directly for ODE simulation or compose
 typed Petri nets via `typed_product` to build complex hierarchical models.
 
 # Arguments
-- `schema::EpidemiologicalSchema`: The population schema defining possible compartment and transition types.
+- `schema::EpidemiologicalTyping`: The population schema defining possible compartment and transition types.
 - `model::EpiMechModel`: The model specification (uses dispatch for different types)
 
 # Keyword Arguments
@@ -82,7 +82,7 @@ See also: [`create_model_uwd`](@ref), [`generate_transition_names`](@ref), [`cre
           `typed_product` (from `AlgebraicPetri.TypedPetri`), [`vectorfield_flat`](@ref)
 """
 function create_model(
-        schema::EpidemiologicalSchema,
+        schema::EpidemiologicalTyping,
         model::EpiMechModel;
         include_reflexives::Bool = true
     )

@@ -267,7 +267,7 @@ end
 # Test error handling for unimplemented combinations
 @testitem "create_model_uwd throws error for unimplemented combinations" setup = [ModelUWDSetup] begin
     # Create a custom schema type that has no implementations
-    struct CustomSchema <: EpidemiologicalSchema end
+    struct CustomSchema <: EpidemiologicalTyping end
     custom_schema = CustomSchema()
 
     # Should throw error for any model with unimplemented schema

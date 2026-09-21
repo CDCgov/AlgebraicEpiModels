@@ -10,7 +10,7 @@ compartmental structure and transitions, using the type names from the schema.
 The compartments are typed according to the schema's population structure.
 
 # Arguments
-- `schema::EpidemiologicalSchema`: The population schema defining type names
+- `schema::EpidemiologicalTyping`: The population schema defining type names
 - `model::CompartmentalModel`: The compartmental model instance (SI(), SEI(), SIR(), SEIR(), etc.)
 
 # Returns
@@ -27,7 +27,7 @@ schema = UninfectedInfectedSchema(uninfected_type = :Susceptible, infected_type 
 seir_uwd = create_model_uwd(schema, SEIR())  # S::Susceptible, E,I,R::Infectious
 ```
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::CompartmentalModel)
+function create_model_uwd(schema::EpidemiologicalTyping, model::CompartmentalModel)
     error("create_model_uwd not implemented for schema type $(typeof(schema)) and model type $(typeof(model)). Implement a method for this combination.")
 end
 
@@ -43,7 +43,7 @@ The returned UWD can be applied to the schema using `oapply_typed` to create a t
 Petri net, enabling composition with other typed Petri nets (e.g., demographic processes,
 interventions).
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::Union{SI, SEI})
+function create_model_uwd(schema::EpidemiologicalTyping, model::Union{SI, SEI})
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
     (uwd, _, _) = setup_basic!(uwd, schema, model)
@@ -63,7 +63,7 @@ periods. Recovery always occurs from the last I stage, ensuring proper sequencin
 # Usage with oapply_typed
 Apply to schema with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::SIR)
+function create_model_uwd(schema::EpidemiologicalTyping, model::SIR)
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
 
@@ -95,7 +95,7 @@ last I stage back to S.
 # Usage with oapply_typed
 Apply to schema with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::SIS)
+function create_model_uwd(schema::EpidemiologicalTyping, model::SIS)
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
 
@@ -122,7 +122,7 @@ of latent and infectious period distributions. Recovery always occurs from the l
 # Usage with oapply_typed
 Apply to schema with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::SEIR)
+function create_model_uwd(schema::EpidemiologicalTyping, model::SEIR)
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
 
@@ -161,7 +161,7 @@ Reversion occurs from the last I stage back to S.
 # Usage with oapply_typed
 Apply to schema with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::SEIS)
+function create_model_uwd(schema::EpidemiologicalTyping, model::SEIS)
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
 
@@ -197,7 +197,7 @@ the last I stage, and waning immunity returns individuals from R to S.
 # Usage with oapply_typed
 Apply to schema with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalSchema, model::SEIRS)
+function create_model_uwd(schema::EpidemiologicalTyping, model::SEIRS)
     # Create UWD with compartment structure
     uwd = create_relation_diagram(schema, model)
 
@@ -249,7 +249,7 @@ by pushout (`attach_observation`), so a stratification factor never has to know 
 `docs/concepts/composition-and-observation.md`.
 
 # Arguments
-- `schema::EpidemiologicalSchema`: The population schema (typically OnePopulationSchema)
+- `schema::EpidemiologicalTyping`: The population schema (typically OnePopulationSchema)
 - `multistrain::NoCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -269,7 +269,7 @@ combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        schema::EpidemiologicalSchema,
+        schema::EpidemiologicalTyping,
         multistrain::NoCrossImmunity
     )
     strain_names = multistrain.strain_names
@@ -323,7 +323,7 @@ The UWD has:
 - Reversion boxes to return to shared susceptible pool
 
 # Arguments
-- `schema::EpidemiologicalSchema`: The population schema (must be UninfectedInfectedSchema)
+- `schema::EpidemiologicalTyping`: The population schema (must be UninfectedInfectedSchema)
 - `multistrain::CompleteCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -343,7 +343,7 @@ combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        schema::EpidemiologicalSchema,
+        schema::EpidemiologicalTyping,
         multistrain::CompleteCrossImmunity
     )
     strain_names = multistrain.strain_names
@@ -405,7 +405,7 @@ All transmission boxes are created with the `:transmission` name, enabling compo
 with compartmental models that have `:transmission` boxes (SI, SIR, SEIR, etc.).
 
 # Arguments
-- `schema::EpidemiologicalSchema`: The population schema defining type system
+- `schema::EpidemiologicalTyping`: The population schema defining type system
 - `model::ContactStratification`: The contact stratification configuration with stratum names
 
 # Returns
@@ -423,7 +423,7 @@ will align based on the `:transmission` name, allowing the contact structure to 
 the disease dynamics defined in the compartmental model.
 """
 function create_model_uwd(
-        schema::EpidemiologicalSchema, model::ContactStratification;
+        schema::EpidemiologicalTyping, model::ContactStratification;
         include_reflexives::Bool = true
     )
     uwd = RelationDiagram(Symbol[]) # No outer ports

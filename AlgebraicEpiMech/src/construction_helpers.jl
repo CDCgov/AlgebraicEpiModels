@@ -15,7 +15,7 @@ all subsequent junction and mechanism additions respect the schema's type constr
 composing models using `AlgebraicPetri.oapply_typed`. The outer ports in the UWD allow
 composition with other UWDs although this is not main compositional focus.
 """
-function create_relation_diagram(schema::EpidemiologicalSchema, model::CompartmentalModel)
+function create_relation_diagram(schema::EpidemiologicalTyping, model::CompartmentalModel)
     error("create_relation_diagram not implemented for schema type $(typeof(schema)). Implement a method for this combination.")
 end
 
@@ -177,7 +177,7 @@ Key for composition:
 """
 function add_stages!(
         uwd::RelationDiagram, variable_symbol::Symbol, number_of_stages::Int,
-        pop_type::Symbol, outer_port_counter::Int, schema::EpidemiologicalSchema
+        pop_type::Symbol, outer_port_counter::Int, schema::EpidemiologicalTyping
     )
     # Create junctions for each stage
     junctions = [
@@ -218,7 +218,7 @@ Returns (uwd, S_junction, last_I_junction) to enable extensions:
 The multi-stage capability means SI can represent gamma-distributed infectious periods
 even before extending to SIR.
 """
-function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalSchema, model::SI)
+function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalTyping, model::SI)
     # Add junctions for S compartment
     S_junction = set_S_junction!(uwd, schema)
     pop_type = get_infected_type(schema)
@@ -256,7 +256,7 @@ Returns (uwd, S_junction, last_I_junction) to enable extensions:
 The dual multi-stage capability enables independent control of latent and infectious period
 distributions - critical for realistic disease modeling.
 """
-function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalSchema, model::SEI)
+function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalTyping, model::SEI)
     # Add junctions for S compartment
     S_junction = set_S_junction!(uwd, schema)
     pop_type = get_infected_type(schema)
