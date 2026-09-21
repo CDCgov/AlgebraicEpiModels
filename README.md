@@ -4,10 +4,7 @@ TBD
 
 ## Getting started
 
-
 ## How it works
-
-
 
 ## Contributing
 
