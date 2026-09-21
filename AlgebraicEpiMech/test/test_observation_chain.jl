@@ -50,6 +50,20 @@ end
     @test_throws ArgumentError ObservationLayout((), ((source_name = :I,),))
 end
 
+@testitem "observation_layout recognises custom prefixes" setup = [ObservationLayoutSetup] begin
+    pn = attach_observation(
+        dom(create_model(one_pop_typing, SEIR())),
+        AtCompartment(:I); n_stages = 2, prefix = :reported_case,
+    )
+
+    layout = observation_layout(pn; prefix = :reported_case)
+
+    @test layout.obs_names == (:reported_case_I_1, :reported_case_I_2)
+    @test only(layout.chains).source_name == :I
+    @test only(layout.chains).cumulative_name == :reported_case_I_2
+    @test isempty(observation_layout(pn).chains)
+end
+
 @testitem "observation_layout separates chains on different sources" setup = [ObservationLayoutSetup] begin
     # Two chains, attached one after another. Each is named for the source it samples, which is
     # what keeps them apart — a chain naming scheme that dropped the source would collapse both

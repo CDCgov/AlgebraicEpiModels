@@ -1,14 +1,8 @@
 # Observation-chain metadata for Petri nets.
 #
-# Observation is attached to a composed net by PUSHOUT (`src/observation_rewriting.jl`), not by
-# composing an observation factor into it. What survives here is the READ side: given a net that
-# already carries observation chains, recover which species belong to which chain and in what
-# order, so downstream packages do not each re-implement the parsing.
-#
-# The construction side — `WithObservation`, `ObservationChainSpec`, `add_observation_chain!` and
-# the UWD plumbing they needed — was removed once every submodel had migrated to
-# `attach_observation`. See `docs/concepts/composition-and-observation.md` for why observation is
-# a colimit rather than an operadic composition.
+# Observation models are attached to the petri net representing the epidemiological dynamics by
+# pushout, that is assembling the joint dynamics and observation metadata on shared components.
+# Here we define the shared components.
 
 """
     ObservationChainLayout(source_name, obs_names)
@@ -62,7 +56,7 @@ struct ObservationLayout{N, C <: Tuple, M}
 end
 
 """
-    observation_layout(pn::LabelledPetriNet)
+    observation_layout(pn::LabelledPetriNet; prefix::Symbol = :O)
 
 Return deterministic observation-chain metadata for an augmented Petri net.
 
@@ -72,16 +66,17 @@ The result is an [`ObservationLayout`](@ref) with fields:
 - `cumulative_names`: flattened terminal observation state for each chain
 
 This centralizes the observation naming/ordering contract, so downstream packages do not each
-re-implement observation-state parsing. It expects the `<prefix>_<source>_<stage>` leaf that
-[`attach_observation`](@ref) produces; a chain named otherwise is not recognised as one.
+re-implement observation-state parsing. `prefix` must match the prefix passed to
+[`attach_observation`](@ref). The function recognises the `<prefix>_<source>_<stage>` leaf that
+`attach_observation` produces; a chain named otherwise is not recognised as one.
 """
-function observation_layout(pn)
+function observation_layout(pn; prefix::Symbol = :O)
     obs_names = Symbol[]
     chain_order = Symbol[]
     chain_stages = Dict{Symbol, Vector{Tuple{Int, Symbol}}}()
 
     for raw_name in snames(pn)
-        meta = _observation_species_metadata(raw_name)
+        meta = _observation_species_metadata(raw_name, prefix)
         isnothing(meta) && continue
 
         push!(obs_names, meta.obs_name)
@@ -111,9 +106,9 @@ function observation_layout(pn)
     return ObservationLayout(Tuple(obs_names), Tuple(chains))
 end
 
-function _observation_species_metadata(name)
+function _observation_species_metadata(name, prefix)
     leaves = _flatten_symbol_leaves(name)
-    parsed = map(_parse_observation_stage, leaves)
+    parsed = map(leaf -> _parse_observation_stage(leaf, prefix), leaves)
     matches = findall(!isnothing, parsed)
 
     isempty(matches) && return nothing
@@ -144,15 +139,17 @@ function _flatten_symbol_leaves(name::Tuple)
     return leaves
 end
 
-function _parse_observation_stage(name::Symbol)
-    parts = split(String(name), "_")
-    length(parts) >= 3 || return nothing
-    startswith(parts[1], "O") || return nothing
+function _parse_observation_stage(name::Symbol, prefix::Symbol)
+    prefix_marker = string(prefix, "_")
+    raw_name = String(name)
+    startswith(raw_name, prefix_marker) || return nothing
 
+    parts = split(chopprefix(raw_name, prefix_marker), "_")
+    length(parts) >= 2 || return nothing
     stage = tryparse(Int, parts[end])
     isnothing(stage) && return nothing
 
-    source = Symbol(join(parts[2:(end - 1)], "_"))
+    source = Symbol(join(parts[1:(end - 1)], "_"))
     isempty(String(source)) && return nothing
 
     return (source = source, stage = stage)
