@@ -18,6 +18,22 @@
     )
 end
 
+@testitem "create_model_uwd leaves the outer boundary unspecified" setup = [ModelUWDSetup] begin
+    models_and_typings = [
+        (one_pop_typing, SI()),
+        (one_pop_typing, SEIR()),
+        (one_pop_typing, NoCrossImmunity(2)),
+        (uninfected_infected_typing, CompleteCrossImmunity(2)),
+        (one_pop_typing, AgeStratification([:child, :adult])),
+        (uninfected_infected_typing, ImmuneHistory([:strain_1, :strain_2])),
+    ]
+
+    for (typing, model) in models_and_typings
+        uwd = create_model_uwd(typing, model)
+        @test isempty(ports(uwd, outer = true))
+    end
+end
+
 # Tests for SI model UWD construction
 @testitem "create_model_uwd(SI) creates correct structure" setup = [ModelUWDSetup] begin
     model = SI()

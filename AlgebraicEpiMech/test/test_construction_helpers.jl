@@ -9,55 +9,27 @@
     ui_typing = UninfectedInfectedTyping()
 end
 
-@testitem "create_relation_diagram" setup = [HelperSetup] begin
-    @testset "OnePopulationTyping" begin
-        model = SI(number_I_stages = 3)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
-
-        @test uwd isa RelationDiagram
-        @test length(ports(uwd, outer = true)) == 4  # S + 3 I stages
-    end
-
-    @testset "UninfectedInfectedTyping" begin
-        model = SEI(number_E_stages = 2, number_I_stages = 3)
-        uwd = aem.create_relation_diagram(ui_typing, model)
-
-        @test uwd isa RelationDiagram
-        @test length(ports(uwd, outer = true)) == 6  # S + 2 E + 3 I
-    end
-
-    @testset "Uses model.number_of_states" begin
-        model = SEIR(number_E_stages = 2, number_I_stages = 2)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
-
-        # SEIR: 2 (S,R) + 2 (E) + 2 (I) = 6 states
-        @test length(ports(uwd, outer = true)) == model.number_of_states
-    end
-end
-
 @testitem "set_S_junction!" setup = [HelperSetup] begin
     @testset "OnePopulationTyping" begin
-        model = SI()
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         S_junction = aem.set_S_junction!(uwd, one_pop_typing)
 
         @test S_junction isa Integer
         @test length(junctions(uwd)) == 1  # Only S junction added
-        # Verify first outer port is connected to S junction
-        @test junction(uwd, ports(uwd, outer = true)[1], outer = true) == S_junction
+        @test subpart(uwd, S_junction, :variable) == :S
+        @test isempty(ports(uwd, outer = true))
     end
 
     @testset "UninfectedInfectedTyping" begin
-        model = SEI()
-        uwd = aem.create_relation_diagram(ui_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         S_junction = aem.set_S_junction!(uwd, ui_typing)
 
         @test S_junction isa Integer
         @test length(junctions(uwd)) == 1  # Only S junction added
-        # Verify first outer port is connected to S junction
-        @test junction(uwd, ports(uwd, outer = true)[1], outer = true) == S_junction
+        @test subpart(uwd, S_junction, :variable) == :S
+        @test isempty(ports(uwd, outer = true))
     end
 end
 
@@ -86,78 +58,55 @@ end
 
 @testitem "add_stages!" setup = [HelperSetup] begin
     @testset "Single stage" begin
-        model = SI(number_I_stages = 1)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
         aem.set_S_junction!(uwd, one_pop_typing)
 
         pop_type = aem.get_infected_type(one_pop_typing)
-        # Counter starts at 2 (after S)
-        I_junctions, new_counter = aem.add_stages!(uwd, :I, 1, pop_type, 2, one_pop_typing)
+        I_junctions = aem.add_stages!(uwd, :I, 1, pop_type, one_pop_typing)
 
         @test length(I_junctions) == 1
-        @test new_counter == 3  # Moved past 1 I stage
         # Single stage, no progression mechanisms added
         @test length(boxes(uwd)) == 0
     end
 
     @testset "Multiple stages with progression" begin
-        model = SI(number_I_stages = 3)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
         aem.set_S_junction!(uwd, one_pop_typing)
 
         pop_type = aem.get_infected_type(one_pop_typing)
-        I_junctions, new_counter = aem.add_stages!(uwd, :I, 3, pop_type, 2, one_pop_typing)
+        I_junctions = aem.add_stages!(uwd, :I, 3, pop_type, one_pop_typing)
 
         @test length(I_junctions) == 3
-        @test new_counter == 5  # Moved past 3 I stages
         # 3 stages → 2 progression mechanisms (I1→I2, I2→I3)
         @test length(boxes(uwd)) == 2
-    end
-
-    @testset "Junctions connected to outer ports" begin
-        model = SI(number_I_stages = 2)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
-        aem.set_S_junction!(uwd, one_pop_typing)
-
-        pop_type = aem.get_infected_type(one_pop_typing)
-        I_junctions, _ = aem.add_stages!(uwd, :I, 2, pop_type, 2, one_pop_typing)
-
-        # Verify each junction is connected to sequential outer ports
-        for (i, junction_id) in enumerate(I_junctions)
-            port_idx = i + 1  # +1 because S is on port 1
-            @test junction(uwd, ports(uwd, outer = true)[port_idx], outer = true) ==
-                junction_id
-        end
+        @test isempty(ports(uwd, outer = true))
     end
 
     @testset "Works with UninfectedInfectedTyping" begin
-        model = SEI(number_E_stages = 2, number_I_stages = 3)
-        uwd = aem.create_relation_diagram(ui_typing, model)
+        uwd = RelationDiagram(Symbol[])
         aem.set_S_junction!(uwd, ui_typing)
 
         pop_type = aem.get_infected_type(ui_typing)
-        E_junctions, counter = aem.add_stages!(uwd, :E, 2, pop_type, 2, ui_typing)
+        E_junctions = aem.add_stages!(uwd, :E, 2, pop_type, ui_typing)
 
         @test length(E_junctions) == 2
-        @test counter == 4  # 2 (start) + 2 (E stages) = 4
         # 2 E stages → 1 progression mechanism
         @test length(boxes(uwd)) == 1
 
         # Add I stages after E
-        I_junctions,
-            final_counter = aem.add_stages!(uwd, :I, 3, pop_type, counter, ui_typing)
+        I_junctions = aem.add_stages!(uwd, :I, 3, pop_type, ui_typing)
 
         @test length(I_junctions) == 3
-        @test final_counter == 7  # 4 + 3 = 7
         # 1 (E progression) + 2 (I progressions) = 3 total
         @test length(boxes(uwd)) == 3
+        @test isempty(ports(uwd, outer = true))
     end
 end
 
 @testitem "setup_basic! for SI" setup = [HelperSetup] begin
     @testset "Single-stage SI" begin
         model = SI()
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction,
             last_I_junction = aem.setup_basic!(uwd, one_pop_typing, model)
@@ -172,7 +121,7 @@ end
 
     @testset "Multi-stage SI" begin
         model = SI(number_I_stages = 3)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction,
             last_I_junction = aem.setup_basic!(uwd, one_pop_typing, model)
@@ -184,7 +133,7 @@ end
 
     @testset "Works with UninfectedInfectedTyping" begin
         model = SI(number_I_stages = 2)
-        uwd = aem.create_relation_diagram(ui_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction, last_I_junction = aem.setup_basic!(uwd, ui_typing, model)
 
@@ -197,7 +146,7 @@ end
 @testitem "setup_basic! for SEI" setup = [HelperSetup] begin
     @testset "Single-stage SEI" begin
         model = SEI()
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction,
             last_I_junction = aem.setup_basic!(uwd, one_pop_typing, model)
@@ -212,7 +161,7 @@ end
 
     @testset "Multi-stage E and I" begin
         model = SEI(number_E_stages = 2, number_I_stages = 3)
-        uwd = aem.create_relation_diagram(one_pop_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction,
             last_I_junction = aem.setup_basic!(uwd, one_pop_typing, model)
@@ -227,7 +176,7 @@ end
 
     @testset "Different E and I stage counts" begin
         model = SEI(number_E_stages = 3, number_I_stages = 1)
-        uwd = aem.create_relation_diagram(ui_typing, model)
+        uwd = RelationDiagram(Symbol[])
 
         result_uwd, S_junction, last_I_junction = aem.setup_basic!(uwd, ui_typing, model)
 

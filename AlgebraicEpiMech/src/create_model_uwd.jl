@@ -8,6 +8,8 @@ Create an undirected wiring diagram (UWD) for a compartmental model within a spe
 This function returns the undirected wiring diagram that defines the
 compartmental structure and transitions, using the type names from the typing.
 The compartments are typed according to the typing's population structure.
+The returned UWD does not declare an outer boundary/ports; `oapply_typed` derives the
+boundary from its junctions when materializing the typed Petri net.
 
 # Arguments
 - `typing::EpidemiologicalTyping`: The population typing defining type names
@@ -34,9 +36,8 @@ end
 """
 Construct a complete undirected wiring diagram (UWD) for SI or SEI models.
 
-Creates the structural skeleton via `create_relation_diagram`, then populates it with
-compartments and mechanisms via `setup_basic!`. These are the base models that other
-compartmental models extend from.
+Populates an initially empty UWD with compartments and mechanisms via `setup_basic!`.
+These are the base models that other compartmental models extend from.
 
 # Usage with oapply_typed
 The returned UWD can be applied to the typing using `oapply_typed` to create a typed
@@ -44,8 +45,7 @@ Petri net, enabling composition with other typed Petri nets (e.g., demographic p
 interventions).
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::Union{SI, SEI})
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
     (uwd, _, _) = setup_basic!(uwd, typing, model)
     return uwd
 end
@@ -64,8 +64,7 @@ periods. Recovery always occurs from the last I stage, ensuring proper sequencin
 Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::SIR)
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
 
     # Get SI base model
     uwd, _,
@@ -96,8 +95,7 @@ last I stage back to S.
 Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::SIS)
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
 
     # Get SI base model
     uwd, S_junction,
@@ -123,8 +121,7 @@ of latent and infectious period distributions. Recovery always occurs from the l
 Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::SEIR)
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
 
     # Get SEI base model
     uwd, _,
@@ -162,8 +159,7 @@ Reversion occurs from the last I stage back to S.
 Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::SEIS)
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
 
     # Get SEI base model
     uwd, S_junction,
@@ -198,8 +194,7 @@ the last I stage, and waning immunity returns individuals from R to S.
 Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::SEIRS)
-    # Create UWD with compartment structure
-    uwd = create_relation_diagram(typing, model)
+    uwd = RelationDiagram(Symbol[])
 
     # Get SEIR model (which already calls SEI and adds R)
     # SEIR returns just uwd since it's already complete
@@ -277,19 +272,13 @@ function create_model_uwd(
     # For NoCrossImmunity, use OnePopulationTyping type system
     pop_type = get_infected_type(typing)
 
-    # Create UWD with strain junctions as outer ports
-    uwd = RelationDiagram(fill(pop_type, length(strain_names)))
+    uwd = RelationDiagram(Symbol[])
 
     # Create junction for each strain
     strain_junctions = [
         add_junction!(uwd, pop_type, variable = strain_name)
             for strain_name in strain_names
     ]
-
-    # Connect outer ports to strain junctions
-    for (i, junction) in enumerate(strain_junctions)
-        set_junction!(uwd, ports(uwd, outer = true)[i], junction, outer = true)
-    end
 
     # Add all transition boxes for each strain
     # typed_product will only compose boxes that match between UWDs
@@ -316,8 +305,8 @@ separate infected compartments. Infection by any strain depletes the shared susc
 and confers immunity to all strains.
 
 The UWD has:
-- One shared uninfected/susceptible junction (outer port 1)
-- N infected strain junctions (outer ports 2 to N+1)
+- One shared uninfected/susceptible junction
+- N infected strain junctions
 - Transmission boxes connecting shared susceptible to each strain's infected
 - Disease progression boxes for each strain's infected compartments
 - Reversion boxes to return to shared susceptible pool
@@ -352,10 +341,7 @@ function create_model_uwd(
     uninfected_type = get_uninfected_type(typing)
     infected_type = get_infected_type(typing)
 
-    # Create UWD with: 1 uninfected (shared S) + N infected (strain-specific I/R)
-    # Outer ports: [uninfected, infected_1, infected_2, ..., infected_N]
-    outer_types = [uninfected_type; fill(infected_type, length(strain_names))]
-    uwd = RelationDiagram(outer_types)
+    uwd = RelationDiagram(Symbol[])
 
     # Create shared uninfected/susceptible junction
     shared_uninfected = add_junction!(uwd, uninfected_type, variable = :susceptible)
@@ -365,12 +351,6 @@ function create_model_uwd(
         add_junction!(uwd, infected_type, variable = strain_name)
             for strain_name in strain_names
     ]
-
-    # Connect outer ports to junctions
-    set_junction!(uwd, ports(uwd, outer = true)[1], shared_uninfected, outer = true)
-    for (i, infected_junction) in enumerate(infected_junctions)
-        set_junction!(uwd, ports(uwd, outer = true)[i + 1], infected_junction, outer = true)
-    end
 
     # Add transition boxes for each strain
     for infected_junction in infected_junctions
@@ -426,7 +406,7 @@ function create_model_uwd(
         typing::EpidemiologicalTyping, model::ContactStratification;
         include_reflexives::Bool = true
     )
-    uwd = RelationDiagram(Symbol[]) # No outer ports
+    uwd = RelationDiagram(Symbol[])
 
     # Create junction for each stratum
     # These are tuples (uninfected_stratum_junction, infected_stratum_junction) in case needed for more complex typings
@@ -483,8 +463,7 @@ Construct the UWD for the `ImmuneHistory` stratification **factor** over a
 
 This is a stratification factor (like `ContactStratification`), meant to be
 `typed_product`-composed with a disease model — the disease model supplies
-`S→E→I→R`, this factor supplies the immune-status structure. All junctions are
-internal (no outer ports).
+`S→E→I→R`, while this factor supplies the immune-status structure.
 
 - Uninfected junctions `U_h`, one per immune-history class.
 - Infected junctions `(h,i)` = "history `h`, currently fighting strain `i`", one per
@@ -513,7 +492,6 @@ function create_model_uwd(typing::UninfectedInfectedTyping, model::ImmuneHistory
     uninfected_type = get_uninfected_type(typing)
     infected_type = get_infected_type(typing)
 
-    # Internal junctions only (stratification factor; no outer ports).
     uwd = RelationDiagram(Symbol[])
 
     # Uninfected immune-history classes.

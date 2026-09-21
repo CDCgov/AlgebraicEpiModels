@@ -2,81 +2,23 @@
 # Not exported - used internally by create_model_uwd methods
 
 """
-Create the structural skeleton of an undirected wiring diagram (UWD) for a compartmental model.
+Create the Susceptible (S) compartment junction.
 
-This function allocates one typed outer port for each compartment represented by the
-model. Junctions and mechanisms are added later by `setup_basic!` and extension methods,
-which attach each compartment junction to its corresponding outer-port slot. The completed
-UWD is subsequently materialized as a typed Petri net by `AlgebraicPetri.oapply_typed`.
+The returned junction ID is used directly when adding infection and reversion mechanisms
+(for example, I→S in SIS).
 """
-function create_relation_diagram(typing::EpidemiologicalTyping, model::CompartmentalModel)
-    error("create_relation_diagram not implemented for typing type $(typeof(typing)). Implement a method for this combination.")
+function set_S_junction!(uwd::RelationDiagram, typing::EpidemiologicalTyping)
+    error("set_S_junction! not implemented for typing type $(typeof(typing)).")
 end
 
-function create_relation_diagram(typing::OnePopulationTyping, model::CompartmentalModel)
-    pop_type = typing.population_type
-    number_of_variables = model.number_of_states
-    return RelationDiagram(fill(pop_type, number_of_variables))
-end
-
-function create_relation_diagram(
-        typing::UninfectedInfectedTyping, model::CompartmentalModel
-    )
-    uninfected_type = typing.uninfected_type
-    infected_type = typing.infected_type
-    number_of_variables = model.number_of_states
-    types_for_relation_diagram = vcat(
-        [uninfected_type], fill(
-            infected_type, number_of_variables -
-                1
-        )
-    )
-
-    return RelationDiagram(types_for_relation_diagram)
-end
-
-function create_relation_diagram(typing::OnePopulationTyping, model::ContactStratification)
-    pop_type = typing.population_type
-    number_of_variables = length(model.stratum_names)
-    return RelationDiagram(fill(pop_type, number_of_variables))
-end
-
-function create_relation_diagram(
-        typing::UninfectedInfectedTyping, model::ContactStratification
-    )
-    uninfected_type = typing.uninfected_type
-    infected_type = typing.infected_type
-    number_of_variables = length(model.stratum_names)
-    return RelationDiagram(
-        vcat(
-            fill(uninfected_type, number_of_variables),
-            fill(infected_type, number_of_variables)
-        )
-    )
-end
-
-"""
-Create the Susceptible (S) compartment junction and attach it to the first outer port.
-
-The first compartment slot is reserved for S by convention. The returned junction ID is
-used directly when adding infection and reversion mechanisms (for example, I→S in SIS).
-"""
 function set_S_junction!(uwd::RelationDiagram, typing::OnePopulationTyping)
     pop_type = typing.population_type
-    # Add junctions for S compartment
-    S_junction = add_junction!(uwd, pop_type, variable = :S)
-    # Connect outer ports to S junctions
-    set_junction!(uwd, ports(uwd, outer = true)[1], S_junction, outer = true)
-    return S_junction
+    return add_junction!(uwd, pop_type, variable = :S)
 end
 
 function set_S_junction!(uwd::RelationDiagram, typing::UninfectedInfectedTyping)
     uninfected_type = typing.uninfected_type
-    # Add junctions for S compartment
-    S_junction = add_junction!(uwd, uninfected_type, variable = :S)
-    # Connect outer ports to S junctions
-    set_junction!(uwd, ports(uwd, outer = true)[1], S_junction, outer = true)
-    return S_junction
+    return add_junction!(uwd, uninfected_type, variable = :S)
 end
 
 """
@@ -143,12 +85,11 @@ end
 Create a sequence of compartment stages with progression transitions between them.
 
 This is the workhorse for multi-stage compartments, enabling Erlang-distributed dwell times.
-It creates N junctions (for example, E1→E2→E3 or I1→I2→I3), attaches each to the
-next preallocated outer-port slot, and chains them with progression mechanisms.
+It creates N junctions (for example, E1→E2→E3 or I1→I2→I3) and chains them with
+progression mechanisms.
 
 # Construction behavior
 - Returns the vector of ALL junction IDs (not just first/last) for flexible mechanism attachment
-- Returns updated outer_port_counter for sequential port allocation
 - First stage receives incoming transitions (e.g., S+I→E1), last stage feeds next compartment
 
 # Arguments
@@ -156,12 +97,11 @@ next preallocated outer-port slot, and chains them with progression mechanisms.
 - `variable_symbol`: Base compartment name (:E or :I)
 - `number_of_stages`: Number of sequential stages to create
 - `pop_type`: The population type symbol for the junctions
-- `outer_port_counter`: Current position in outer port allocation (incremented for each stage)
 - `typing`: The epidemiological typing for mechanism dispatch
 """
 function add_stages!(
         uwd::RelationDiagram, variable_symbol::Symbol, number_of_stages::Int,
-        pop_type::Symbol, outer_port_counter::Int, typing::EpidemiologicalTyping
+        pop_type::Symbol, typing::EpidemiologicalTyping
     )
     # Create junctions for each stage
     junctions = [
@@ -172,18 +112,11 @@ function add_stages!(
             )
             for stage in 1:number_of_stages
     ]
-    # Connect outer ports to junctions
-    for (i, junction) in enumerate(junctions)
-        set_junction!(
-            uwd, ports(uwd, outer = true)[outer_port_counter], junction, outer = true
-        )
-        outer_port_counter += 1
-    end
     # Add progression between stages
     for stage in 1:(number_of_stages - 1)
         add_disease_progression!(uwd, junctions[stage], junctions[stage + 1], typing)  # e.g. E_stage → E_(stage+1) or I_stage → I_(stage+1)
     end
-    return junctions, outer_port_counter
+    return junctions
 end
 
 """
@@ -206,12 +139,8 @@ function setup_basic!(uwd::RelationDiagram, typing::EpidemiologicalTyping, model
     # Add junctions for S compartment
     S_junction = set_S_junction!(uwd, typing)
     pop_type = get_infected_type(typing)
-    outer_port_counter = 2
 
-    I_junctions,
-        outer_port_counter = add_stages!(
-        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, typing
-    )
+    I_junctions = add_stages!(uwd, :I, model.number_I_stages, pop_type, typing)
 
     # Add infection to first I stage
     for I_junction in I_junctions
@@ -244,17 +173,10 @@ function setup_basic!(uwd::RelationDiagram, typing::EpidemiologicalTyping, model
     # Add junctions for S compartment
     S_junction = set_S_junction!(uwd, typing)
     pop_type = get_infected_type(typing)
-    outer_port_counter = 2
 
     # For multiple E and I stages, create junctions for each stage
-    E_junctions,
-        outer_port_counter = add_stages!(
-        uwd, :E, model.number_E_stages, pop_type, outer_port_counter, typing
-    )
-    I_junctions,
-        outer_port_counter = add_stages!(
-        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, typing
-    )
+    E_junctions = add_stages!(uwd, :E, model.number_E_stages, pop_type, typing)
+    I_junctions = add_stages!(uwd, :I, model.number_I_stages, pop_type, typing)
 
     # add infection to first E stage from any infection stage
     for I_junction in I_junctions
