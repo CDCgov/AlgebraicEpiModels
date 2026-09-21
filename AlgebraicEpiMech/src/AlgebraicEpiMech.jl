@@ -16,7 +16,7 @@ export add_infection!, add_disease_progression!,
 # Observation by pushout (attached after composition)
 export ObservationTarget, AtEvent, AtCompartment, attach_observation
 
-export observation_layout
+export ObservationChainLayout, ObservationLayout, observation_layout
 
 # Compartmental models types
 export CompartmentalModel, SI, SEI, SIS, SIR, SEIR, SEIRS, SEIS

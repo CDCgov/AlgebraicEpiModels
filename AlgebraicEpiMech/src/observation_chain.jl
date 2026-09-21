@@ -11,13 +11,64 @@
 # a colimit rather than an operadic composition.
 
 """
+    ObservationChainLayout(source_name, obs_names)
+
+Metadata for one observation chain.
+
+# Fields
+- `source_name`: Flattened name of the event or compartment being observed
+- `obs_names`: Observation-state names in stage order
+- `cumulative_name`: Terminal observation-state name, derived from `obs_names`
+"""
+struct ObservationChainLayout{N}
+    source_name::Symbol
+    obs_names::NTuple{N, Symbol}
+    cumulative_name::Symbol
+
+    function ObservationChainLayout(
+            source_name::Symbol, obs_names::NTuple{N, Symbol}
+        ) where {N}
+        N > 0 || throw(ArgumentError("An observation chain must contain at least one stage"))
+        return new{N}(source_name, obs_names, last(obs_names))
+    end
+end
+
+"""
+    ObservationLayout(obs_names, chains)
+
+Metadata for all observation chains in an augmented Petri net.
+
+# Fields
+- `obs_names`: All flattened observation-state names in Petri-net order
+- `chains`: Observation chains in first-encounter order
+- `cumulative_names`: Terminal state of each chain, derived from `chains`
+"""
+struct ObservationLayout{N, C <: Tuple, M}
+    obs_names::NTuple{N, Symbol}
+    chains::C
+    cumulative_names::NTuple{M, Symbol}
+
+    function ObservationLayout(
+            obs_names::NTuple{N, Symbol}, chains::C
+        ) where {N, C <: Tuple}
+        all(chain -> chain isa ObservationChainLayout, chains) || throw(
+            ArgumentError("All chains must be ObservationChainLayout values")
+        )
+        cumulative_names = Tuple(chain.cumulative_name for chain in chains)
+        return new{N, C, length(cumulative_names)}(
+            obs_names, chains, cumulative_names
+        )
+    end
+end
+
+"""
     observation_layout(pn::LabelledPetriNet)
 
 Return deterministic observation-chain metadata for an augmented Petri net.
 
-The result is a NamedTuple with fields:
+The result is an [`ObservationLayout`](@ref) with fields:
 - `obs_names`: all flattened observation state names in Petri-net order
-- `chains`: ordered chain metadata tuples with `source_name`, `obs_names`, and `cumulative_name`
+- `chains`: ordered [`ObservationChainLayout`](@ref) values
 - `cumulative_names`: flattened terminal observation state for each chain
 
 This centralizes the observation naming/ordering contract, so downstream packages do not each
@@ -54,18 +105,10 @@ function observation_layout(pn)
         )
 
         stage_names = Tuple(last.(stage_entries))
-        (
-            source_name = source_name,
-            obs_names = stage_names,
-            cumulative_name = last(stage_names),
-        )
+        ObservationChainLayout(source_name, stage_names)
     end
 
-    return (
-        obs_names = Tuple(obs_names),
-        chains = Tuple(chains),
-        cumulative_names = Tuple(chain.cumulative_name for chain in chains),
-    )
+    return ObservationLayout(Tuple(obs_names), Tuple(chains))
 end
 
 function _observation_species_metadata(name)

@@ -28,12 +28,26 @@ end
 
     layout = observation_layout(pn)
 
+    @test layout isa ObservationLayout
     @test layout.obs_names == (:O_I_1, :O_I_2)
     @test length(layout.chains) == 1
+    @test layout.chains[1] isa ObservationChainLayout
     @test layout.chains[1].source_name == :I
     @test layout.chains[1].obs_names == (:O_I_1, :O_I_2)
     @test layout.chains[1].cumulative_name == :O_I_2
     @test layout.cumulative_names == (:O_I_2,)
+end
+
+@testitem "observation layout constructors derive cumulative names" begin
+    using AlgebraicEpiMech
+
+    chain = ObservationChainLayout(:I, (:O_I_1, :O_I_2))
+    layout = ObservationLayout(chain.obs_names, (chain,))
+
+    @test chain.cumulative_name == :O_I_2
+    @test layout.cumulative_names == (:O_I_2,)
+    @test_throws ArgumentError ObservationChainLayout(:I, ())
+    @test_throws ArgumentError ObservationLayout((), ((source_name = :I,),))
 end
 
 @testitem "observation_layout separates chains on different sources" setup = [ObservationLayoutSetup] begin
