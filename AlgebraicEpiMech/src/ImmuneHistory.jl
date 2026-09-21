@@ -1,49 +1,31 @@
-# Immune-history stratification (issue #279)
+# Type system for Immune-history stratification
 #
-# A stratification *factor* over `UninfectedInfectedTyping` that composes with a
-# generic disease model (SEIRS, multi-stage, +observation) via `typed_product`.
-# Sits on the cross-immunity spectrum next to `NoCrossImmunity` (independent) and
-# `CompleteCrossImmunity` (one shared immune pool) as the history-resolved option.
-#
-# The uninfected pool is split into immune-history classes `U_h`; the infected side
-# carries `(h, i)` — the prior history `h` and the strain `i` currently being fought
-# — so recovery knows what to increment. Unlike `ContactStratification`, whose strata
-# are inert (reflexive on every transition type), immune history changes the stratum
-# on ONE transition: `:reversion` runs OFF-diagonal, `(h,i) → h∪{i}`. Infection is
-# escape-selective (a class immune to `h` only carries `:transmission` for `i ∉ h`),
-# and `:disease`/`:observation` stay reflexive so the base model's progression and
-# observation chains run inside each `(h,i)`.
-#
-# Index sets (per the S-vs-E/I/R rule): after `typed_product` the base's `S` is
-# indexed by `{h}` (→ `S_h`) and `E`/`I`/`R` by `{(h,i)}` (→ `E_{h,i}`, …).
+# The behaviour encoded is that for immune-history classes `U_h`; the infected side
+# carries `(h, i)` — the prior history `h` and the strain/subtype `i` of infection. This
+# is enough to determine how infection recovery increments the immune history.
 
 """
-Selects how much immune history the uninfected group retains. A singleton stored on
-`ImmuneHistory`; construction dispatches on it, so a new mode is additive.
+Abstract base type for selections of how much immune history is retained.
 """
 abstract type ImmuneHistoryMode end
 
 """
-Full immune history: uninfected individuals are indexed by the **set** of strains
-they are immune to (`2^n` classes). Immunity accumulates — reversion routes to
+Full (unordered) immune history: uninfected individuals are indexed by the **set** of
+strains they are immune to (`2^n` classes). Immunity accumulates — reversion routes to
 `h ∪ {i}`.
 """
 struct FullHistory <: ImmuneHistoryMode end
 
 """
 Latest-infection status: uninfected individuals are indexed by their **most recent**
-infection (`n + 1` classes). Reversion overwrites immune status — routes to `{i}`
-(Gog–Grenfell "status-based").
+infection (`n + 1` classes). Reversion overwrites immune status — routes to `{i}`.
 """
 struct LatestInfection <: ImmuneHistoryMode end
 
 """
     ImmuneHistory{M<:ImmuneHistoryMode} <: MultiStrainModel
 
-Immune-history stratification factor over `UninfectedInfectedTyping`. Compose it with
-a disease model via `typed_product` — the disease model provides `S→E→I→R`, this
-factor adds the immune-status structure (escape-selective infection + the
-history-incrementing reversion).
+Immune-history combination of the available strain/subtype names and `ImmuneHistoryMode`.
 
 # Fields
 - `strain_names::Vector{Symbol}`: strain names (e.g. `[:current, :invader]`)

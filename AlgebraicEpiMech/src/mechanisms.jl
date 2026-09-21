@@ -1,4 +1,5 @@
-# Helper functions for epidemiological mechanisms added to UWDs
+# Helper functions for epidemiological mechanisms added to undirected wiring diagram (UWD)
+# This file give primitives for programmatic construction of a UWDs
 
 """
 Add infection mechanism: Infectee + Infector → first_infected + Infector

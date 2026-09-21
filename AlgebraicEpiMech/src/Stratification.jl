@@ -1,3 +1,6 @@
+# Typing for stratification, in the context meaning a set of static labels for stratum
+# carried by population individuals
+
 """
 Represents a stratification structure for epidemiological models.
 """
