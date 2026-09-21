@@ -5,9 +5,8 @@ using Catlab
 using DocStringExtensions
 import Base: *
 
-# Schemas
-export EpidemiologicalTyping, OnePopulationSchema, UninfectedInfectedSchema,
-    create_schema, create_uninfected_infected_schema
+# Epidemiological typing strategies and their Petri-net type systems
+export EpidemiologicalTyping, OnePopulationTyping, UninfectedInfectedTyping, type_system
 
 # Epi mechanism functions
 export add_infection!, add_disease_progression!,
@@ -58,7 +57,7 @@ specific model formulation.
 """
 abstract type EpiMechModel end
 
-include("epi_schema.jl")
+include("typing.jl")
 include("mechanisms.jl")
 include("CompartmentalModel.jl")
 include("MultiStrainModel.jl")

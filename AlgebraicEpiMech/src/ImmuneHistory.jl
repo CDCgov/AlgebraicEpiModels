@@ -1,6 +1,6 @@
 # Immune-history stratification (issue #279)
 #
-# A stratification *factor* over `UninfectedInfectedSchema` that composes with a
+# A stratification *factor* over `UninfectedInfectedTyping` that composes with a
 # generic disease model (SEIRS, multi-stage, +observation) via `typed_product`.
 # Sits on the cross-immunity spectrum next to `NoCrossImmunity` (independent) and
 # `CompleteCrossImmunity` (one shared immune pool) as the history-resolved option.
@@ -40,7 +40,7 @@ struct LatestInfection <: ImmuneHistoryMode end
 """
     ImmuneHistory{M<:ImmuneHistoryMode} <: MultiStrainModel
 
-Immune-history stratification factor over `UninfectedInfectedSchema`. Compose it with
+Immune-history stratification factor over `UninfectedInfectedTyping`. Compose it with
 a disease model via `typed_product` — the disease model provides `S→E→I→R`, this
 factor adds the immune-status structure (escape-selective infection + the
 history-incrementing reversion).
@@ -51,10 +51,10 @@ history-incrementing reversion).
 
 # Examples
 ```julia
-schema = UninfectedInfectedSchema()
+typing = UninfectedInfectedTyping()
 
-seirs   = create_model(schema, SEIRS())
-history = create_model(schema, ImmuneHistory([:current, :invader]))
+seirs   = create_model(typing, SEIRS())
+history = create_model(typing, ImmuneHistory([:current, :invader]))
 
 model = typed_product(seirs, history)   # immune-history-resolved SEIRS
 # States: S_naive, S_current, …, E_invader_from_current, I_…, R_…

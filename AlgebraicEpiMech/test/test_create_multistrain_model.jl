@@ -7,16 +7,16 @@
     using Catlab
     using AlgebraicEpiMech
 
-    # Create schema instances for testing
-    one_pop_schema = OnePopulationSchema(population_type = :Individual)
-    uninfected_infected_schema = UninfectedInfectedSchema(
+    # Create typing instances for testing
+    one_pop_typing = OnePopulationTyping(population_type = :Individual)
+    uninfected_infected_typing = UninfectedInfectedTyping(
         uninfected_type = :Susceptible, infected_type = :Infectious
     )
 end
 
 @testitem "create_model - basic NoCrossImmunity" setup = [MultistrainSetup] begin
     model = NoCrossImmunity([:h1n1, :h3n2])
-    typed_model = create_model(one_pop_schema, model)
+    typed_model = create_model(one_pop_typing, model)
 
     # Should return an ACSetTransformation
     @test typed_model isa ACSetTransformation
@@ -33,7 +33,7 @@ end
 
 @testitem "create_model - verify state structure" setup = [MultistrainSetup] begin
     model = NoCrossImmunity([:wild, :variant])
-    typed_model = create_model(one_pop_schema, model)
+    typed_model = create_model(one_pop_typing, model)
 
     pn = dom(typed_model)
 
@@ -46,7 +46,7 @@ end
 
 @testitem "create_model - auto-generated strain names" setup = [MultistrainSetup] begin
     model = NoCrossImmunity(3)
-    typed_model = create_model(one_pop_schema, model)
+    typed_model = create_model(one_pop_typing, model)
 
     pn = dom(typed_model)
 
@@ -60,7 +60,7 @@ end
 
 @testitem "generate_transition_names - returns strain names" setup = [MultistrainSetup] begin
     model = NoCrossImmunity([:flu_a, :flu_b])
-    uwd = create_model_uwd(one_pop_schema, model)
+    uwd = create_model_uwd(one_pop_typing, model)
 
     # Generate transition names
     names = generate_transition_names(uwd, model)
@@ -73,9 +73,9 @@ end
 
 @testitem "create_model - composition with compartmental model" setup = [MultistrainSetup] begin
     # Create both a compartmental and multistrain model
-    sir_model = create_model(one_pop_schema, SIR())
+    sir_model = create_model(one_pop_typing, SIR())
     strain_model = create_model(
-        one_pop_schema, NoCrossImmunity(
+        one_pop_typing, NoCrossImmunity(
             [
                 :alpha, :beta,
             ]
@@ -105,7 +105,7 @@ end
 
 @testitem "create_model - basic CompleteCrossImmunity" setup = [MultistrainSetup] begin
     model = CompleteCrossImmunity([:wild_type, :variant])
-    typed_model = create_model(uninfected_infected_schema, model)
+    typed_model = create_model(uninfected_infected_typing, model)
 
     # Should return an ACSetTransformation
     @test typed_model isa ACSetTransformation
@@ -122,7 +122,7 @@ end
 
 @testitem "create_model - CompleteCrossImmunity state structure" setup = [MultistrainSetup] begin
     model = CompleteCrossImmunity([:strain_a, :strain_b])
-    typed_model = create_model(uninfected_infected_schema, model)
+    typed_model = create_model(uninfected_infected_typing, model)
 
     pn = dom(typed_model)
 
@@ -136,7 +136,7 @@ end
 
 @testitem "create_model - CompleteCrossImmunity auto-generated names" setup = [MultistrainSetup] begin
     model = CompleteCrossImmunity(3)
-    typed_model = create_model(uninfected_infected_schema, model)
+    typed_model = create_model(uninfected_infected_typing, model)
 
     pn = dom(typed_model)
 
@@ -151,7 +151,7 @@ end
 
 @testitem "generate_transition_names - CompleteCrossImmunity" setup = [MultistrainSetup] begin
     model = CompleteCrossImmunity([:h1n1, :h3n2])
-    uwd = create_model_uwd(uninfected_infected_schema, model)
+    uwd = create_model_uwd(uninfected_infected_typing, model)
 
     # Generate transition names
     names = generate_transition_names(uwd, model)
@@ -164,9 +164,9 @@ end
 
 @testitem "create_model - CompleteCrossImmunity composition with SIR" setup = [MultistrainSetup] begin
     # Create both a compartmental and multistrain model
-    sir_model = create_model(uninfected_infected_schema, SIR())
+    sir_model = create_model(uninfected_infected_typing, SIR())
     strain_model = create_model(
-        uninfected_infected_schema,
+        uninfected_infected_typing,
         CompleteCrossImmunity([:alpha, :beta])
     )
 

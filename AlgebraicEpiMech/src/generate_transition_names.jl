@@ -18,8 +18,8 @@ where inputs are sorted in reverse alphabetical order for consistency (e.g., `tr
 # Examples
 ```julia
 # Used internally by create_model
-schema = OnePopulationSchema()
-uwd = create_model_uwd(schema, SEIR())
+typing = OnePopulationTyping()
+uwd = create_model_uwd(typing, SEIR())
 names = generate_transition_names(uwd, SEIR())
 # Returns: [:transmission_S_I, :E_to_I, :I_to_R]
 ```
@@ -90,9 +90,9 @@ This fallback handles any non-standard box types that might appear in extended m
 # Examples
 ```julia
 # Used internally by create_model
-schema = OnePopulationSchema()
+typing = OnePopulationTyping()
 age_strat = AgeStratification([:child, :adult])
-uwd = create_model_uwd(schema, age_strat)
+uwd = create_model_uwd(typing, age_strat)
 names = generate_transition_names(uwd, age_strat)
 # Returns: [:child_child, :child_adult, :adult_child, :adult_adult]
 # Representing: child←child, child←adult, adult←child, adult←adult transmission
@@ -152,9 +152,9 @@ For CompleteCrossImmunity: Boxes connect to both shared susceptible and strain-s
 # Examples
 ```julia
 # Used internally by create_model
-schema = OnePopulationSchema()
+typing = OnePopulationTyping()
 multistrain = NoCrossImmunity([:h1n1, :h3n2])
-uwd = create_model_uwd(schema, multistrain)
+uwd = create_model_uwd(typing, multistrain)
 names = generate_transition_names(uwd, multistrain)
 # Returns one strain name per box; 4 boxes per strain
 # (transmission, disease, reversion, observation), so 2 strains → 8 names.
@@ -208,7 +208,7 @@ the second component of the composed `typed_product` transition names.
 
 # Examples
 ```julia
-factor = create_model_uwd(UninfectedInfectedSchema(), ImmuneHistory([:current, :invader]))
+factor = create_model_uwd(UninfectedInfectedTyping(), ImmuneHistory([:current, :invader]))
 names = generate_transition_names(factor, ImmuneHistory([:current, :invader]))
 # transmission names begin `infect_current…` / `infect_invader…`
 ```

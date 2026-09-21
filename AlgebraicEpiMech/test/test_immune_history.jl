@@ -5,10 +5,10 @@
     using LabelledArrays
     using AlgebraicEpiMech
 
-    schema = UninfectedInfectedSchema()
+    typing = UninfectedInfectedTyping()
 
     # The immune-history factor composed onto a generic SEIRS base.
-    composed(m) = dom(typed_product(create_model(schema, SEIRS()), create_model(schema, m)))
+    composed(m) = dom(typed_product(create_model(typing, SEIRS()), create_model(typing, m)))
 
     fnames(xs) = Set(Symbol.(AlgebraicEpiMech.flatten_symbols.(xs)))
     transmissions(pn) =
@@ -62,10 +62,10 @@ end
 end
 
 @testitem "factor composes with any disease base (SEIR, multi-stage)" setup = [ImmuneHistorySetup] begin
-    history = create_model(schema, ImmuneHistory([:current, :invader]; mode = LatestInfection()))
+    history = create_model(typing, ImmuneHistory([:current, :invader]; mode = LatestInfection()))
     # Same factor, different bases — the point of the compositional design.
     for base in (SEIR(), SEIRS(number_I_stages = 2))
-        pn = dom(typed_product(create_model(schema, base), history))
+        pn = dom(typed_product(create_model(typing, base), history))
         @test ns(pn) > 0 && nt(pn) > 0
         @test any(t -> occursin("infect_invader_current", t), transmissions(pn))  # escape survives
     end
@@ -90,8 +90,8 @@ end
 # Guards + validation
 # ----------------------------------------------------------------------------
 
-@testitem "OnePopulationSchema is rejected" setup = [ImmuneHistorySetup] begin
-    @test_throws ErrorException create_model_uwd(OnePopulationSchema(), ImmuneHistory([:a, :b]))
+@testitem "OnePopulationTyping is rejected" setup = [ImmuneHistorySetup] begin
+    @test_throws ErrorException create_model_uwd(OnePopulationTyping(), ImmuneHistory([:a, :b]))
 end
 
 @testitem "constructor validation" setup = [ImmuneHistorySetup] begin

@@ -1,34 +1,34 @@
 # Constructors for compartmental epidemiological models
 # Uses functions from construction_helpers.jl and mechanisms.jl
-# Dispatch methods to create compartmental models based on schema and model instances
+# Dispatch methods to create compartmental models based on typing and model instances
 
 """
-Create an undirected wiring diagram (UWD) for a compartmental model within a specific schema.
+Create an undirected wiring diagram (UWD) for a compartmental model within a specific typing.
 
 This function returns the undirected wiring diagram that defines the
-compartmental structure and transitions, using the type names from the schema.
-The compartments are typed according to the schema's population structure.
+compartmental structure and transitions, using the type names from the typing.
+The compartments are typed according to the typing's population structure.
 
 # Arguments
-- `schema::EpidemiologicalTyping`: The population schema defining type names
+- `typing::EpidemiologicalTyping`: The population typing defining type names
 - `model::CompartmentalModel`: The compartmental model instance (SI(), SEI(), SIR(), SEIR(), etc.)
 
 # Returns
-- Undirected wiring diagram defining the compartmental model structure with schema-specific types
+- Undirected wiring diagram defining the compartmental model structure with typing-specific types
 
 # Examples
 ```julia
-# Create SIR model UWD with single population schema
-schema = OnePopulationSchema(population_type = :Individual)
-sir_uwd = create_model_uwd(schema, SIR())  # Uses Individual type
+# Create SIR model UWD with single population typing
+typing = OnePopulationTyping(population_type = :Individual)
+sir_uwd = create_model_uwd(typing, SIR())  # Uses Individual type
 
-# Create SEIR model UWD with uninfected/infected schema
-schema = UninfectedInfectedSchema(uninfected_type = :Susceptible, infected_type = :Infectious)
-seir_uwd = create_model_uwd(schema, SEIR())  # S::Susceptible, E,I,R::Infectious
+# Create SEIR model UWD with uninfected/infected typing
+typing = UninfectedInfectedTyping(uninfected_type = :Susceptible, infected_type = :Infectious)
+seir_uwd = create_model_uwd(typing, SEIR())  # S::Susceptible, E,I,R::Infectious
 ```
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::CompartmentalModel)
-    error("create_model_uwd not implemented for schema type $(typeof(schema)) and model type $(typeof(model)). Implement a method for this combination.")
+function create_model_uwd(typing::EpidemiologicalTyping, model::CompartmentalModel)
+    error("create_model_uwd not implemented for typing type $(typeof(typing)) and model type $(typeof(model)). Implement a method for this combination.")
 end
 
 """
@@ -39,14 +39,14 @@ compartments and mechanisms via `setup_basic!`. These are the base models that o
 compartmental models extend from.
 
 # Usage with oapply_typed
-The returned UWD can be applied to the schema using `oapply_typed` to create a typed
+The returned UWD can be applied to the typing using `oapply_typed` to create a typed
 Petri net, enabling composition with other typed Petri nets (e.g., demographic processes,
 interventions).
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::Union{SI, SEI})
+function create_model_uwd(typing::EpidemiologicalTyping, model::Union{SI, SEI})
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
-    (uwd, _, _) = setup_basic!(uwd, schema, model)
+    uwd = create_relation_diagram(typing, model)
+    (uwd, _, _) = setup_basic!(uwd, typing, model)
     return uwd
 end
 
@@ -61,23 +61,23 @@ The multi-stage I capability from SI is preserved, enabling gamma-distributed in
 periods. Recovery always occurs from the last I stage, ensuring proper sequencing.
 
 # Usage with oapply_typed
-Apply to schema with `oapply_typed` to create a typed Petri net for composition.
+Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::SIR)
+function create_model_uwd(typing::EpidemiologicalTyping, model::SIR)
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
+    uwd = create_relation_diagram(typing, model)
 
     # Get SI base model
     uwd, _,
-        last_I_junction = setup_basic!(uwd, schema, SI(number_I_stages = model.number_I_stages))
+        last_I_junction = setup_basic!(uwd, typing, SI(number_I_stages = model.number_I_stages))
 
-    pop_type = get_infected_type(schema)
+    pop_type = get_infected_type(typing)
 
     # Add R compartment junction
     R_junction = add_junction!(uwd, pop_type, variable = :R)
 
     # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, schema)
+    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
 
     return uwd
 end
@@ -93,18 +93,18 @@ I capability enables realistic infectious period distributions. Reversion occurs
 last I stage back to S.
 
 # Usage with oapply_typed
-Apply to schema with `oapply_typed` to create a typed Petri net for composition.
+Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::SIS)
+function create_model_uwd(typing::EpidemiologicalTyping, model::SIS)
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
+    uwd = create_relation_diagram(typing, model)
 
     # Get SI base model
     uwd, S_junction,
-        last_I_junction = setup_basic!(uwd, schema, SI(number_I_stages = model.number_I_stages))
+        last_I_junction = setup_basic!(uwd, typing, SI(number_I_stages = model.number_I_stages))
 
     # Add reversion: last I stage → S (waning immunity)
-    add_reversion_progression!(uwd, last_I_junction, S_junction, schema)
+    add_reversion_progression!(uwd, last_I_junction, S_junction, typing)
 
     return uwd
 end
@@ -120,30 +120,30 @@ The dual multi-stage capability (independent E and I stages) enables independent
 of latent and infectious period distributions. Recovery always occurs from the last I stage.
 
 # Usage with oapply_typed
-Apply to schema with `oapply_typed` to create a typed Petri net for composition.
+Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::SEIR)
+function create_model_uwd(typing::EpidemiologicalTyping, model::SEIR)
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
+    uwd = create_relation_diagram(typing, model)
 
     # Get SEI base model
     uwd, _,
         last_I_junction = setup_basic!(
         uwd,
-        schema,
+        typing,
         SEI(
             number_E_stages = model.number_E_stages,
             number_I_stages = model.number_I_stages
         )
     )
 
-    pop_type = get_infected_type(schema)
+    pop_type = get_infected_type(typing)
 
     # Add R compartment junction
     R_junction = add_junction!(uwd, pop_type, variable = :R)
 
     # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, schema)
+    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
 
     return uwd
 end
@@ -159,17 +159,17 @@ capability enables independent control of latent and infectious period distribut
 Reversion occurs from the last I stage back to S.
 
 # Usage with oapply_typed
-Apply to schema with `oapply_typed` to create a typed Petri net for composition.
+Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::SEIS)
+function create_model_uwd(typing::EpidemiologicalTyping, model::SEIS)
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
+    uwd = create_relation_diagram(typing, model)
 
     # Get SEI base model
     uwd, S_junction,
         last_I_junction = setup_basic!(
         uwd,
-        schema,
+        typing,
         SEI(
             number_E_stages = model.number_E_stages,
             number_I_stages = model.number_I_stages
@@ -177,7 +177,7 @@ function create_model_uwd(schema::EpidemiologicalTyping, model::SEIS)
     )
 
     # Add reversion: last I stage → S (waning immunity)
-    add_reversion_progression!(uwd, last_I_junction, S_junction, schema)
+    add_reversion_progression!(uwd, last_I_junction, S_junction, typing)
 
     return uwd
 end
@@ -195,18 +195,18 @@ enables independent control of latent and infectious period distributions. Recov
 the last I stage, and waning immunity returns individuals from R to S.
 
 # Usage with oapply_typed
-Apply to schema with `oapply_typed` to create a typed Petri net for composition.
+Apply to typing with `oapply_typed` to create a typed Petri net for composition.
 """
-function create_model_uwd(schema::EpidemiologicalTyping, model::SEIRS)
+function create_model_uwd(typing::EpidemiologicalTyping, model::SEIRS)
     # Create UWD with compartment structure
-    uwd = create_relation_diagram(schema, model)
+    uwd = create_relation_diagram(typing, model)
 
     # Get SEIR model (which already calls SEI and adds R)
     # SEIR returns just uwd since it's already complete
     uwd, S_junction,
         last_I_junction = setup_basic!(
         uwd,
-        schema,
+        typing,
         SEI(
             number_E_stages = model.number_E_stages,
             number_I_stages = model.number_I_stages
@@ -214,14 +214,14 @@ function create_model_uwd(schema::EpidemiologicalTyping, model::SEIRS)
     )
 
     # Add R compartment junction
-    pop_type = get_infected_type(schema)
+    pop_type = get_infected_type(typing)
     R_junction = add_junction!(uwd, pop_type, variable = :R)
 
     # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, schema)
+    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
 
     # Add waning immunity: R → S
-    add_reversion_progression!(uwd, R_junction, S_junction, schema)
+    add_reversion_progression!(uwd, R_junction, S_junction, typing)
 
     return uwd
 end
@@ -249,7 +249,7 @@ by pushout (`attach_observation`), so a stratification factor never has to know 
 `docs/concepts/composition-and-observation.md`.
 
 # Arguments
-- `schema::EpidemiologicalTyping`: The population schema (typically OnePopulationSchema)
+- `typing::EpidemiologicalTyping`: The population typing (typically OnePopulationTyping)
 - `multistrain::NoCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -258,24 +258,24 @@ by pushout (`attach_observation`), so a stratification factor never has to know 
 # Examples
 ```julia
 # Create a 3-strain model with custom names
-schema = OnePopulationSchema()
+typing = OnePopulationTyping()
 multistrain = NoCrossImmunity([:h1n1, :h3n2, :b])
-strain_uwd = create_model_uwd(schema, multistrain)
+strain_uwd = create_model_uwd(typing, multistrain)
 
 # Compose with compartmental model
-sir_typed = create_compartmental_model(schema, SIR())
-strain_typed = create_multistrain_model(schema, multistrain)
+sir_typed = create_compartmental_model(typing, SIR())
+strain_typed = create_multistrain_model(typing, multistrain)
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        schema::EpidemiologicalTyping,
+        typing::EpidemiologicalTyping,
         multistrain::NoCrossImmunity
     )
     strain_names = multistrain.strain_names
 
-    # For NoCrossImmunity, use OnePopulationSchema type system
-    pop_type = get_infected_type(schema)
+    # For NoCrossImmunity, use OnePopulationTyping type system
+    pop_type = get_infected_type(typing)
 
     # Create UWD with strain junctions as outer ports
     uwd = RelationDiagram(fill(pop_type, length(strain_names)))
@@ -295,13 +295,13 @@ function create_model_uwd(
     # typed_product will only compose boxes that match between UWDs
     for strain_junction in strain_junctions
         # Transmission: strain + strain → strain + strain (like S + I → I + I)
-        add_infection!(uwd, strain_junction, strain_junction, strain_junction, schema)
+        add_infection!(uwd, strain_junction, strain_junction, strain_junction, typing)
 
         # Disease progression: strain → strain (like E → I or I → R)
-        add_disease_progression!(uwd, strain_junction, strain_junction, schema)
+        add_disease_progression!(uwd, strain_junction, strain_junction, typing)
 
         # Reversion/waning: strain → strain (like I → S or R → S)
-        add_reversion_progression!(uwd, strain_junction, strain_junction, schema)
+        add_reversion_progression!(uwd, strain_junction, strain_junction, typing)
 
     end
 
@@ -323,7 +323,7 @@ The UWD has:
 - Reversion boxes to return to shared susceptible pool
 
 # Arguments
-- `schema::EpidemiologicalTyping`: The population schema (must be UninfectedInfectedSchema)
+- `typing::EpidemiologicalTyping`: The population typing (must be UninfectedInfectedTyping)
 - `multistrain::CompleteCrossImmunity`: The multistrain model configuration with strain names
 
 # Returns
@@ -332,25 +332,25 @@ The UWD has:
 # Examples
 ```julia
 # Create a 2-strain competing model
-schema = UninfectedInfectedSchema()
+typing = UninfectedInfectedTyping()
 multistrain = CompleteCrossImmunity([:wild_type, :variant])
-strain_uwd = create_model_uwd(schema, multistrain)
+strain_uwd = create_model_uwd(typing, multistrain)
 
 # Compose with compartmental model
-sir_typed = create_compartmental_model(schema, SIR())
-strain_typed = create_multistrain_model(schema, multistrain)
+sir_typed = create_compartmental_model(typing, SIR())
+strain_typed = create_multistrain_model(typing, multistrain)
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
 function create_model_uwd(
-        schema::EpidemiologicalTyping,
+        typing::EpidemiologicalTyping,
         multistrain::CompleteCrossImmunity
     )
     strain_names = multistrain.strain_names
 
-    # For CompleteCrossImmunity, use UninfectedInfectedSchema type system
-    uninfected_type = get_uninfected_type(schema)
-    infected_type = get_infected_type(schema)
+    # For CompleteCrossImmunity, use UninfectedInfectedTyping type system
+    uninfected_type = get_uninfected_type(typing)
+    infected_type = get_infected_type(typing)
 
     # Create UWD with: 1 uninfected (shared S) + N infected (strain-specific I/R)
     # Outer ports: [uninfected, infected_1, infected_2, ..., infected_N]
@@ -376,14 +376,14 @@ function create_model_uwd(
     for infected_junction in infected_junctions
         # Transmission: shared_S + strain_I → strain_I + strain_I
         # This connects the shared susceptible pool to each strain's infected compartment
-        add_infection!(uwd, shared_uninfected, infected_junction, infected_junction, schema)
+        add_infection!(uwd, shared_uninfected, infected_junction, infected_junction, typing)
 
         # Disease progression: strain_I → strain_I (e.g., I → R within strain)
-        add_disease_progression!(uwd, infected_junction, infected_junction, schema)
+        add_disease_progression!(uwd, infected_junction, infected_junction, typing)
 
         # Reversion/waning: strain_I → shared_S (e.g., R → S or I → S)
         # This returns individuals to the shared susceptible pool
-        add_reversion_progression!(uwd, infected_junction, shared_uninfected, schema)
+        add_reversion_progression!(uwd, infected_junction, shared_uninfected, typing)
 
     end
 
@@ -397,15 +397,15 @@ Creates an UWD where transmission boxes represent contact patterns between diffe
 Example strata include age groups, risk levels, or demographic divisions, but only covers instantaneous
 transmission dynamics, e.g. movement between geographic regions would require additional demographic modeling.
 
-The UWD structure depends on the schema:
-- `OnePopulationSchema`: Single junction per age group (combined susceptible/infected)
-- `UninfectedInfectedSchema`: Two junctions per age group (uninfected and infected)
+The UWD structure depends on the typing:
+- `OnePopulationTyping`: Single junction per age group (combined susceptible/infected)
+- `UninfectedInfectedTyping`: Two junctions per age group (uninfected and infected)
 
 All transmission boxes are created with the `:transmission` name, enabling composition
 with compartmental models that have `:transmission` boxes (SI, SIR, SEIR, etc.).
 
 # Arguments
-- `schema::EpidemiologicalTyping`: The population schema defining type system
+- `typing::EpidemiologicalTyping`: The population typing defining type system
 - `model::ContactStratification`: The contact stratification configuration with stratum names
 
 # Returns
@@ -423,15 +423,15 @@ will align based on the `:transmission` name, allowing the contact structure to 
 the disease dynamics defined in the compartmental model.
 """
 function create_model_uwd(
-        schema::EpidemiologicalTyping, model::ContactStratification;
+        typing::EpidemiologicalTyping, model::ContactStratification;
         include_reflexives::Bool = true
     )
     uwd = RelationDiagram(Symbol[]) # No outer ports
 
     # Create junction for each stratum
-    # These are tuples (uninfected_stratum_junction, infected_stratum_junction) in case needed for more complex schemas
+    # These are tuples (uninfected_stratum_junction, infected_stratum_junction) in case needed for more complex typings
     stratum_junction_tuples = [
-        set_stratum_junction!(uwd, schema, stratum)
+        set_stratum_junction!(uwd, typing, stratum)
             for stratum in model.stratum_names
     ]
 
@@ -443,7 +443,7 @@ function create_model_uwd(
                 stratum_infectee[1],  # infectee junction (the stratum being infected)
                 stratum_infector[2],   # infector junction (the stratum causing infection)
                 stratum_infectee[2],   # first infected output junction (the stratum being infected is unchanged for ContactStratification)
-                schema
+                typing
             )
         end
     end
@@ -454,9 +454,9 @@ function create_model_uwd(
     # Can be disabled via include_reflexives=false for standalone use.
     if include_reflexives
         for stratum in stratum_junction_tuples
-            add_disease_progression!(uwd, stratum[2], stratum[2], schema)
-            add_reversion_progression!(uwd, stratum[2], stratum[1], schema)
-            add_uninfected_density_progression!(uwd, stratum[1], stratum[1], schema)
+            add_disease_progression!(uwd, stratum[2], stratum[2], typing)
+            add_reversion_progression!(uwd, stratum[2], stratum[1], typing)
+            add_uninfected_density_progression!(uwd, stratum[1], stratum[1], typing)
         end
     end
 
@@ -470,16 +470,16 @@ end
 """
 Immune-history stratification requires the uninfected/infected type split.
 """
-function create_model_uwd(::OnePopulationSchema, ::ImmuneHistory)
+function create_model_uwd(::OnePopulationTyping, ::ImmuneHistory)
     return error(
-        "ImmuneHistory requires UninfectedInfectedSchema — the uninfected/infected " *
-            "split is what carries immune history; OnePopulationSchema has no uninfected type."
+        "ImmuneHistory requires UninfectedInfectedTyping — the uninfected/infected " *
+            "split is what carries immune history; OnePopulationTyping has no uninfected type."
     )
 end
 
 """
 Construct the UWD for the `ImmuneHistory` stratification **factor** over a
-`UninfectedInfectedSchema`.
+`UninfectedInfectedTyping`.
 
 This is a stratification factor (like `ContactStratification`), meant to be
 `typed_product`-composed with a disease model — the disease model supplies
@@ -502,16 +502,16 @@ internal (no outer ports).
 
 # Examples
 ```julia
-schema = UninfectedInfectedSchema()
-history = create_model(schema, ImmuneHistory([:current, :invader]))
-model = typed_product(create_model(schema, SEIRS()), history)
+typing = UninfectedInfectedTyping()
+history = create_model(typing, ImmuneHistory([:current, :invader]))
+model = typed_product(create_model(typing, SEIRS()), history)
 ```
 """
-function create_model_uwd(schema::UninfectedInfectedSchema, model::ImmuneHistory)
+function create_model_uwd(typing::UninfectedInfectedTyping, model::ImmuneHistory)
     strains = model.strain_names
     mode = model.mode
-    uninfected_type = get_uninfected_type(schema)
-    infected_type = get_infected_type(schema)
+    uninfected_type = get_uninfected_type(typing)
+    infected_type = get_infected_type(typing)
 
     # Internal junctions only (stratification factor; no outer ports).
     uwd = RelationDiagram(Symbol[])
@@ -534,18 +534,18 @@ function create_model_uwd(schema::UninfectedInfectedSchema, model::ImmuneHistory
     for (h, i) in pairs
         # Escape-selective infection: U_h + (any strain-i infector) → (h,i).
         for inf_j in infectors[i]
-            add_infection!(uwd, U[h], inf_j, Iof[(h, i)], schema)
+            add_infection!(uwd, U[h], inf_j, Iof[(h, i)], typing)
         end
         # Reflexive :disease and :observation so the base's E→I→R and obs chain
         # run within this (h,i).
-        add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], schema)
+        add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], typing)
         # Off-diagonal :reversion — the history-incrementing move.
-        add_reversion_progression!(uwd, Iof[(h, i)], U[_recover_to(mode, h, i)], schema)
+        add_reversion_progression!(uwd, Iof[(h, i)], U[_recover_to(mode, h, i)], typing)
     end
 
     # Reflexive :waning on each uninfected class (inert with SEIRS).
     for h in keys(U)
-        add_uninfected_density_progression!(uwd, U[h], U[h], schema)
+        add_uninfected_density_progression!(uwd, U[h], U[h], typing)
     end
 
     return uwd

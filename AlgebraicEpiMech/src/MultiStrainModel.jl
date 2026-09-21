@@ -15,7 +15,7 @@ No cross-immunity multistrain model.
 In the no cross-immunity model:
 - Each strain operates independently with no interaction
 - Strains act as independent strata (similar to age groups)
-- Schema: OnePopulationSchema (all compartments same type)
+- Typing: OnePopulationTyping (all compartments have the same type)
 - Composition: Creates parallel disease dynamics per strain via typed_product
 
 # Fields
@@ -31,9 +31,9 @@ multistrain = NoCrossImmunity([:h1n1, :h3n2, :b])
 multistrain = NoCrossImmunity(2)  # Creates [:strain_1, :strain_2]
 
 # Compose to create strain-structured SIR
-schema = OnePopulationSchema()
-strain_typed = create_multistrain_model(schema, multistrain)
-sir_typed = create_compartmental_model(schema, SIR())
+typing = OnePopulationTyping()
+strain_typed = create_multistrain_model(typing, multistrain)
+sir_typed = create_compartmental_model(typing, SIR())
 combined = typed_product(sir_typed, strain_typed)
 ```
 """
@@ -63,7 +63,7 @@ Complete cross-immunity multistrain model.
 In the complete cross-immunity model:
 - All strains share a common susceptible pool
 - Infection by any strain confers immunity to all strains
-- Schema: UninfectedInfectedSchema (typed S vs I/R compartments)
+- Typing: UninfectedInfectedTyping (typed S vs I/R compartments)
 - Composition: Strains compete for susceptibles via shared S depletion
 
 # Fields
@@ -79,9 +79,9 @@ multistrain = CompleteCrossImmunity([:wild_type, :variant])
 multistrain = CompleteCrossImmunity(3)  # Creates [:strain_1, :strain_2, :strain_3]
 
 # Compose to create competing strain SIR
-schema = UninfectedInfectedSchema()
-strain_typed = create_multistrain_model(schema, multistrain)
-sir_typed = create_compartmental_model(schema, SIR())
+typing = UninfectedInfectedTyping()
+strain_typed = create_multistrain_model(typing, multistrain)
+sir_typed = create_compartmental_model(typing, SIR())
 combined = typed_product(sir_typed, strain_typed)
 ```
 """

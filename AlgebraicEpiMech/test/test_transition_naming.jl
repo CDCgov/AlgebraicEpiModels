@@ -6,13 +6,13 @@
     using Catlab
     using AlgebraicEpiMech
 
-    # Create schema for testing
-    one_pop_schema = OnePopulationSchema(population_type = :Individual)
+    # Create typing for testing
+    one_pop_typing = OnePopulationTyping(population_type = :Individual)
 end
 
 # Test simple SIR model transition naming
 @testitem "SIR model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SIR())
+    typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -30,7 +30,7 @@ end
 
 # Test multi-stage SI model transition naming
 @testitem "Multi-stage SI model has unique transmission names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SI(number_I_stages = 3))
+    typed_model = create_model(one_pop_typing, SI(number_I_stages = 3))
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -53,7 +53,7 @@ end
 
 # Test SEIR model transition naming
 @testitem "SEIR model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SEIR())
+    typed_model = create_model(one_pop_typing, SEIR())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -73,7 +73,7 @@ end
 # Test multi-stage SEIR model transition naming
 @testitem "Multi-stage SEIR model has unique transition names" setup = [TransitionNamingSetup] begin
     typed_model = create_model(
-        one_pop_schema,
+        one_pop_typing,
         SEIR(number_E_stages = 2, number_I_stages = 3)
     )
     pn = dom(typed_model)
@@ -106,7 +106,7 @@ end
 
 # Test SEI model transition naming
 @testitem "SEI model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SEI())
+    typed_model = create_model(one_pop_typing, SEI())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -124,7 +124,7 @@ end
 
 # Test SIS model transition naming
 @testitem "SIS model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SIS())
+    typed_model = create_model(one_pop_typing, SIS())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -142,7 +142,7 @@ end
 
 # Test SEIS model transition naming
 @testitem "SEIS model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SEIS())
+    typed_model = create_model(one_pop_typing, SEIS())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -161,7 +161,7 @@ end
 
 # Test SEIRS model transition naming
 @testitem "SEIRS model has unique transition names" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SEIRS())
+    typed_model = create_model(one_pop_typing, SEIRS())
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -183,7 +183,7 @@ end
 @testitem "Multi-stage model enables unique rate parameter assignment" setup = [TransitionNamingSetup] begin
     using LabelledArrays
 
-    typed_model = create_model(one_pop_schema, SI(number_I_stages = 3))
+    typed_model = create_model(one_pop_typing, SI(number_I_stages = 3))
     pn = dom(typed_model)
 
     tnames = AlgebraicPetri.tnames(pn)
@@ -205,7 +205,7 @@ end
 
 # Test that multi-input transitions follow the naming pattern
 @testitem "Multi-input transitions follow box_name_input1_input2 pattern" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SIR())
+    typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 
     # Find the transmission transition (has 2 inputs)
@@ -228,7 +228,7 @@ end
 
 # Test that single-input transitions follow input_to_output pattern
 @testitem "Single-input transitions follow input_to_output pattern" setup = [TransitionNamingSetup] begin
-    typed_model = create_model(one_pop_schema, SIR())
+    typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 
     # Find the recovery transition (I -> R)

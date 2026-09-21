@@ -17,12 +17,12 @@
     using Catlab
     using AlgebraicEpiMech
 
-    one_pop_schema = OnePopulationSchema(population_type = :Individual)
+    one_pop_typing = OnePopulationTyping(population_type = :Individual)
 end
 
 @testitem "observation_layout returns ordered chain metadata" setup = [ObservationLayoutSetup] begin
     pn = attach_observation(
-        dom(create_model(one_pop_schema, SEIR())),
+        dom(create_model(one_pop_typing, SEIR())),
         AtCompartment(:I); n_stages = 2,
     )
 
@@ -42,7 +42,7 @@ end
     # onto one label.
     pn = attach_observation(
         attach_observation(
-            dom(create_model(one_pop_schema, SEIRS())),
+            dom(create_model(one_pop_typing, SEIRS())),
             AtCompartment(:I); n_stages = 2,
         ),
         AtCompartment(:R); n_stages = 1,
@@ -64,8 +64,8 @@ end
     # structure at all and each location's chain is created by the rewrite.
     composed = dom(
         typed_product(
-            create_model(one_pop_schema, SEIR()),
-            create_model(one_pop_schema, GeographicStratification([:ak, :ca])),
+            create_model(one_pop_typing, SEIR()),
+            create_model(one_pop_typing, GeographicStratification([:ak, :ca])),
         ),
     )
     pn = attach_observation(composed, AtCompartment(:I); n_stages = 2)

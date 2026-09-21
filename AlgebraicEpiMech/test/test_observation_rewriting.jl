@@ -36,15 +36,15 @@
 
     geo_seirs(locs) = dom(
         typed_product(
-            create_model(OnePopulationSchema(), SEIRS()),
-            create_model(OnePopulationSchema(), GeographicStratification(locs)),
+            create_model(OnePopulationTyping(), SEIRS()),
+            create_model(OnePopulationTyping(), GeographicStratification(locs)),
         ),
     )
 end
 
 @testitem "incidence: an infection tap counts one per infection, at the event's own rate" setup = [RewriteSetup] begin
     # SEIR, not SEIRS: with no waning, S drains only to infection, so `-du[:S]` IS incidence.
-    base = dom(create_model(OnePopulationSchema(), SEIR()))
+    base = dom(create_model(OnePopulationTyping(), SEIR()))
     obs = attach_observation(base, AtEvent(:transmission); n_stages = 1)
 
     # The event was AUGMENTED, not shadowed: no new transition.
@@ -76,7 +76,7 @@ end
 end
 
 @testitem "prevalence: a compartment tap is rate x occupancy and consumes nobody" setup = [RewriteSetup] begin
-    base = dom(create_model(OnePopulationSchema(), SEIRS()))
+    base = dom(create_model(OnePopulationTyping(), SEIRS()))
     obs = attach_observation(base, AtCompartment(:I); n_stages = 1)
 
     @test nt(obs) == nt(base) + 1            # a NEW mechanism, unlike the incidence rule
@@ -92,7 +92,7 @@ end
 end
 
 @testitem "chains add Erlang stages and only the last accumulates" setup = [RewriteSetup] begin
-    base = dom(create_model(OnePopulationSchema(), SEIR()))
+    base = dom(create_model(OnePopulationTyping(), SEIR()))
     obs = attach_observation(base, AtEvent(:transmission); n_stages = 3)
 
     @test ns(obs) == ns(base) + 3
@@ -144,7 +144,7 @@ end
     # Under ImmuneHistory a class immune to `h` simply has no transmission for `i in h`. Because
     # we only rewrite transitions that EXIST, selectivity survives automatically — there is no
     # second structure to keep in sync and therefore nothing to get silently wrong.
-    ui = UninfectedInfectedSchema()
+    ui = UninfectedInfectedTyping()
     base = dom(
         typed_product(
             create_model(ui, SEIRS()),
@@ -220,7 +220,7 @@ end
 @testitem "each stage of a multi-stage compartment gets its own chain" setup = [RewriteSetup] begin
     # Regression: chain labels that omitted the source collapsed `I1`, `I2`, `I3` onto one label,
     # and every match after the first was skipped as already-tapped.
-    base = dom(create_model(OnePopulationSchema(), SEIR(number_I_stages = 3)))
+    base = dom(create_model(OnePopulationTyping(), SEIR(number_I_stages = 3)))
     obs = attach_observation(base, AtCompartment(:I); n_stages = 1)
 
     @test nt(obs) == nt(base) + 3
@@ -235,7 +235,7 @@ end
     # `<prefix>_<source>_<stage>` leaf, and `ConfigurableEpi`'s `StateLayout` builds on it. Labels
     # that do not parse leave the accumulators looking like core model state.
     obs = attach_observation(
-        dom(create_model(OnePopulationSchema(), SEIR())),
+        dom(create_model(OnePopulationTyping(), SEIR())),
         AtEvent(:transmission); n_stages = 2,
     )
     layout = observation_layout(obs)
@@ -279,7 +279,7 @@ end
     @test attach_observation(obs, AtEvent(:transmission); n_stages = 2) == obs
 
     # Prevalence: one catalytic tap transition plus a chain per matched species.
-    seir = dom(create_model(OnePopulationSchema(), SEIR()))
+    seir = dom(create_model(OnePopulationTyping(), SEIR()))
     tap = attach_observation(seir, AtCompartment(:I); n_stages = 2)
     @test names(tap)[1:AlgebraicPetri.ns(seir)] == names(seir)
     @test AlgebraicPetri.ns(tap) == AlgebraicPetri.ns(seir) + 2

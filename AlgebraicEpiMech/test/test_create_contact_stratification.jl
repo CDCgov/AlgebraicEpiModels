@@ -7,9 +7,9 @@
     using Catlab
     using AlgebraicEpiMech
 
-    # Create schema instances for testing
-    one_pop_schema = OnePopulationSchema(population_type = :Individual)
-    ui_schema = UninfectedInfectedSchema(
+    # Create typing instances for testing
+    one_pop_typing = OnePopulationTyping(population_type = :Individual)
+    ui_typing = UninfectedInfectedTyping(
         uninfected_type = :Susceptible,
         infected_type = :Infectious
     )
@@ -19,19 +19,19 @@ end
 @testitem "create_model(ContactStratification) returns ACSetTransformation" setup = [ContactStratificationModelSetup] begin
     @testset "AgeStratification" begin
         age_strat = AgeStratification([:child, :adult])
-        typed_model = create_model(one_pop_schema, age_strat)
+        typed_model = create_model(one_pop_typing, age_strat)
         @test typed_model isa ACSetTransformation
     end
 
     @testset "GeographicStratification" begin
         geo_strat = GeographicStratification([:urban, :rural])
-        typed_model = create_model(one_pop_schema, geo_strat)
+        typed_model = create_model(one_pop_typing, geo_strat)
         @test typed_model isa ACSetTransformation
     end
 
     @testset "Direct ContactStratification" begin
         risk_strat = ContactStratification([:low, :high], :risk)
-        typed_model = create_model(one_pop_schema, risk_strat)
+        typed_model = create_model(one_pop_typing, risk_strat)
         @test typed_model isa ACSetTransformation
     end
 end
@@ -44,13 +44,13 @@ end
     ]
 
     for strat in strats
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
         @test pn isa LabelledPetriNet
     end
 end
 
-@testitem "create_model(ContactStratification) schema accessible via codom" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model(ContactStratification) type system accessible via codom" setup = [ContactStratificationModelSetup] begin
     strats = [
         AgeStratification([:child, :adult]),
         GeographicStratification([:urban, :rural]),
@@ -58,17 +58,17 @@ end
     ]
 
     for strat in strats
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         schema_pn = codom(typed_model)
         @test schema_pn isa LabelledPetriNet
     end
 end
 
-# Test with OnePopulationSchema - generalized for any ContactStratification
-@testitem "create_model with 2 strata OnePopulationSchema" setup = [ContactStratificationModelSetup] begin
+# Test with OnePopulationTyping - generalized for any ContactStratification
+@testitem "create_model with 2 strata OnePopulationTyping" setup = [ContactStratificationModelSetup] begin
     @testset "AgeStratification([:child, :adult])" begin
         strat = AgeStratification([:child, :adult])
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
 
         # Should have 2 species (one per stratum)
@@ -87,7 +87,7 @@ end
 
     @testset "GeographicStratification([:urban, :rural])" begin
         strat = GeographicStratification([:urban, :rural])
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
 
         @test length(AlgebraicPetri.snames(pn)) == 2
@@ -102,7 +102,7 @@ end
 
     @testset "ContactStratification([:low, :high], :risk)" begin
         strat = ContactStratification([:low, :high], :risk)
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
 
         @test length(AlgebraicPetri.snames(pn)) == 2
@@ -116,7 +116,7 @@ end
     end
 end
 
-@testitem "create_model with 3 strata OnePopulationSchema" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model with 3 strata OnePopulationTyping" setup = [ContactStratificationModelSetup] begin
     strats_and_names = [
         (AgeStratification([:child, :adult, :elderly]), [:child, :adult, :elderly]),
         (
@@ -127,7 +127,7 @@ end
     ]
 
     for (strat, expected_names) in strats_and_names
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
 
         # Should have 3 species
@@ -146,11 +146,11 @@ end
     end
 end
 
-# Test with UninfectedInfectedSchema
-@testitem "create_model(ContactStratification) with UninfectedInfectedSchema" setup = [ContactStratificationModelSetup] begin
+# Test with UninfectedInfectedTyping
+@testitem "create_model(ContactStratification) with UninfectedInfectedTyping" setup = [ContactStratificationModelSetup] begin
     @testset "AgeStratification" begin
         age_strat = AgeStratification([:child, :adult])
-        typed_model = create_model(ui_schema, age_strat)
+        typed_model = create_model(ui_typing, age_strat)
         pn = dom(typed_model)
 
         # Should have 4 species (uninfected + infected for each age group)
@@ -169,7 +169,7 @@ end
 
     @testset "GeographicStratification" begin
         geo_strat = GeographicStratification([:urban, :rural])
-        typed_model = create_model(ui_schema, geo_strat)
+        typed_model = create_model(ui_typing, geo_strat)
         pn = dom(typed_model)
 
         @test length(AlgebraicPetri.snames(pn)) == 4
@@ -187,7 +187,7 @@ end
 @testitem "generate_transition_names creates correct names" setup = [ContactStratificationModelSetup] begin
     @testset "AgeStratification" begin
         strat = AgeStratification([:young, :old])
-        uwd = create_model_uwd(one_pop_schema, strat)
+        uwd = create_model_uwd(one_pop_typing, strat)
         names = generate_transition_names(uwd, strat)
 
         @test length(names) == 10  # 4 transmission + 8 reflexive
@@ -203,7 +203,7 @@ end
 
     @testset "GeographicStratification" begin
         strat = GeographicStratification([:north, :south])
-        uwd = create_model_uwd(one_pop_schema, strat)
+        uwd = create_model_uwd(one_pop_typing, strat)
         names = generate_transition_names(uwd, strat)
 
         @test length(names) == 10
@@ -225,7 +225,7 @@ end
     ]
 
     for strat in strats
-        typed_model = create_model(one_pop_schema, strat)
+        typed_model = create_model(one_pop_typing, strat)
         pn = dom(typed_model)
 
         # Should have 1 species
@@ -238,7 +238,7 @@ end
 
 # Test composition with compartmental models
 @testitem "typed_product of SIR and ContactStratification" setup = [ContactStratificationModelSetup] begin
-    sir = create_model(one_pop_schema, SIR())
+    sir = create_model(one_pop_typing, SIR())
 
     strats = [
         AgeStratification([:child, :adult]),
@@ -247,7 +247,7 @@ end
     ]
 
     for strat in strats
-        strat_model = create_model(one_pop_schema, strat)
+        strat_model = create_model(one_pop_typing, strat)
         composed = typed_product(sir, strat_model)
 
         @test composed isa ACSetTransformation

@@ -5,31 +5,31 @@
 Create the structural skeleton of an undirected wiring diagram (UWD) for a compartmental model.
 
 This function allocates the correct number and types of outer ports based on the model's
-compartment count and the schema's type system. The resulting empty UWD provides the
+compartment count and the typing's type system. The resulting empty UWD provides the
 foundation for compositional model building - junctions and mechanisms are added later
 via `setup_basic!` and extension methods.
 
 # Compositional Role
 This is the first step in model construction, creating a "typed canvas" that ensures
-all subsequent junction and mechanism additions respect the schema's type constraints when
+all subsequent junction and mechanism additions respect the typing's type constraints when
 composing models using `AlgebraicPetri.oapply_typed`. The outer ports in the UWD allow
 composition with other UWDs although this is not main compositional focus.
 """
-function create_relation_diagram(schema::EpidemiologicalTyping, model::CompartmentalModel)
-    error("create_relation_diagram not implemented for schema type $(typeof(schema)). Implement a method for this combination.")
+function create_relation_diagram(typing::EpidemiologicalTyping, model::CompartmentalModel)
+    error("create_relation_diagram not implemented for typing type $(typeof(typing)). Implement a method for this combination.")
 end
 
-function create_relation_diagram(schema::OnePopulationSchema, model::CompartmentalModel)
-    pop_type = schema.population_type
+function create_relation_diagram(typing::OnePopulationTyping, model::CompartmentalModel)
+    pop_type = typing.population_type
     number_of_variables = model.number_of_states
     return RelationDiagram(fill(pop_type, number_of_variables))
 end
 
 function create_relation_diagram(
-        schema::UninfectedInfectedSchema, model::CompartmentalModel
+        typing::UninfectedInfectedTyping, model::CompartmentalModel
     )
-    uninfected_type = schema.uninfected_type
-    infected_type = schema.infected_type
+    uninfected_type = typing.uninfected_type
+    infected_type = typing.infected_type
     number_of_variables = model.number_of_states
     types_for_relation_diagram = vcat(
         [uninfected_type], fill(
@@ -41,17 +41,17 @@ function create_relation_diagram(
     return RelationDiagram(types_for_relation_diagram)
 end
 
-function create_relation_diagram(schema::OnePopulationSchema, model::ContactStratification)
-    pop_type = schema.population_type
+function create_relation_diagram(typing::OnePopulationTyping, model::ContactStratification)
+    pop_type = typing.population_type
     number_of_variables = length(model.stratum_names)
     return RelationDiagram(fill(pop_type, number_of_variables))
 end
 
 function create_relation_diagram(
-        schema::UninfectedInfectedSchema, model::ContactStratification
+        typing::UninfectedInfectedTyping, model::ContactStratification
     )
-    uninfected_type = schema.uninfected_type
-    infected_type = schema.infected_type
+    uninfected_type = typing.uninfected_type
+    infected_type = typing.infected_type
     number_of_variables = length(model.stratum_names)
     return RelationDiagram(
         vcat(
@@ -72,8 +72,8 @@ reliably find and reference the S junction when adding reversion mechanisms (e.g
 
 Returns the S junction ID for use in mechanism construction.
 """
-function set_S_junction!(uwd::RelationDiagram, schema::OnePopulationSchema)
-    pop_type = schema.population_type
+function set_S_junction!(uwd::RelationDiagram, typing::OnePopulationTyping)
+    pop_type = typing.population_type
     # Add junctions for S compartment
     S_junction = add_junction!(uwd, pop_type, variable = :S)
     # Connect outer ports to S junctions
@@ -81,8 +81,8 @@ function set_S_junction!(uwd::RelationDiagram, schema::OnePopulationSchema)
     return S_junction
 end
 
-function set_S_junction!(uwd::RelationDiagram, schema::UninfectedInfectedSchema)
-    uninfected_type = schema.uninfected_type
+function set_S_junction!(uwd::RelationDiagram, typing::UninfectedInfectedTyping)
+    uninfected_type = typing.uninfected_type
     # Add junctions for S compartment
     S_junction = add_junction!(uwd, uninfected_type, variable = :S)
     # Connect outer ports to S junctions
@@ -91,29 +91,29 @@ function set_S_junction!(uwd::RelationDiagram, schema::UninfectedInfectedSchema)
 end
 
 """
-Create age group junctions, either one per age group (OnePopulationSchema) or pairs per age group
-(UninfectedInfectedSchema).
+Create age group junctions, either one per age group (OnePopulationTyping) or pairs per age group
+(UninfectedInfectedTyping).
 
 # Compositional Role
 Enables contact stratification by creating junctions for each stratum.
 
 Returns a tuple of junction IDs for the stratum:
-- For `OnePopulationSchema`: (stratum_junction, stratum_junction)
-- For `UninfectedInfectedSchema`: (uninfected_stratum_junction, infected_stratum_junction)
+- For `OnePopulationTyping`: (stratum_junction, stratum_junction)
+- For `UninfectedInfectedTyping`: (uninfected_stratum_junction, infected_stratum_junction)
 """
 function set_stratum_junction!(
-        uwd::RelationDiagram, schema::OnePopulationSchema, stratum::Symbol
+        uwd::RelationDiagram, typing::OnePopulationTyping, stratum::Symbol
     )
-    pop_type = schema.population_type
+    pop_type = typing.population_type
     stratum_junction = add_junction!(uwd, pop_type, variable = stratum)
     return (stratum_junction, stratum_junction)
 end
 
 function set_stratum_junction!(
-        uwd::RelationDiagram, schema::UninfectedInfectedSchema, stratum::Symbol
+        uwd::RelationDiagram, typing::UninfectedInfectedTyping, stratum::Symbol
     )
-    uninfected_type = schema.uninfected_type
-    infected_type = schema.infected_type
+    uninfected_type = typing.uninfected_type
+    infected_type = typing.infected_type
     # Use unique variable names by prefixing with type
     uninfected_stratum_junction = add_junction!(
         uwd, uninfected_type, variable = Symbol(
@@ -173,11 +173,11 @@ Key for composition:
 - `number_of_stages`: Number of sequential stages to create
 - `pop_type`: The population type symbol for the junctions
 - `outer_port_counter`: Current position in outer port allocation (incremented for each stage)
-- `schema`: The epidemiological schema for mechanism dispatch
+- `typing`: The epidemiological typing for mechanism dispatch
 """
 function add_stages!(
         uwd::RelationDiagram, variable_symbol::Symbol, number_of_stages::Int,
-        pop_type::Symbol, outer_port_counter::Int, schema::EpidemiologicalTyping
+        pop_type::Symbol, outer_port_counter::Int, typing::EpidemiologicalTyping
     )
     # Create junctions for each stage
     junctions = [
@@ -197,7 +197,7 @@ function add_stages!(
     end
     # Add progression between stages
     for stage in 1:(number_of_stages - 1)
-        add_disease_progression!(uwd, junctions[stage], junctions[stage + 1], schema)  # e.g. E_stage → E_(stage+1) or I_stage → I_(stage+1)
+        add_disease_progression!(uwd, junctions[stage], junctions[stage + 1], typing)  # e.g. E_stage → E_(stage+1) or I_stage → I_(stage+1)
     end
     return junctions, outer_port_counter
 end
@@ -218,20 +218,20 @@ Returns (uwd, S_junction, last_I_junction) to enable extensions:
 The multi-stage capability means SI can represent gamma-distributed infectious periods
 even before extending to SIR.
 """
-function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalTyping, model::SI)
+function setup_basic!(uwd::RelationDiagram, typing::EpidemiologicalTyping, model::SI)
     # Add junctions for S compartment
-    S_junction = set_S_junction!(uwd, schema)
-    pop_type = get_infected_type(schema)
+    S_junction = set_S_junction!(uwd, typing)
+    pop_type = get_infected_type(typing)
     outer_port_counter = 2
 
     I_junctions,
         outer_port_counter = add_stages!(
-        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, schema
+        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, typing
     )
 
     # Add infection to first I stage
     for I_junction in I_junctions
-        add_infection!(uwd, S_junction, I_junction, I_junctions[1], schema)  # S + I → I + I
+        add_infection!(uwd, S_junction, I_junction, I_junctions[1], typing)  # S + I → I + I
     end
 
     return (uwd, S_junction, I_junctions[end])
@@ -256,29 +256,29 @@ Returns (uwd, S_junction, last_I_junction) to enable extensions:
 The dual multi-stage capability enables independent control of latent and infectious period
 distributions - critical for realistic disease modeling.
 """
-function setup_basic!(uwd::RelationDiagram, schema::EpidemiologicalTyping, model::SEI)
+function setup_basic!(uwd::RelationDiagram, typing::EpidemiologicalTyping, model::SEI)
     # Add junctions for S compartment
-    S_junction = set_S_junction!(uwd, schema)
-    pop_type = get_infected_type(schema)
+    S_junction = set_S_junction!(uwd, typing)
+    pop_type = get_infected_type(typing)
     outer_port_counter = 2
 
     # For multiple E and I stages, create junctions for each stage
     E_junctions,
         outer_port_counter = add_stages!(
-        uwd, :E, model.number_E_stages, pop_type, outer_port_counter, schema
+        uwd, :E, model.number_E_stages, pop_type, outer_port_counter, typing
     )
     I_junctions,
         outer_port_counter = add_stages!(
-        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, schema
+        uwd, :I, model.number_I_stages, pop_type, outer_port_counter, typing
     )
 
     # add infection to first E stage from any infection stage
     for I_junction in I_junctions
-        add_infection!(uwd, S_junction, I_junction, E_junctions[1], schema)  # S + I → E + I
+        add_infection!(uwd, S_junction, I_junction, E_junctions[1], typing)  # S + I → E + I
     end
 
     # Add progression from last E stage to first I stage
-    add_disease_progression!(uwd, E_junctions[end], I_junctions[1], schema)  # E_last → I_1
+    add_disease_progression!(uwd, E_junctions[end], I_junctions[1], typing)  # E_last → I_1
 
     return (uwd, S_junction, I_junctions[end])
 end

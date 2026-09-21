@@ -30,10 +30,10 @@ age = ContactStratification([:child, :adult], :age)
 geo = ContactStratification([:urban, :rural], :geography)
 
 # Compose to create age × geography strata
-schema = OnePopulationSchema()
-sir = create_model(schema, SIR())
-age_sir = typed_product(sir, create_model(schema, age))
-age_geo_sir = typed_product(age_sir, create_model(schema, geo))
+typing = OnePopulationTyping()
+sir = create_model(typing, SIR())
+age_sir = typed_product(sir, create_model(typing, age))
+age_geo_sir = typed_product(age_sir, create_model(typing, geo))
 # Result: 4 strata (childxurban, childxrural, adultxurban, adultxrural)
 ```
 

@@ -7,9 +7,9 @@
     using Catlab
     using AlgebraicEpiMech
 
-    # Create schema instances for testing
-    one_pop_schema = OnePopulationSchema(population_type = :Individual)
-    ui_schema = UninfectedInfectedSchema(
+    # Create typing instances for testing
+    one_pop_typing = OnePopulationTyping(population_type = :Individual)
+    ui_typing = UninfectedInfectedTyping(
         uninfected_type = :Susceptible,
         infected_type = :Infectious
     )
@@ -18,7 +18,7 @@ end
 # Test that create_model returns typed Petri net
 @testitem "create_model(AgeStratification) returns ACSetTransformation" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
     # Should return an ACSetTransformation (typed Petri net)
     @test typed_model isa ACSetTransformation
@@ -26,26 +26,26 @@ end
 
 @testitem "create_model(AgeStratification) typed model has dom as LabelledPetriNet" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
     # The domain should be a LabelledPetriNet (usable for ODEs)
     pn = dom(typed_model)
     @test pn isa LabelledPetriNet
 end
 
-@testitem "create_model(AgeStratification) schema accessible via codom" setup = [AgeStratificationModelSetup] begin
+@testitem "create_model(AgeStratification) type system accessible via codom" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
-    # The schema should be accessible via codom
+    # The type system should be accessible via codom
     schema_pn = codom(typed_model)
     @test schema_pn isa LabelledPetriNet
 end
 
-# Test with OnePopulationSchema
-@testitem "create_model(AgeStratification) with 2 age groups OnePopulationSchema" setup = [AgeStratificationModelSetup] begin
+# Test with OnePopulationTyping
+@testitem "create_model(AgeStratification) with 2 age groups OnePopulationTyping" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
     pn = dom(typed_model)
 
@@ -63,9 +63,9 @@ end
     @test :adult_adult in tnames  # within-group adult
 end
 
-@testitem "create_model(AgeStratification) with 3 age groups OnePopulationSchema" setup = [AgeStratificationModelSetup] begin
+@testitem "create_model(AgeStratification) with 3 age groups OnePopulationTyping" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult, :elderly])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
     pn = dom(typed_model)
 
@@ -76,10 +76,10 @@ end
     @test length(AlgebraicPetri.tnames(pn)) == 18
 end
 
-# Test with UninfectedInfectedSchema
-@testitem "create_model(AgeStratification) with UninfectedInfectedSchema" setup = [AgeStratificationModelSetup] begin
+# Test with UninfectedInfectedTyping
+@testitem "create_model(AgeStratification) with UninfectedInfectedTyping" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
-    typed_model = create_model(ui_schema, age_strat)
+    typed_model = create_model(ui_typing, age_strat)
 
     pn = dom(typed_model)
 
@@ -100,7 +100,7 @@ end
 # Test generate_transition_names
 @testitem "generate_transition_names creates correct names for age groups" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:young, :old])
-    uwd = create_model_uwd(one_pop_schema, age_strat)
+    uwd = create_model_uwd(one_pop_typing, age_strat)
 
     names = generate_transition_names(uwd, age_strat)
 
@@ -120,7 +120,7 @@ end
 # Test single age group edge case
 @testitem "create_model(AgeStratification) with single age group" setup = [AgeStratificationModelSetup] begin
     age_strat = AgeStratification([:population])
-    typed_model = create_model(one_pop_schema, age_strat)
+    typed_model = create_model(one_pop_typing, age_strat)
 
     pn = dom(typed_model)
 
@@ -136,11 +136,11 @@ end
 # Test composition with compartmental models
 @testitem "typed_product of SIR and AgeStratification creates age-structured model" setup = [AgeStratificationModelSetup] begin
     # Create compartmental model
-    sir = create_model(one_pop_schema, SIR())
+    sir = create_model(one_pop_typing, SIR())
 
     # Create age stratification
     age_strat = AgeStratification([:child, :adult])
-    age_model = create_model(one_pop_schema, age_strat)
+    age_model = create_model(one_pop_typing, age_strat)
 
     # Compose them
     age_sir = typed_product(sir, age_model)

@@ -101,8 +101,8 @@ end
     geo = attach_observation(
         dom(
             typed_product(
-                create_model(OnePopulationSchema(), SEIRS()),
-                create_model(OnePopulationSchema(), GeographicStratification([:a, :b, :c])),
+                create_model(OnePopulationTyping(), SEIRS()),
+                create_model(OnePopulationTyping(), GeographicStratification([:a, :b, :c])),
             ),
         ),
         AtEvent(:transmission); n_stages = 2,

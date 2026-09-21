@@ -103,7 +103,7 @@ end
     using Catlab
 
     @testset "Composed stratification creates valid model" begin
-        schema = OnePopulationSchema()
+        typing = OnePopulationTyping()
 
         age = AgeStratification([:child, :adult])
         geo = GeographicStratification([:urban, :rural])
@@ -112,7 +112,7 @@ end
         age_geo = age * geo
 
         # Should be able to create model from composed stratification
-        age_geo_model = create_model(schema, age_geo)
+        age_geo_model = create_model(typing, age_geo)
 
         # Extract Petri net
         pn = dom(age_geo_model)
@@ -125,20 +125,20 @@ end
     end
 
     @testset "Composed stratification equivalent to sequential composition" begin
-        schema = OnePopulationSchema()
-        sir = create_model(schema, SIR())
+        typing = OnePopulationTyping()
+        sir = create_model(typing, SIR())
         age = AgeStratification([:child, :adult])
         geo = GeographicStratification([:urban, :rural])
 
         # Approach 1: Sequential typed_product
-        age_model = create_model(schema, age)
-        geo_model = create_model(schema, geo)
+        age_model = create_model(typing, age)
+        geo_model = create_model(typing, geo)
         sir_age = typed_product(sir, age_model)
         sir_age_geo_sequential = typed_product(sir_age, geo_model)
 
         # Approach 2: Pre-composed stratification
         age_geo = age * geo
-        age_geo_model = create_model(schema, age_geo)
+        age_geo_model = create_model(typing, age_geo)
         sir_age_geo_composed = typed_product(sir, age_geo_model)
 
         # Both should create same structure
@@ -157,11 +157,11 @@ end
         # This test catches the bug where S_child + I_adult → I_adult + I_adult
         # instead of the correct S_child + I_adult → I_child + I_adult
 
-        schema = OnePopulationSchema()
-        sir = create_model(schema, SIR())
+        typing = OnePopulationTyping()
+        sir = create_model(typing, SIR())
         age = AgeStratification([:child, :adult])
 
-        age_model = create_model(schema, age)
+        age_model = create_model(typing, age)
         age_sir = typed_product(sir, age_model)
         pn = dom(age_sir)
 
@@ -200,14 +200,14 @@ end
 
     @testset "Multi-stratification transmission preserves infectee stratum" begin
         # Test with composed stratifications (age × geography)
-        schema = OnePopulationSchema()
-        sir = create_model(schema, SIR())
+        typing = OnePopulationTyping()
+        sir = create_model(typing, SIR())
 
         age = AgeStratification([:child, :adult])
         geo = GeographicStratification([:urban, :rural])
         age_geo = age * geo
 
-        age_geo_model = create_model(schema, age_geo)
+        age_geo_model = create_model(typing, age_geo)
         age_geo_sir = typed_product(sir, age_geo_model)
         pn = dom(age_geo_sir)
 
