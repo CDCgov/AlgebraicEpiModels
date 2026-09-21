@@ -1,12 +1,13 @@
 # Attaching observation to a composed model, by pushout.
 #
-# Pullbacks vs Pushouts:
+# The typed petri net models compose via their limit / categorical pullback operation, that is
+# identically typed transitions are generated from the set of all tensor products of the component transitions.
 #
-# The algebraic mechanism for constructing stratified models composes models along their place — an operadic pullback (`typed_product`).
-# Composition identifies and restricts; it can never introduce structure that is not already in a
-# factor.
-
-# Observation models also introduce structure, via a different operation: a COLIMIT.
+# Observation models also introduce structure, via a different operation: a colimit / categorical pushout operation.
+# These join the component models along shared structure, in this case either a species or transitions that on one hand are part of
+# the petri net representing the epidemiological dynamics and on the other hand represent generating new observations
+# in the future.
+#
 # The main types of observation are "incidence"-like and "prevalence"-like.
 # Both kinds of observation are the same colimit. Only the rule "L -> R" differs:
 #
@@ -22,18 +23,15 @@
 # Because this runs after the pullback compositions, stratification factors need to know nothing whatsoever
 # about observation: no per-stratum accumulator, no reflexive observation box etc.
 #
-# WHY THIS IS NOT BUILT BY PUSHOUT. The colimit above is the specification, and an earlier
-# version of this file materialized it literally: one pushout per matched transition, re-matching
-# against the grown net after every step. That is O(L^4) in the number of geographic strata —
+# Optimisation
+# An earlier version of this file materialized the observations literally using Catlab functions one pushout per matched transition,
+# re-matching against the grown net after every step. That was O(L^4) in the number of strata —
 # ~L^2 matched routes, each paying a `homomorphism` search plus a colimit on a net that is itself
-# ~L^2 transitions — and on the 50-state geographic model it meant hours of model CONSTRUCTION
-# before any inference (1.2 s at L = 6, 109 s at L = 20, extrapolated 1-2 h at L = 50; 0.01 s
+# ~L^2 transitions. For example, on a 50-state geographic model it meant hours of model construction
+# before any model running (1.2 s at L = 6, 109 s at L = 20, extrapolated 1-2 h at L = 50; 0.01 s
 # now). Both rules are monotone additions — nothing is deleted, nothing is merged beyond gluing
 # onto a chain that is findable by label — so the same colimit is materialized directly below in
-# one pass, appending chains and arcs in first-encounter order. A side benefit: the pushout apex
-# reshuffled even the base net's parts on every rewrite (a Catlab colimit artifact), whereas the
-# direct pass keeps the input net's order and appends, so state layouts built from an observed
-# net are stable across builds.
+# one pass, appending chains and arcs in first-encounter order.
 
 """
     ObservationTarget
@@ -62,7 +60,7 @@ end
 
 Sample a SPECIES: prevalence. Every species whose (flattened) name begins with `species` gains a
 catalytic tap `X -> X + O`, carrying its own detection rate — whoever is in the compartment is
-currently detectable.
+currently detectable (although detection does not cause removal)
 """
 struct AtCompartment <: ObservationTarget
     species::Symbol
