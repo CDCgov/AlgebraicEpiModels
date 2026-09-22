@@ -100,11 +100,11 @@ using Catlab: dom
     end
 
     @testset "Petri net constructor infers observation layout" begin
-        schema = OnePopulationSchema()
+        typing = OnePopulationTyping()
         # Observation attached to the built net by pushout. `AtCompartment` samples the
         # compartment, which yields the same `O_I_1`/`O_I_2` names the operadic chain did.
         pn = attach_observation(
-            dom(create_model(schema, SEIR())), AtCompartment(:I); n_stages = 2
+            dom(create_model(typing, SEIR())), AtCompartment(:I); n_stages = 2
         )
         latent_specs = (
             RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.25), sigma_rate = FixedParam(:sigma_Rt, 0.1)),
@@ -119,8 +119,8 @@ using Catlab: dom
     end
 
     @testset "Petri net constructor supports no observation chains" begin
-        schema = OnePopulationSchema()
-        pn = dom(create_model(schema, SEIR()))
+        typing = OnePopulationTyping()
+        pn = dom(create_model(typing, SEIR()))
         latent_specs = (
             RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.25), sigma_rate = HyperParamRW(positive_gaussian(:sigma_Rt, 0.1, 0.05))),
         )

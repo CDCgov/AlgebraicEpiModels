@@ -47,7 +47,7 @@ constrained `latent` NamedTuple through as the `p` argument.
 
 # Example
 ```julia
-pn = dom(create_model(OnePopulationSchema(), SEIRS()))
+pn = dom(create_model(OnePopulationTyping(), SEIRS()))
 
 # Fixed structural rates from a spec; only transmission is dynamic.
 defaults = (E_to_I = 1.0/3.0, I_to_R = 1.0/7.0, R_to_S = 1.0/180.0)
@@ -97,7 +97,7 @@ Closure `(x, u, p, t) -> dx` compatible with SeeToDee.jl discretization.
 ```julia
 # Build the model, then attach observation to the infection event
 pn = attach_observation(
-    dom(create_model(OnePopulationSchema(), SEIR())),
+    dom(create_model(OnePopulationTyping(), SEIR())),
     AtEvent(:transmission); n_stages = 2,
 )
 
