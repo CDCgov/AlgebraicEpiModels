@@ -6,7 +6,6 @@ version = "0.1.0"
 [deps]
 AlgebraicEpiMech = "a6e39d6b-8b2d-49f3-aca0-f4154643f040"
 AlgebraicPetri = "4f99eebe-17bf-4e98-b6a1-2c4f205a959b"
-Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
 Configurations = "5218b696-f38b-4ac9-8b61-a12ec717816d"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
@@ -18,8 +17,6 @@ EnsembleKalmanProcesses = "aa8a2aa5-91d8-4396-bcef-d4f2ec43552d"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-LogExpFunctions = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 LowLevelParticleFilters = "d9d29d28-c116-5dba-9239-57a5fe23875b"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
@@ -46,8 +43,9 @@ julia = "1.11"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Aqua", "JET"]
+test = ["Test", "Aqua", "JET", "Catlab"]
