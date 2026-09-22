@@ -128,19 +128,21 @@ end
 const DayOfWeekConfig = Union{NoDayOfWeekConfig, PluginDayOfWeekConfig, LearnedDayOfWeekConfig}
 
 """
-    WeeklyNSSPPercentInputConfig(; ed_rate_num = 47.0)   # [input.weekly_nssp_percent]
-    DailyNSSPCountInputConfig()                          # [input.daily_nssp_count]
+    CountInput()                                          # [input.counts]
+    PercentInput(; annual_rate_per_100)                   # [input.percent]
 
-Observation cadence and scale: weekly NSSP percentages converted to counts with an annual
-ED-visit rate, or daily counts already on the model scale.
+The observation scale. `counts` are already on the model's count scale. `percent` observations
+are percentages of a denominator series (all visits, say) whose annual volume is
+`annual_rate_per_100` per 100 population; the runner converts them to counts with the location's
+population and the observation interval.
 """
-@option "weekly_nssp_percent" struct WeeklyNSSPPercentInputConfig
-    ed_rate_num::Float64 = 47.0
+@option "counts" struct CountInput end
+
+@option "percent" struct PercentInput
+    annual_rate_per_100::Float64
 end
 
-@option "daily_nssp_count" struct DailyNSSPCountInputConfig end
-
-const InputConfig = Union{WeeklyNSSPPercentInputConfig, DailyNSSPCountInputConfig}
+const InputConfig = Union{CountInput, PercentInput}
 
 # --- inference axis 1: the state filter -------------------------------------------------------
 
@@ -330,9 +332,9 @@ end
 _validate_window(::Nothing) = nothing
 _validate_window(w::Integer) = _require(w > 0, "window_length must be positive when given, got $w")
 
-_validate(::DailyNSSPCountInputConfig) = nothing
-_validate(i::WeeklyNSSPPercentInputConfig) =
-    _require(isfinite(i.ed_rate_num) && i.ed_rate_num > 0, "input.weekly_nssp_percent.ed_rate_num must be finite and positive")
+_validate(::CountInput) = nothing
+_validate(i::PercentInput) =
+    _require(isfinite(i.annual_rate_per_100) && i.annual_rate_per_100 > 0, "input.percent.annual_rate_per_100 must be finite and positive")
 
 """
     validate_run_config(cfg::RunConfig) -> cfg
