@@ -1,0 +1,43 @@
+name: ConfigurableEpi tests
+
+# ConfigurableEpi depends on AlgebraicEpiMech by path, so a change to either package runs these.
+on:
+  pull_request:
+    paths:
+      - AlgebraicEpiMech/**
+      - ConfigurableEpi/**
+      - .github/workflows/test-configurableepi.yaml
+  push:
+    branches: [master, main]
+    paths:
+      - AlgebraicEpiMech/**
+      - ConfigurableEpi/**
+      - .github/workflows/test-configurableepi.yaml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  test:
+    name: ConfigurableEpi Julia ${{ matrix.julia-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ['1.11', '1.12', '1.13']
+
+    steps:
+    - uses: actions/checkout@v7
+    - uses: julia-actions/setup-julia@v3
+      with:
+        version: ${{ matrix.julia-version }}
+        project: ConfigurableEpi
+    - uses: julia-actions/cache@v3
+    - uses: julia-actions/julia-buildpkg@v1
+      with:
+        project: ConfigurableEpi
+    - uses: julia-actions/julia-runtest@v1
+      with:
+        project: ConfigurableEpi

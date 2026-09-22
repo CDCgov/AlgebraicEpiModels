@@ -1,9 +1,15 @@
-name: Julia tests
+name: AlgebraicEpiMech tests
 
 on:
   pull_request:
+    paths:
+      - AlgebraicEpiMech/**
+      - .github/workflows/test-algebraicepimech.yaml
   push:
-    branches: [main]
+    branches: [master, main]
+    paths:
+      - AlgebraicEpiMech/**
+      - .github/workflows/test-algebraicepimech.yaml
 
 permissions:
   actions: write
@@ -11,7 +17,7 @@ permissions:
 
 jobs:
   test:
-    name: Julia ${{ matrix.julia-version }}
+    name: AlgebraicEpiMech Julia ${{ matrix.julia-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
