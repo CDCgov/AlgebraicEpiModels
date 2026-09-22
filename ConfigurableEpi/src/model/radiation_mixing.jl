@@ -31,7 +31,10 @@ function load_radiation_matrix(locations; path::AbstractString)
         push!(seen, origin)
         destination = lowercase(String(strip(fields[2])))
         haskey(index, destination) || continue
-        flows[index[origin], index[destination]] = parse(Float64, fields[3])
+        flow = parse(Float64, fields[3])
+        isfinite(flow) && flow >= 0 ||
+            error("radiation flows `$path` line $(n + 1): flow must be finite and non-negative, got $flow")
+        flows[index[origin], index[destination]] = flow
     end
     missing_origins = setdiff(Set(wanted), seen)
     isempty(missing_origins) ||

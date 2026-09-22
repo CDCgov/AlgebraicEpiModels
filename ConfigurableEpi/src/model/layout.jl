@@ -45,6 +45,8 @@ function StateLayout(
         )
         ntuple(s -> N + s * (M ÷ S), Val(S))
     else
+        length(accumulator_indices) == S ||
+            throw(ArgumentError("accumulator_indices has $(length(accumulator_indices)) entries for $S signals"))
         all(i -> 1 <= i <= M, accumulator_indices) ||
             throw(ArgumentError("accumulator_indices must index obs_names"))
         ntuple(s -> N + accumulator_indices[s], Val(S))

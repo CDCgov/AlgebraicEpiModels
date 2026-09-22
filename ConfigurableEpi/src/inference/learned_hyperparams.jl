@@ -94,7 +94,8 @@ function build_hyperparam_updater(
         jitter_floor_fraction::Real = DEFAULT_JITTER_FLOOR_FRACTION, forgetting_memory_days = (;),
         rng = Random.default_rng(), dt::Real = 1.0,
     ) where {H}
-    0 < discount <= 1 || throw(ArgumentError("discount must be in (0, 1], got $discount"))
+    1 / 3 <= discount <= 1 ||
+        throw(ArgumentError("discount must be in [1/3, 1] so the shrinkage (3δ - 1) / 2δ lies in [0, 1], got $discount"))
     jitter_floor_fraction >= 0 || throw(ArgumentError("jitter_floor_fraction must be non-negative, got $jitter_floor_fraction"))
     memory = Dict{Symbol, Float64}(Symbol(k) => Float64(v) for (k, v) in pairs(forgetting_memory_days))
     unknown = setdiff(keys(memory), learned.names)

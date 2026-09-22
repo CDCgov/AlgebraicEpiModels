@@ -157,11 +157,18 @@ end
 
 function fit_forecast!(
         e::PFLiuWestEngine, observations, forecast_number;
-        update_range = eachindex(observations), emit_forecast::Bool = true,
+        update_range = LLPF.index(e.filter):length(observations), emit_forecast::Bool = true,
     )
     T = _validate_fit(observations, update_range, forecast_number)
-    ys = _observation_vectors(observations)
     pf, layout, s, base, learned = e.filter, e.model.layout, e.settings, e.model.hyperparams, e.learned
+    first(update_range) == LLPF.index(pf) || throw(
+        ArgumentError(
+            "the particle cloud has assimilated grid slots 1:$(LLPF.index(pf) - 1), so update_range must " *
+                "start at $(LLPF.index(pf)); got $(first(update_range)):$(last(update_range)). Call " *
+                "`reset!(engine.filter)` to replay from the start.",
+        )
+    )
+    ys = _observation_vectors(observations)
     n_particles = e.filter_cfg.n_particles
     fitted, ess, latent_path = Float64[], Float64[], Vector{Vector{Float64}}()
     final_particles = final_weights = nothing
@@ -171,16 +178,17 @@ function fit_forecast!(
         T particles = n_particles
     for (progress, k) in enumerate(update_range)
         t = (k - 1) * s.dt
-        correct!(pf, _NO_INPUT, ys[k], base, t)
+        observed = ys[k] !== missing
+        observed && correct!(pf, _NO_INPUT, ys[k], base, t)
         cloud, weights = particles(pf), expweights(pf)
         wsum = sum(weights)
-        push!(ess, _effective_sample_size(weights))
+        observed && push!(ess, _effective_sample_size(weights))
         push!(fitted, sum(weights[i] * pf.measurement(cloud[i], _NO_INPUT, base, t, false)[1] for i in eachindex(cloud)) / wsum)
         push!(latent_path, [sum(weights[i] * cloud[i][slot] for i in eachindex(cloud)) / wsum for slot in layout.latent_range])
         if emit_forecast && k == last(update_range)
             final_particles, final_weights = deepcopy(cloud), copy(weights)
         end
-        e.update!(state(pf).xprev, weights)
+        observed && e.update!(state(pf).xprev, weights)
         predict!(pf, _NO_INPUT, base, t)
         (progress == 1 || progress == n_updates || progress % progress_interval == 0) &&
             @info "PF: assimilation progress" forecast_number completed = progress total = n_updates observation_index = k

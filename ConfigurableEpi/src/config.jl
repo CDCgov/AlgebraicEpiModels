@@ -314,7 +314,7 @@ function _validate(h::Optimise)
     return h
 end
 function _validate(h::LiuWest)
-    _require(0 < h.discount <= 1, "liu_west.discount must be in (0, 1], got $(h.discount)")
+    _require(1 / 3 <= h.discount <= 1, "liu_west.discount must be in [1/3, 1], got $(h.discount)")
     _require(h.jitter_floor_fraction >= 0, "liu_west.jitter_floor_fraction must be non-negative")
     for (name, days) in h.forgetting_memory_days
         _require(days > 0, "liu_west.forgetting_memory_days[$name] must be positive (Inf disables), got $days")

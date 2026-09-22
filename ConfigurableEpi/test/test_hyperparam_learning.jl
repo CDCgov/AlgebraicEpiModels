@@ -51,6 +51,7 @@ end
         @test_throws ArgumentError build_learned_hyperparams((r0_prior, r0_prior), layout)
         @test_throws ArgumentError build_learned_hyperparams((wrong_name = r0_prior,), layout)
         @test_throws ArgumentError build_hyperparam_updater(learned; discount = 0.0)
+        @test_throws ArgumentError build_hyperparam_updater(learned; discount = 0.3)   # shrinkage would be negative
         @test_throws ArgumentError build_hyperparam_updater(learned; jitter_floor_fraction = -1.0)
     end
 

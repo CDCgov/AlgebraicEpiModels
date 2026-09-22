@@ -83,6 +83,14 @@ using Catlab: dom
         )
     end
 
+    @testset "explicit accumulator indices are checked" begin
+        layout = StateLayout((:S, :I), (:O1, :O2, :O3), (); signal_names = (:a, :b), accumulator_indices = (1, 3))
+        @test layout.accumulator_indices == (3, 5)
+        @test_throws ArgumentError StateLayout((:S, :I), (:O1, :O2), (); signal_names = (:a, :b), accumulator_indices = (2,))
+        @test_throws ArgumentError StateLayout((:S, :I), (:O1, :O2), (); signal_names = (:a, :b), accumulator_indices = (1, 2, 2))
+        @test_throws ArgumentError StateLayout((:S, :I), (:O1, :O2), (); signal_names = (:a, :b), accumulator_indices = (1, 3))
+    end
+
     @testset "extract_latent" begin
         core = (:S, :I, :R)
         obs = (:O_I_1,)

@@ -95,4 +95,6 @@ discount = 0.97
 - Latent coefficients live in the state vector in the **unconstrained** chart of their `init` prior and are read back constrained through `stochastic.extract`; every observation spec sees them constrained.
 - Model time `t` is days since the first observation.
   Seasonality and ascertainment are anchored to the calendar once, at build time.
+- Observations are given on the regular `step_days` grid, with `missing` where there is no observation.
+  The filter predicts through a missing slot without correcting, so a reporting gap does not compress time.
 - A rate function receives `(latent, hyperparams, t)`; a noise or mean parameter is a `Real` or a function of the same three arguments.

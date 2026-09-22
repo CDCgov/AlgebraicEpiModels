@@ -102,7 +102,7 @@ function fit_forecast!(
     hp = e.hyperparams
     @info "UKF: filtering observation history" forecast_number observations = T
     kf = build(Float64, hp)
-    solution = forward_trajectory(kf, fill(_NO_INPUT, T), ys, hp)
+    solution = _filter_pass!(kf, ys, hp)
     e.filter = kf
     layout, extract = model.layout, model.stochastic.extract
     spec = only(_resolve_specs(model.observation, layout))

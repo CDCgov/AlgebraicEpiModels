@@ -240,19 +240,9 @@ function fit_forecast!(
     hp = e.hyperparams
     @info "EnKF: filtering observation history" forecast_number observations = T members = e.filter_cfg.n_ensemble
     kf = build(hp)
-    # Capture the CORRECTED ensemble at the origin through LLPF's callback: the loop's last act is
-    # `predict!`, so a reference read afterwards would be one step past the origin.
-    final_ensemble = Ref{Any}(nothing)
-    corrections = Ref(0)
-    solution = forward_trajectory(
-        kf, fill(_NO_INPUT, T), ys, hp;
-        post_correct_cb = function (f, _p, _ret)
-            corrections[] += 1
-            emit_forecast && corrections[] == T && (final_ensemble[] = deepcopy(f.ensemble))
-            return nothing
-        end,
-    )
-    corrections[] == T || error("EnKF: expected $T corrections but the filter callback fired $(corrections[]) times")
+    # The forecast starts from the CORRECTED ensemble at the origin; the pass's last act is
+    # `predict!`, so `kf.ensemble` afterwards is one step past it.
+    solution = _filter_pass!(kf, ys, hp; at_origin = emit_forecast ? (f -> deepcopy(f.ensemble)) : Returns(nothing))
     isfinite(solution.ll) ||
         error("EnKF: filtering pass produced a non-finite log-likelihood at forecast origin $forecast_number under $(hp[names])")
     e.filter = kf
@@ -276,7 +266,7 @@ function fit_forecast!(
     emit_forecast || return (; quantiles = nothing, fitted_means = fitted, summary, samples = nothing)
 
     @info "EnKF: generating forecast ensemble" forecast_number draws = s.n_draws horizons = s.n_ahead
-    corrected = final_ensemble[]
+    corrected = solution.origin
     initial_states = corrected[rand(e.rng_forecast, eachindex(corrected), s.n_draws)]
     forecast_filter = deepcopy(kf)
     Random.seed!(forecast_filter.rng, rand(e.rng_forecast, UInt64))

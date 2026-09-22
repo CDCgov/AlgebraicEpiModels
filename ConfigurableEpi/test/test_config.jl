@@ -57,6 +57,7 @@ run_with(changes...) = from_dict(RunConfig, merge(MINIMAL_RUN, Dict{String, Any}
         rejected("filter" => Dict("ukf" => Dict("obs_jitter" => 0.0)))
         rejected("filter" => Dict("pf" => Dict("n_particles" => 0)), "hyper" => Dict("liu_west" => Dict{String, Any}()))
         rejected("hyper" => Dict("liu_west" => Dict("discount" => 1.5)))
+        rejected("hyper" => Dict("liu_west" => Dict("discount" => 0.3)))
         rejected("hyper" => Dict("liu_west" => Dict("forgetting_memory_days" => Dict("phi" => 0))))
         rejected("hyper" => Dict("optimise" => Dict("window_length" => 0)))
         rejected(

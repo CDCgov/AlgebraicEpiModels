@@ -76,6 +76,7 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError build_inference(UKF(), Optimise(maxiters = 0), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(PF(n_particles = 0), LiuWest(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 0.0, n_ahead = 2)
+        @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = Inf, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, supersample = 0, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, n_ahead = 0)
         unsupported = try
@@ -120,6 +121,7 @@ estimate(df, name, statistic = "estimate") =
         @test eltype(obsvec([8.0])) == Vector{Float64}
         @test obsvec([[8.0, 90.0], [10.0, 91.0]]) == [[8.0, 90.0], [10.0, 91.0]]
         @test eltype(obsvec([[8, 90], [10, 91]])) == Vector{Float64}
+        @test isequal(obsvec([8.0, missing, 12.0]), [[8.0], missing, [12.0]])
     end
 
     @testset "initial accumulator variance: opt-in, keyed by signal" begin
@@ -495,7 +497,7 @@ estimate(df, name, statistic = "estimate") =
         r2 = fit_forecast!(online, counts2, 1; emit_forecast = false)
         @test r2.quantiles === nothing && r2.samples === nothing
         @test isempty(r2.summary)
-        r_online = fit_forecast!(online, counts3, 2; update_range = 3:3)
+        r_online = fit_forecast!(online, counts3, 2)   # the default range continues from the next grid slot
         r_direct = fit_forecast!(direct, counts3, 1)
         @test online.filter isa AdvancedParticleFilter
         @test online.filter.threads
@@ -511,6 +513,15 @@ estimate(df, name, statistic = "estimate") =
         # only the θ rows are compared.
         theta_rows(df) = df[(df.parameter .!= "particle_filter") .& .!startswith.(df.statistic, "is_"), :]
         @test theta_rows(r_online.summary) == theta_rows(r_direct.summary)
+        # Anything but the next contiguous suffix is rejected; a replay goes through `reset!`.
+        @test_throws ArgumentError fit_forecast!(online, counts4, 3; update_range = 1:4)
+        @test_throws ArgumentError fit_forecast!(online, counts4, 3; update_range = 3:4)
+        replayed = deepcopy(direct)
+        reset!(replayed.filter)
+        @test index(replayed.filter) == 1
+        r_replayed = fit_forecast!(replayed, counts3, 1)   # accepted again from slot 1
+        @test index(replayed.filter) == 4
+        @test length(r_replayed.fitted_means) == 3 && all(isfinite, r_replayed.quantiles)
         ess = r_online.summary[r_online.summary.parameter .== "particle_filter", :]
         @test Set(ess.statistic) == Set(["ess_frac_min", "ess_frac_median", "ess_frac_final"])
         @test all(0.0 .<= ess.value .<= 1.0)
@@ -553,6 +564,62 @@ estimate(df, name, statistic = "estimate") =
             )
         end
     end
+end
+
+@testset "missing observations are predict-only grid slots" begin
+    layout = StateLayout((:S, :I), (:O_I_1,), (:Rt,))
+    rt_spec = RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.1), sigma_rate = FixedParam(:sigma_Rt, 0.03))
+    stochastic = build_stochastic_update(layout, (rt_spec,))
+    obs_model = (SignalObservationSpec(1, NegBinomialNoise(phi = (_l, h, _t) -> h.phi); mean_modifier = (_l, h, _t) -> h.ascertainment),)
+    hp = (R0_baseline = 1.5, obs_scale = 0.25, ascertainment = 0.8, phi = 50.0)
+    model = EpiModel(;
+        vectorfield! = mock_inference_vf!, layout, stochastic, observation = obs_model, hyperparams = hp,
+        priors = (R0_baseline = positive_gaussian(:R0_baseline, 1.5, 0.4),),
+        initial_state = [900.0, 50.0, 10.0, stochastic.to_unconstrained((Rt = 1.0,))[1]],
+    )
+    gapped = [8.0, 10.0, missing, missing, 13.0, 12.0]
+    ys = CE._observation_vectors(gapped)
+    settings = EngineSettings(; dt = 1.0, supersample = 1, n_ahead = 2)
+    assembly = CE.Assembly(model, settings, 1.0)
+    ukf() = CE._ukf(Float64, assembly, model, hp, 1.0)
+
+    # The log-likelihood sums the present slots while time advances through the gap ...
+    manual_kf = ukf()
+    reset!(manual_kf)
+    manual = 0.0
+    for k in 1:6
+        t = (k - 1) * manual_kf.Ts
+        ismissing(gapped[k]) || (manual += first(correct!(manual_kf, Float64[], ys[k], hp, t)))
+        predict!(manual_kf, Float64[], hp, t)
+    end
+    @test marginal_loglik(ukf(), ys, hp) === manual
+    @test index(manual_kf) == 6
+    # ... which is not the same as closing the gap up.
+    @test marginal_loglik(ukf(), CE._observation_vectors([8.0, 10.0, 13.0, 12.0]), hp) != manual
+    pass = CE._filter_pass!(ukf(), ys, hp; at_origin = index)
+    @test length(pass.xt) == 6 && pass.ll === manual && pass.origin == 5
+
+    engines = (
+        (UKF(), Optimise(maxiters = 1, maxiters_burnin = 1)),
+        (EnKF(n_ensemble = 40), EKP(n_ensemble = 6, iterations = 1, burnin_iterations = 1)),
+        (PF(n_particles = 80, threads = false), LiuWest()),
+    )
+    for (filter, hyper) in engines
+        engine = build_inference(filter, hyper, model; dt = 1.0, supersample = 1, n_ahead = 2, n_draws = 30, rng = Random.MersenneTwister(3))
+        r = fit_forecast!(engine, gapped, 1)
+        @test length(r.fitted_means) == 6
+        @test all(isfinite, r.fitted_means)
+        @test all(isfinite, r.quantiles)
+        @test index(engine.filter) == (filter isa PF ? 7 : 6)   # every grid slot was stepped
+    end
+    # The online engine continues across a gap and can forecast from a slot with no observation.
+    pf_engine = build_inference(PF(n_particles = 80, threads = false), LiuWest(), model; dt = 1.0, supersample = 1, n_ahead = 2, n_draws = 30)
+    fit_forecast!(pf_engine, [8.0, 10.0], 1; emit_forecast = false)
+    r = fit_forecast!(pf_engine, [8.0, 10.0, missing, missing, 13.0, missing], 2)
+    @test index(pf_engine.filter) == 7
+    @test length(r.fitted_means) == 4
+    @test all(isfinite, r.quantiles)
+    @test count(==("ess_frac_final"), r.summary.statistic) == 1
 end
 
 # The reporting paths (fitted means, forecast quantiles) must map accumulators to counts through

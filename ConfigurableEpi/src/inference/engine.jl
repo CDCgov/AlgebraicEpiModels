@@ -15,7 +15,7 @@ struct EngineSettings
     n_ahead::Int
     n_draws::Int
     function EngineSettings(; dt::Real, supersample::Integer = 2, n_ahead::Integer, n_draws::Integer = 2000)
-        dt > 0 || throw(ArgumentError("dt must be positive, got $dt"))
+        isfinite(dt) && dt > 0 || throw(ArgumentError("dt must be finite and positive, got $dt"))
         supersample >= 1 || throw(ArgumentError("supersample must be >= 1, got $supersample"))
         n_ahead >= 1 || throw(ArgumentError("n_ahead must be positive, got $n_ahead"))
         n_draws >= 1 || throw(ArgumentError("n_draws must be positive, got $n_draws"))
@@ -95,7 +95,8 @@ end
 
 Filter marginal log-likelihood of the observation vectors `ys` under hyperparameters `p` after
 `reset!`, accumulated at the promoted element type so it differentiates
-(`forward_trajectory(...).ll` sizes its buffers as Float64).
+(`forward_trajectory(...).ll` sizes its buffers as Float64). A `missing` entry is a grid slot
+without an observation: the filter predicts through it without correcting.
 """
 function marginal_loglik(filter, ys, p)
     reset!(filter)
@@ -105,15 +106,37 @@ end
 _loglik_zero(kf::AbstractKalmanFilter) = zero(eltype(state(kf)))
 _loglik_zero(pf::LLPF.AbstractParticleFilter) = zero(eltype(LLPF.weights(pf)))
 
-# Advance an initialised filter through the observation indices in `range` at absolute model time.
+# Advance an initialised filter through the grid slots in `range` at absolute model time,
+# correcting on present observations and predicting through every slot.
 function _filter_loglik!(filter, ys, p, range)
     ll = _loglik_zero(filter)
     for k in range
         t = (k - 1) * filter.Ts
-        ll += first(correct!(filter, _NO_INPUT, ys[k], p, t))
+        ys[k] === missing || (ll += first(correct!(filter, _NO_INPUT, ys[k], p, t)))
         predict!(filter, _NO_INPUT, p, t)
     end
     return ll
+end
+
+# One filtering pass over the whole grid from `reset!`, as `_filter_loglik!` but recording the
+# corrected state mean and covariance at every slot. `at_origin(filter)` is evaluated at the last
+# slot before its `predict!`, which is where the corrected ensemble a forecast starts from lives.
+function _filter_pass!(kf, ys, p; at_origin = Returns(nothing))
+    reset!(kf)
+    T = length(ys)
+    xt = Vector{Vector{Float64}}(undef, T)
+    Rt = Vector{Matrix{Float64}}(undef, T)
+    ll = _loglik_zero(kf)
+    origin = nothing
+    for k in 1:T
+        t = (k - 1) * kf.Ts
+        ys[k] === missing || (ll += first(correct!(kf, _NO_INPUT, ys[k], p, t)))
+        xt[k] = Vector{Float64}(state(kf))
+        Rt[k] = Matrix{Float64}(covariance(kf))
+        k == T && (origin = at_origin(kf))
+        predict!(kf, _NO_INPUT, p, t)
+    end
+    return (; xt, Rt, ll, origin)
 end
 
 _loss_range(T::Integer, ::Nothing) = 1:Int(T)
@@ -171,8 +194,10 @@ function _candidate_from_checkpoint(cp::AugmentedEnsembleKalmanFilter, _build, _
     return candidate
 end
 
-_observation_vectors(ys::AbstractVector{<:Real}) = [[Float64(y)] for y in ys]
-_observation_vectors(ys::AbstractVector{<:AbstractVector}) = [collect(Float64, y) for y in ys]
+_observation_vector(y::Real) = [Float64(y)]
+_observation_vector(y::AbstractVector) = collect(Float64, y)
+_observation_vector(::Missing) = missing
+_observation_vectors(ys::AbstractVector) = [_observation_vector(y) for y in ys]
 
 # Fitted observation means: each filtered state mean through its spec's `observation_mean` at its
 # own model time. A Vector for one spec, a `[time, observation]` matrix otherwise.
@@ -230,11 +255,13 @@ build_inference(cfg::RunConfig, model::EpiModel; rng = Random.default_rng()) = b
     fit_forecast!(engine, observations, forecast_number; update_range = eachindex(observations),
                   emit_forecast = true) -> (; quantiles, fitted_means, summary, samples)
 
-Assimilate `observations` (one number, or one vector, per observation time) and forecast
-`n_ahead` steps ahead. `forecast_number` counts fitted origins and drives the re-optimisation
-cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine
-assimilates only `update_range` and keeps its cloud between calls. `fitted_means` covers
-`update_range`. `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a
+Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or
+`missing` where there is no observation: the filter then predicts through the slot without
+correcting), and forecast `n_ahead` steps ahead. `forecast_number` counts fitted origins and
+drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete
+`update_range`; the online PF engine keeps its cloud between calls and `update_range` must start
+at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)`
+followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a
 multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF);
 both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)`
 table of estimates and diagnostics.
