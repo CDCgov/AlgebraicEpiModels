@@ -77,20 +77,6 @@ using Dates: Date
         @test times == Date.(["2024-01-01", "2024-01-02"])
     end
 
-    @testset "build_observations - univariate convenience" begin
-        df = DataFrame(
-            date = Date.(["2024-01-01", "2024-01-02", "2024-01-03"]),
-            cases = [100.0, 110.0, 120.0]
-        )
-
-        y, times = build_observations(df, :cases, :date)
-
-        @test length(y) == 3
-        @test y[1] ≈ SVector(100.0)
-        @test y[2] ≈ SVector(110.0)
-        @test y[3] ≈ SVector(120.0)
-    end
-
     @testset "build_observations - order matches schema" begin
         # Schema specifies order: ny first, then ma
         schema = ObservationSchema((:ny, :ma), :date)
@@ -199,30 +185,6 @@ using Dates: Date
         )
 
         @test_throws ArgumentError build_observations(df, link)
-    end
-
-    @testset "validate_observations" begin
-        schema = ObservationSchema((:a, :b), :date)
-        y_valid = [SVector(1.0, 2.0), SVector(3.0, 4.0)]
-        y_invalid = [SVector(1.0, 2.0, 3.0)]  # Wrong dimension
-
-        @test validate_observations(y_valid, schema) == true
-        @test_throws ArgumentError validate_observations(y_invalid, schema)
-
-        # Validate against count
-        @test validate_observations(y_valid, 2) == true
-        @test_throws ArgumentError validate_observations(y_valid, 3)
-    end
-
-    @testset "observation_as_matrix" begin
-        y = [SVector(1.0, 2.0), SVector(3.0, 4.0), SVector(5.0, 6.0)]
-        mat = observation_as_matrix(y)
-
-        @test size(mat) == (3, 2)
-        @test mat[1, 1] == 1.0
-        @test mat[1, 2] == 2.0
-        @test mat[2, 1] == 3.0
-        @test mat[3, 2] == 6.0
     end
 
     @testset "build_observation_schema from obs_specs" begin

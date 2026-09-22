@@ -14,8 +14,8 @@ using ConfigurableEpi
 # ConfigurableEpi ships NO data: the climatology is injected by the caller. These tests therefore
 # run on a SYNTHETIC climatology with the structural properties of a real one — annual-mean-1
 # curves, a near-sinusoidal northern location (`ny`), a southern location with a second, summer
-# peak (`az`), and a national curve (`us`). Tests of the real artifact's content (coverage of the
-# live NSSP locations, the harmonic-R² contrast) live with the artifact, beside the run script.
+# peak (`az`), and a national curve (`us`). Tests of a real artifact's content (location coverage,
+# the harmonic-R² contrast) belong with the artifact, beside the run script that owns it.
 # ----------------------------------------------------------------------------
 
 const _CLIM = let u = [(k - 0.5) / 52 for k in 1:52]
@@ -273,7 +273,7 @@ _year_grid(n = 52 * 97) = (365.25 * i / n for i in 0:(n - 1))
         end
 
         @testset "fallback for uncovered locations" begin
-            # Puerto Rico carries no counties in the source and never appears in NSSP.
+            # A location the climatology does not cover.
             us = build_seasonal_forcing(
                 SeasonalityConfig(mode = "indoor_activity"), "us", Date(2023, 1, 1); climatology = _CLIM,
             )
@@ -348,8 +348,8 @@ _year_grid(n = 52 * 97) = (365.25 * i / n for i in 0:(n - 1))
         @test half_bound ≈ 1 + 0.5 * (full_bound - 1)
         dense_max = maximum(
             maximum(
-                build_periodic_curve(knots)(u) for u in range(0, 1; length = 5001)
-            ) for knots in values(_CLIM)
+                    build_periodic_curve(knots)(u) for u in range(0, 1; length = 5001)
+                ) for knots in values(_CLIM)
         )
         @test full_bound >= dense_max
         @test full_bound > maximum(maximum, values(_CLIM))

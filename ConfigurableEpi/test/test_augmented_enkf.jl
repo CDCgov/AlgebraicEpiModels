@@ -1,5 +1,5 @@
 # ============================================================================
-# Augmented-noise ensemble Kalman filter (src/augmented_enkf.jl)
+# Augmented-noise ensemble Kalman filter (src/inference/augmented_enkf.jl)
 # ============================================================================
 #
 # The reference is the exact Kalman filter. On a linear-Gaussian system the augmented form
@@ -105,14 +105,11 @@ _ae_sse(means, truth) = sum(norm(m .- x)^2 for (m, x) in zip(means, truth))
         )
     end
 
-    @testset "EnKF method type" begin
-        @test EnKF(200) == EnKF(200, 1.0, 2, 0.0, 1.0, false)
-        @test EnKF(200; dt = 7.0, supersample = 7).dt == 7.0
-        @test_throws ArgumentError EnKF(1)
-        @test_throws ArgumentError EnKF(10; dt = 0.0)
-        @test_throws ArgumentError EnKF(10; supersample = 0)
-        @test_throws ArgumentError EnKF(10; obs_jitter = -1.0)
-        @test_throws ArgumentError EnKF(10; inflation = 0.99)
+    @testset "EnKF config" begin
+        @test EnKF(n_ensemble = 200).inflation == 1.0
+        @test !EnKF(n_ensemble = 200).threads
+        @test_throws ArgumentError ConfigurableEpi._validate(EnKF(n_ensemble = 1))
+        @test_throws ArgumentError ConfigurableEpi._validate(EnKF(n_ensemble = 10, inflation = 0.99))
     end
 
     @testset "agrees with the exact Kalman filter (nw != nx)" begin
@@ -186,7 +183,7 @@ _ae_sse(means, truth) = sum(norm(m .- x)^2 for (m, x) in zip(means, truth))
         # Both filters are constructed with the same seed and both reset! internally, so they
         # consume the same RNG stream. This is the invariant the EKP objective relies on.
         ll_direct = forward_trajectory(_ae_enkf(500), us, ys).ll
-        ll_marg = marginal_loglik(_ae_enkf(500), us, ys, nothing)
+        ll_marg = marginal_loglik(_ae_enkf(500), ys, nothing)
         @test ll_marg ≈ ll_direct
     end
 
@@ -216,7 +213,7 @@ _ae_sse(means, truth) = sum(norm(m .- x)^2 for (m, x) in zip(means, truth))
     end
 
     @testset "post_correct_cb captures the CORRECTED ensemble, not the predicted one" begin
-        # `src/ekp_calibration.jl` forecasts from the corrected ensemble at the origin, captured
+        # `src/inference/ensemble.jl` forecasts from the corrected ensemble at the origin, captured
         # through this callback. The loop's last act is `predict!`, and both `predict!` and
         # `correct!` mutate `f.ensemble` in place, so a REFERENCE read after `forward_trajectory`
         # returns is the predicted ensemble — one step past the origin. This pins the difference,

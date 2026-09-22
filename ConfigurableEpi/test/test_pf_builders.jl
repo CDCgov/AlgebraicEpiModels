@@ -84,7 +84,7 @@ import Random
                 dynamics, layout; rng = Random.MersenneTwister(seed), threads = true
             )
             pf_meas = build_pf_measurement(
-                measure, nv, layout, obs_specs, latent_dynamics;
+                layout, obs_specs, latent_dynamics;
                 rng = Random.MersenneTwister(seed),
             )
             return AdvancedParticleFilter(
@@ -114,7 +114,7 @@ import Random
         obs_specs = (SignalObservationSpec(1, NegBinomialNoise(phi = 100.0); mean_modifier = 1.0),)
         measure, _ny, nv = build_measurement_model(layout, obs_specs, latent_dynamics)
         pf_measure = build_pf_measurement(
-            measure, nv, layout, obs_specs, latent_dynamics;
+            layout, obs_specs, latent_dynamics;
             rng = Random.MersenneTwister(3),
         )
 
@@ -136,7 +136,7 @@ import Random
         measure, _ny, nv = build_measurement_model(layout, obs_specs, latent_dynamics)
         pf_dynamics = build_pf_dynamics(dynamics, layout)
         pf_measure = build_pf_measurement(
-            measure, nv, layout, obs_specs, latent_dynamics
+            layout, obs_specs, latent_dynamics
         )
         g = build_measurement_logpdf(layout, obs_specs, latent_dynamics)
 
@@ -183,7 +183,7 @@ end
     )
     measure, _ny, nv = build_measurement_model(layout, obs_specs, latent_dynamics)
     pf_measure = build_pf_measurement(
-        measure, nv, layout, obs_specs, latent_dynamics; rng = Random.MersenneTwister(5)
+        layout, obs_specs, latent_dynamics; rng = Random.MersenneTwister(5)
     )
     x = [900.0, 50.0, 30.0, 0.0]   # accumulator (index 3) = 30
     @test pf_measure(x, nothing, hyperparams, 0.0, false)[1] ≈ 30.0 * 0.5 + 7.0

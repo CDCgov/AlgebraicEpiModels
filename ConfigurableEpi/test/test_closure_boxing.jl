@@ -6,6 +6,12 @@ using LabelledArrays: LVector
 using StaticArrays: SVector
 using ConfigurableEpi
 
+# Latents stored under an identity constraint, so constrained == unconstrained in these checks.
+_sto(layout) = build_stochastic_update(
+    layout, Tuple(RWParamSpec(n; init = unconstrained_gaussian(n, 0.0, 1.0), sigma_rate = 0.1) for n in layout.latent_names)
+)
+
+
 # ----------------------------------------------------------------------------
 # Capture / inference / allocation helpers
 # ----------------------------------------------------------------------------
@@ -268,7 +274,7 @@ function _build_cases()
 
     # --- measurement: single noise ---
     single_noise = NegBinomialNoise(0.0, 100.0)
-    measurement_single = build_measurement_model(layout, single_noise)
+    measurement_single = build_measurement_model(layout, single_noise, _sto(layout))
     push!(
         cases,
         (
@@ -294,7 +300,7 @@ function _build_cases()
         ),
         SignalObservationSpec(2, PoissonNoise()),
     )
-    measurement_multi = build_measurement_model(layout_multi, obs_specs_multi)
+    measurement_multi = build_measurement_model(layout_multi, obs_specs_multi, _sto(layout_multi))
     x_multi = [990.0, 10.0, 0.0, 100.0, 40.0, 0.0]
     push!(
         cases,
@@ -375,7 +381,7 @@ function _build_cases()
         NegBinomialNoise(0.0, 100.0);
         name = :total_hosp
     )
-    measurement_agg = build_measurement_model(layout_agg, (agg_spec,))
+    measurement_agg = build_measurement_model(layout_agg, (agg_spec,), _sto(layout_agg))
     x_agg = [990.0, 10.0, 0.0, 5.0, 5.0, 5.0, 0.0]
     push!(
         cases,

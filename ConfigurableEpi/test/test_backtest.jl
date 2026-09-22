@@ -251,8 +251,7 @@ end
         bundle = ParameterPriorBundle((R0_baseline = positive_gaussian(:R0_baseline, 2.0, 1.0),))
         target_unc = unconstrained_values(bundle, (R0_baseline = 2.5,))
         neg_ll(θ, _) = sum((θ .- target_unc) .^ 2)  # minimized at R0_baseline = 2.5
-        optim_opts = OptimiseHyperparams(bundle; options = (maxiters = 300,))
-        res = optimize_hyperparams(neg_ll, (R0_baseline = 1.0,), optim_opts)
+        res = optimize_hyperparams(neg_ll, (R0_baseline = 1.0,), bundle; options = (maxiters = 300,))
         @test res.θ.R0_baseline ≈ 2.5 atol = 1.0e-2
     end
 
@@ -261,7 +260,7 @@ end
         dynamics = build_full_dynamics(mock_bt_vf!, ld, layout; supersample = 2)
         measure, _ny, nv = build_measurement_model(layout, obs_specs, ld)
         pf_dyn = build_pf_dynamics(dynamics, layout)
-        pf_meas = build_pf_measurement(measure, nv, layout, obs_specs, ld)
+        pf_meas = build_pf_measurement(layout, obs_specs, ld)
         g = build_measurement_logpdf(layout, obs_specs, ld)
         x0 = [900.0, 50.0, 0.0, ld.to_unconstrained((Rt = 1.0,))[1]]
         P0 = Matrix(Diagonal([1.0, 1.0, 1.0, 0.04]))
@@ -319,7 +318,7 @@ end
             pf = AdvancedParticleFilter(
                 1000,
                 build_pf_dynamics(dynamics, layout),
-                build_pf_measurement(measure, nv, layout, obs_specs, sto),
+                build_pf_measurement(layout, obs_specs, sto),
                 build_measurement_logpdf(layout, obs_specs, sto),
                 nothing,
                 MvNormal(

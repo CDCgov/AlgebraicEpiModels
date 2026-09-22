@@ -3,6 +3,12 @@ using ConfigurableEpi
 using StaticArrays
 using LabelledArrays
 
+# Latents stored under an identity constraint, so constrained == unconstrained in these checks.
+_sto(layout) = build_stochastic_update(
+    layout, Tuple(RWParamSpec(n; init = unconstrained_gaussian(n, 0.0, 1.0), sigma_rate = 0.1) for n in layout.latent_names)
+)
+
+
 @testset "Measurement Model" begin
 
     # ========================================================================
@@ -266,7 +272,7 @@ using LabelledArrays
 
         @testset "with NegBinomialNoise" begin
             noise = NegBinomialNoise(0.1, 10.0)
-            result = build_measurement_model(layout, noise)
+            result = build_measurement_model(layout, noise, _sto(layout))
 
             @test haskey(result, :measure)
             @test haskey(result, :n_obs)
@@ -277,7 +283,7 @@ using LabelledArrays
 
         @testset "with PoissonNoise pure" begin
             noise = PoissonNoise()
-            result = build_measurement_model(layout, noise)
+            result = build_measurement_model(layout, noise, _sto(layout))
 
             @test result.n_obs == 1
             @test result.n_noise == 1
@@ -285,7 +291,7 @@ using LabelledArrays
 
         @testset "measurement function works" begin
             noise = NegBinomialNoise(0.0, 100.0)
-            result = build_measurement_model(layout, noise)
+            result = build_measurement_model(layout, noise, _sto(layout))
 
             # Build state vector
             # Layout: [S, I, R, O_y1, O_y2 (accumulator), Rt]
@@ -322,7 +328,7 @@ using LabelledArrays
                 SignalObservationSpec(2, PoissonNoise()),
             )
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             @test result.n_obs == 2
             @test result.n_noise == 2  # 1 for NB + 1 for Poisson
@@ -334,7 +340,7 @@ using LabelledArrays
                 SignalObservationSpec(2, PoissonNoise()),
             )
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             # Layout: [S, I, R, O_y1, O_y2, Rt]
             total_dim = layout.total_dim
@@ -360,7 +366,7 @@ using LabelledArrays
             obs_specs = (
                 SignalObservationSpec(3, PoissonNoise()),  # signal 3 doesn't exist
             )
-            @test_throws ArgumentError build_measurement_model(layout, obs_specs)
+            @test_throws ArgumentError build_measurement_model(layout, obs_specs, _sto(layout))
         end
     end
 
@@ -380,7 +386,7 @@ using LabelledArrays
             noise = NegBinomialNoise(0.0, 100.0)
             obs_specs = (AggregatedSignalSpec([1, 2, 3], noise; name = :total_hosp),)
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             @test result.n_obs == 1  # one aggregated observation
             @test result.n_noise == 1  # NB has 1 noise term
@@ -388,7 +394,7 @@ using LabelledArrays
 
         @testset "Val(:aggregated) convenience" begin
             noise = PoissonNoise()
-            result = build_measurement_model(layout, noise, Val(:aggregated))
+            result = build_measurement_model(layout, (AggregatedSignalSpec(noise; name = :obs_total),), _sto(layout))
 
             @test result.n_obs == 1
             @test result.n_noise == 1
@@ -396,7 +402,7 @@ using LabelledArrays
 
         @testset "aggregated measurement sums signals" begin
             noise = PoissonNoise()
-            result = build_measurement_model(layout, noise, Val(:aggregated))
+            result = build_measurement_model(layout, (AggregatedSignalSpec(noise; name = :obs_total),), _sto(layout))
 
             # Layout: [S, I, R, O_child, O_adult, O_elderly, Rt]
             total_dim = layout.total_dim
@@ -419,7 +425,7 @@ using LabelledArrays
             # Only aggregate signals 1 and 2 (child + adult)
             obs_specs = (AggregatedSignalSpec([1, 2], noise; name = :under65),)
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             total_dim = layout.total_dim
             x = zeros(total_dim)
@@ -436,7 +442,7 @@ using LabelledArrays
         @testset "invalid signal in aggregation throws" begin
             noise = PoissonNoise()
             obs_specs = (AggregatedSignalSpec([1, 4], noise),)  # signal 4 doesn't exist
-            @test_throws ArgumentError build_measurement_model(layout, obs_specs)
+            @test_throws ArgumentError build_measurement_model(layout, obs_specs, _sto(layout))
         end
     end
 
@@ -460,7 +466,7 @@ using LabelledArrays
                 SignalObservationSpec(3, noise; name = :over65_hosp),
             )
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             @test result.n_obs == 2
             @test result.n_noise == 2  # 1 for aggregated + 1 for individual
@@ -473,7 +479,7 @@ using LabelledArrays
                 SignalObservationSpec(3, noise; name = :elderly),
             )
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             # Layout: [S, I, R, O_child, O_adult, O_elderly]
             total_dim = layout.total_dim
@@ -504,7 +510,7 @@ using LabelledArrays
 
         @testset "accumulator read directly (u ignored)" begin
             noise = PoissonNoise()
-            result = build_measurement_model(layout, noise)
+            result = build_measurement_model(layout, noise, _sto(layout))
 
             x = zeros(layout.total_dim)
             x[3] = 50.0
@@ -517,7 +523,7 @@ using LabelledArrays
 
         @testset "negative accumulator clamped to zero" begin
             noise = PoissonNoise()
-            result = build_measurement_model(layout, noise)
+            result = build_measurement_model(layout, noise, _sto(layout))
 
             x = zeros(layout.total_dim)
             x[3] = -5.0  # whisker noise can push an accumulator negative
@@ -530,7 +536,7 @@ using LabelledArrays
 
         @testset "single-signal convenience rejects multi-signal layout" begin
             core_names = (:S, :I)
-            obs_names = (:O,)
+            obs_names = (:O1, :O2)
             latent_names = ()
             layout_multi = StateLayout(
                 core_names, obs_names, latent_names; signal_names = (
@@ -539,7 +545,7 @@ using LabelledArrays
             )
 
             noise = PoissonNoise()
-            @test_throws ArgumentError build_measurement_model(layout_multi, noise)
+            @test_throws ArgumentError build_measurement_model(layout_multi, noise, _sto(layout_multi))
         end
     end
 
@@ -571,7 +577,7 @@ using LabelledArrays
             noise = PoissonNoise()
             obs_specs = (SignalObservationSpec(1, noise; mean_modifier = 0.25),)  # 25% detection
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             total_dim = layout.total_dim
             @test total_dim == 6
@@ -592,7 +598,7 @@ using LabelledArrays
             modifier = (latent, hyper, t) -> hyper.detect_rate
             obs_specs = (SignalObservationSpec(1, noise; mean_modifier = modifier),)
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             x = zeros(layout.total_dim)
             x[4] = 200.0
@@ -611,7 +617,7 @@ using LabelledArrays
             modifier = (latent, hyper, t) -> latent.ascertainment
             obs_specs = (SignalObservationSpec(1, noise; mean_modifier = modifier),)
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             x = zeros(layout.total_dim)
             x[4] = 400.0
@@ -638,7 +644,7 @@ using LabelledArrays
                 AggregatedSignalSpec([1, 2], noise; mean_modifier = 0.5, name = :total),
             )
 
-            result = build_measurement_model(layout2, obs_specs)
+            result = build_measurement_model(layout2, obs_specs, _sto(layout2))
 
             x = zeros(layout2.total_dim)
             x[4] = 60.0
@@ -654,7 +660,7 @@ using LabelledArrays
             noise = PoissonNoise()
             obs_specs = (SignalObservationSpec(1, noise),)  # no mean_modifier
 
-            result = build_measurement_model(layout, obs_specs)
+            result = build_measurement_model(layout, obs_specs, _sto(layout))
 
             x = zeros(layout.total_dim)
             x[4] = 123.0
@@ -776,7 +782,7 @@ end
     layout = StateLayout((:S, :I, :R), (:O_I,), (:Rt,); signal_names = (:y,))
     path = AscertainmentPath(0.2, 0.0)
     specs = (SignalObservationSpec(1, PoissonNoise(); mean_modifier = path),)
-    result = build_measurement_model(layout, specs)
+    result = build_measurement_model(layout, specs, _sto(layout))
     x = zeros(layout.total_dim)
     x[4] = 1000.0
     hyper = (ascertainment = 0.005, ascertainment_decline_rate = 0.3)

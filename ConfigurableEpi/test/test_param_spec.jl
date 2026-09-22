@@ -115,20 +115,6 @@ using ConfigurableEpi
         @test rw_positive.init === init_prior
     end
 
-    @testset "RWParamSpec positional API fails rather than changing units" begin
-        init_prior = positive_gaussian(:rate, 1.0, 0.25)
-        for sigma in (0.05, positive_gaussian(:rate_sigma_rate, 0.05, 0.01))
-            err = try
-                RWParamSpec(:rate, sigma; init = init_prior)
-                nothing
-            catch e
-                e
-            end
-            @test err isa ArgumentError
-            @test occursin("sigma_rate", sprint(showerror, err))
-        end
-    end
-
     @testset "DerivedParam" begin
         dp = DerivedParam(:beta, θ -> θ[:R0] * θ[:gamma])
         @test dp isa ParamSpec
@@ -163,36 +149,6 @@ using ConfigurableEpi
         @test ar1_all_hyper isa AR1ParamSpec
     end
 
-    @testset "retired prior names are rejected, not silently ignored" begin
-        # `RunConfig.priors` is a Dict, so an unknown key merges cleanly and then does nothing —
-        # a run.toml still carrying `[priors.Rt_rho]` would validate, report a prior count, and
-        # have no effect. That is the failure mode this rejection exists to remove.
-        for (retired, replacement) in (
-                ("Rt_rho", "Rt_tau"), ("Rt_sigma", "Rt_sigma_stat"),
-                ("mu_rho", "mu_log_tau"), ("tau_rho", "sd_log_tau"), ("z_rho", "z_tau"),
-            )
-            specs = Dict(retired => PriorSpec(mean = 0.1, std = 0.05))
-            err = try
-                assert_no_retired_priors(specs, 7.0)
-                nothing
-            catch e
-                e
-            end
-            @test err isa ArgumentError
-            message = sprint(showerror, err)
-            @test occursin(retired, message)
-            # Naming the replacement is the point: an error that only says "unknown" leaves the
-            # reader to guess the conversion.
-            @test occursin(replacement, message)
-        end
-
-        # Current names pass through untouched.
-        live = Dict(
-            "Rt_tau" => PriorSpec(mean = 4.35, std = 1.35),
-            "Rt_sigma_stat" => PriorSpec(mean = 0.153, std = 0.102),
-        )
-        @test assert_no_retired_priors(live, 7.0) === live
-    end
 end
 
 @testset "RK4 stability recommendation advances an exact-boundary configuration" begin

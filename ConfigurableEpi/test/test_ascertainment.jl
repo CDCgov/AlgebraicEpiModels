@@ -3,7 +3,7 @@ using ConfigurableEpi
 using Dates: Date, Dates
 using ForwardDiff
 
-# The declining ascertainment path (src/ascertainment.jl): the report's
+# The declining ascertainment path (src/model/ascertainment.jl):
 #     alpha(t) = alpha_min + (alpha_ref - alpha_min) * exp(-r (t - t_ref) / 365.25)
 # with the level and the rate read from `hyper`, the floor a fraction of the level, and the
 # reference date anchored on the calendar once at build time.
@@ -11,16 +11,6 @@ using ForwardDiff
 _hyper(level, rate) = (ascertainment = level, ascertainment_decline_rate = rate)
 
 @testset "Ascertainment path" begin
-    @testset "the prior constants are the report's Table 4 (NSSP ED visits)" begin
-        phi_obs = 0.678
-        @test ASCERTAINMENT_DECLINE_RATE_PRIOR_MEAN ≈ -0.5 * log(phi_obs) atol = 5.0e-4
-        @test ASCERTAINMENT_DECLINE_RATE_PRIOR_SD ≈ -log(phi_obs) / (2 * 1.6449) atol = 5.0e-4
-        @test exp(-ASCERTAINMENT_DECLINE_RATE_PRIOR_MEAN) ≈ 0.824 atol = 1.0e-3
-        @test DEFAULT_ASCERTAINMENT_DECLINE_RATE == ASCERTAINMENT_DECLINE_RATE_PRIOR_MEAN
-        @test 0 < DEFAULT_ASCERTAINMENT_FLOOR_FRACTION < 1
-        @test Date(DEFAULT_ASCERTAINMENT_REFERENCE_DATE) == Date(2024, 7, 1)
-    end
-
     @testset "a zero rate is the constant level, bit for bit" begin
         path = AscertainmentPath(0.2, 100.0)
         for level in (0.005, 0.0018, 1.0), t in (-1000.0, 0.0, 100.0, 5000.0)
@@ -154,7 +144,6 @@ end
     bounded = AscertainmentPath(0.2, 100.0, 1.0)
     free = AscertainmentPath(0.2, 100.0)          # positional default: no bound
     @test free.rate_bound == Inf
-    @test DEFAULT_ASCERTAINMENT_RATE_BOUND == 1.0
     for rate in (-0.9, -0.3, 0.0, 0.1943, 0.39, 0.99), t in (-400.0, 0.0, 100.0, 800.0)
         @test bounded(_hyper(level, rate), t) === free(_hyper(level, rate), t)   # identity inside
     end

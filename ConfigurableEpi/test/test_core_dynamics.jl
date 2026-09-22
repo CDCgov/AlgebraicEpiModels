@@ -13,14 +13,6 @@ using ConfigurableEpi
         @test length(x) == 3
     end
 
-    @testset "make_slvector_constructor alias" begin
-        to_lvec = make_slvector_constructor((:X, :Y))
-        x = to_lvec([5.0, 10.0])
-
-        @test x.X ≈ 5.0
-        @test x.Y ≈ 10.0
-    end
-
     @testset "build_unified_vf" begin
         function mock_petri_vf!(du, u, p, t)
             infection = p[:beta] * u[:S] * u[:I]

@@ -122,7 +122,7 @@ using Catlab: dom
         typing = OnePopulationTyping()
         pn = dom(create_model(typing, SEIR()))
         latent_specs = (
-            RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.25), sigma_rate = HyperParamRW(positive_gaussian(:sigma_Rt, 0.1, 0.05))),
+            RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.25), sigma_rate = HyperParam(positive_gaussian(:sigma_Rt, 0.1, 0.05))),
         )
 
         layout = StateLayout(pn, latent_specs; signal_names = ())

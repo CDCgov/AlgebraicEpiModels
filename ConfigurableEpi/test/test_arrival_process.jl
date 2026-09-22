@@ -161,9 +161,7 @@ end
         end
 
         @testset "integrates with a learned Liu-West tail" begin
-            learned = build_learned_hyperparams(
-                LiuWest(positive_gaussian(:arrival_rate, 0.05, 0.02)), layout
-            )
+            learned = build_learned_hyperparams(positive_gaussian(:arrival_rate, 0.05, 0.02), layout)
             dyn = build_pf_dynamics(
                 dynamics, layout;
                 rng = Random.MersenneTwister(5), learned = learned,
