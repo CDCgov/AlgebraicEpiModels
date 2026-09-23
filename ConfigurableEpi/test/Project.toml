@@ -1,0 +1,25 @@
+[deps]
+AlgebraicEpiMech = "a6e39d6b-8b2d-49f3-aca0-f4154643f040"
+AlgebraicPetri = "4f99eebe-17bf-4e98-b6a1-2c4f205a959b"
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Catlab = "134e5e36-593f-5add-ad60-77f754baafbe"
+ConfigurableEpi = "805b86f7-2d53-4db0-a930-efd5b25deb53"
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+DuckDB = "d2f5444f-75bc-4fdf-ac35-56f514c445e1"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+LabelledArrays = "2ee39098-c373-598a-b85f-a56591580800"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LowLevelParticleFilters = "d9d29d28-c116-5dba-9239-57a5fe23875b"
+PositiveFactorizations = "85a6dd25-e78a-55b7-8502-1745935b8125"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+AlgebraicEpiMech = {path = "../../AlgebraicEpiMech"}
+ConfigurableEpi = {path = ".."}
