@@ -1,0 +1,15 @@
+[project]
+name = "algebraicepimodels-docs"
+version = "0.0.0"
+description = "Documentation site tooling for AlgebraicEpiModels"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+docs = [
+    "mdx-truly-sane-lists>=1.3",
+    "zensical>=0.0.64",
+]
+
+[tool.uv]
+package = false
