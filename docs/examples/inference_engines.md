@@ -15,9 +15,9 @@ This example simulates weekly counts from a seasonal SEIRS model, fits the three
 using ConfigurableEpi
 using AlgebraicEpiMech
 using Catlab: dom
+using CairoMakie
 using DataFrames, LinearAlgebra, Distributions
 using LowLevelParticleFilters: AdvancedParticleFilter, simulate
-using Plots
 import Logging, Random
 Random.seed!(11)
 ```
@@ -125,15 +125,22 @@ vcat([insertcols(filter(:parameter => ==("R0"), r.summary), 1, :engine => name) 
 ```julia
 qi(q) = findfirst(==(q), DEFAULT_QS)
 horizon = (fit_weeks + 1):(fit_weeks + n_ahead)
-panels = map(results) do (name, r)
+fig = Figure(size = (760, 900))
+axes = map(enumerate(results)) do (row, (name, r))
     q = r.quantiles
-    panel = plot(horizon, q[:, qi(0.5)]; ribbon = (q[:, qi(0.5)] .- q[:, qi(0.025)], q[:, qi(0.975)] .- q[:, qi(0.5)]),
-        fillalpha = 0.2, lw = 2, color = :purple, label = "forecast (95%)", title = name)
-    plot!(panel, 1:fit_weeks, r.fitted_means; lw = 2, color = :steelblue, label = "fitted mean")
-    scatter!(panel, 1:fit_weeks, observed; color = :black, ms = 2.5, label = "observed")
-    scatter!(panel, horizon, cases[horizon]; color = :white, markerstrokecolor = :black, ms = 3, label = "held out")
+    ax = Axis(fig[row, 1]; xlabel = row == length(results) ? "week" : "", ylabel = "cases", title = name)
+    band!(ax, horizon, q[:, qi(0.025)], q[:, qi(0.975)]; color = (:purple, 0.2))
+    lines!(ax, horizon, q[:, qi(0.5)]; linewidth = 2, color = :purple, label = "forecast (95%)")
+    lines!(ax, 1:fit_weeks, r.fitted_means; linewidth = 2, color = :steelblue, label = "fitted mean")
+    scatter!(ax, 1:fit_weeks, observed; color = :black, markersize = 7, label = "observed")
+    scatter!(ax, horizon, cases[horizon]; color = :white, strokecolor = :black, strokewidth = 1.5,
+        markersize = 8, label = "held out")
+    axislegend(ax; position = :lt)
+    ax
 end
-plot(panels...; layout = (3, 1), size = (760, 900), xlabel = "week", ylabel = "cases", legend = :topleft)
+linkxaxes!(axes...)
+foreach(ax -> hidexdecorations!(ax; grid = false), axes[1:(end - 1)])
+fig
 ```
 ![](inference_engines-13.png)
 

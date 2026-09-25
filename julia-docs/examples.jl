@@ -2,10 +2,9 @@
 # docs/examples/. The output is committed; regenerate after changing an example or the API:
 #   julia +1.13 --project=julia-docs julia-docs/examples.jl [example_name ...]
 using Literate
-import Plots
+import CairoMakie
 
-ENV["GKSwstype"] = "100"  # headless GR
-Plots.default(dpi = 150)
+CairoMakie.activate!(type = "png", px_per_unit = 1.5)
 
 const SRC = joinpath(@__DIR__, "examples")
 const OUT = normpath(joinpath(@__DIR__, "..", "docs", "examples"))
