@@ -9,10 +9,10 @@ This example simulates data from a seasonal SEIRS model with a latent transmissi
 using ConfigurableEpi
 using AlgebraicEpiMech
 using Catlab: dom
+using CairoMakie
 using LinearAlgebra, Distributions, PositiveFactorizations
 using LowLevelParticleFilters: UnscentedKalmanFilter, AdvancedParticleFilter, simulate,
     forward_trajectory, smooth, TrivialParams
-using Plots
 import Random
 Random.seed!(2026)
 ```
@@ -110,16 +110,27 @@ true_Rt, filt_Rt, smooth_Rt = Rt.(x_true), Rt.(sol.xt), Rt.(sm.xT)
 filt_lo, filt_hi = band(sol.xt, sol.Rt)
 smooth_lo, smooth_hi = band(sm.xT, sm.RT)
 
-counts = plot(day, observed .- first.(sol.e); label = "one-step-ahead mean", lw = 2, ylabel = "reports",
-    title = "Data and one-step-ahead fit")
-scatter!(counts, day, observed; label = "observed", color = :black, ms = 3)
-filtered = plot(day, filt_Rt; ribbon = (filt_Rt .- filt_lo, filt_hi .- filt_Rt), label = "filtered (95%)",
-    lw = 2, color = :darkorange, fillalpha = 0.2, ylabel = "Rt", title = "Filtered Rt")
-plot!(filtered, day, true_Rt; label = "truth", lw = 2, ls = :dash, color = :black)
-smoothed = plot(day, smooth_Rt; ribbon = (smooth_Rt .- smooth_lo, smooth_hi .- smooth_Rt), label = "smoothed (95%)",
-    lw = 2, color = :seagreen, fillalpha = 0.2, ylabel = "Rt", title = "RTS-smoothed Rt")
-plot!(smoothed, day, true_Rt; label = "truth", lw = 2, ls = :dash, color = :black)
-plot(counts, filtered, smoothed; layout = (3, 1), size = (760, 860), xlabel = "day", legend = :topright)
+fig = Figure(size = (760, 860))
+counts = Axis(fig[1, 1]; ylabel = "reports", title = "Data and one-step-ahead fit")
+lines!(counts, day, observed .- first.(sol.e); label = "one-step-ahead mean", linewidth = 2)
+scatter!(counts, day, observed; label = "observed", color = :black, markersize = 7)
+axislegend(counts; position = :rt)
+
+filtered = Axis(fig[2, 1]; ylabel = "Rt", title = "Filtered Rt")
+band!(filtered, day, filt_lo, filt_hi; color = (:darkorange, 0.2))
+lines!(filtered, day, filt_Rt; label = "filtered (95%)", linewidth = 2, color = :darkorange)
+lines!(filtered, day, true_Rt; label = "truth", linewidth = 2, linestyle = :dash, color = :black)
+axislegend(filtered; position = :rt)
+
+smoothed = Axis(fig[3, 1]; xlabel = "day", ylabel = "Rt", title = "RTS-smoothed Rt")
+band!(smoothed, day, smooth_lo, smooth_hi; color = (:seagreen, 0.2))
+lines!(smoothed, day, smooth_Rt; label = "smoothed (95%)", linewidth = 2, color = :seagreen)
+lines!(smoothed, day, true_Rt; label = "truth", linewidth = 2, linestyle = :dash, color = :black)
+axislegend(smoothed; position = :rt)
+
+linkxaxes!(counts, filtered, smoothed)
+foreach(ax -> hidexdecorations!(ax; grid = false), (counts, filtered))
+fig
 ```
 ![](low_level_filtering-14.png)
 
@@ -171,12 +182,20 @@ for t in 1:T_pf
 end
 ess = [1 / sum(abs2, sol_pf.we[:, t]) for t in 1:T_pf]
 
-rt_panel = plot(1:T_pf, pf_Rt; ribbon = (pf_Rt .- pf_lo, pf_hi .- pf_Rt), label = "filtered (95%)", lw = 2,
-    color = :darkorange, fillalpha = 0.2, ylabel = "Rt", title = "Particle-filtered Rt")
-plot!(rt_panel, 1:T_pf, Rt.(x_pf); label = "truth", lw = 2, ls = :dash, color = :black)
-ess_panel = plot(1:T_pf, ess; label = "ESS", lw = 2, color = :seagreen, ylabel = "ESS",
-    title = "Effective sample size (of $n_particles)")
-hline!(ess_panel, [n_particles / 2]; label = "resampling threshold", ls = :dash, color = :firebrick)
-plot(rt_panel, ess_panel; layout = (2, 1), size = (760, 600), xlabel = "day", legend = :topright)
+fig = Figure(size = (760, 600))
+rt_panel = Axis(fig[1, 1]; ylabel = "Rt", title = "Particle-filtered Rt")
+band!(rt_panel, 1:T_pf, pf_lo, pf_hi; color = (:darkorange, 0.2))
+lines!(rt_panel, 1:T_pf, pf_Rt; label = "filtered (95%)", linewidth = 2, color = :darkorange)
+lines!(rt_panel, 1:T_pf, Rt.(x_pf); label = "truth", linewidth = 2, linestyle = :dash, color = :black)
+axislegend(rt_panel; position = :rt)
+
+ess_panel = Axis(fig[2, 1]; xlabel = "day", ylabel = "ESS", title = "Effective sample size (of $n_particles)")
+lines!(ess_panel, 1:T_pf, ess; label = "ESS", linewidth = 2, color = :seagreen)
+hlines!(ess_panel, [n_particles / 2]; label = "resampling threshold", linestyle = :dash, color = :firebrick)
+axislegend(ess_panel; position = :rt)
+
+linkxaxes!(rt_panel, ess_panel)
+hidexdecorations!(rt_panel; grid = false)
+fig
 ```
 ![](low_level_filtering-18.png)

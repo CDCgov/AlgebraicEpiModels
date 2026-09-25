@@ -967,12 +967,15 @@ Regeneration uses Julia 1.13 (<code>juliaup add 1.13</code> once); site builds u
 <p>Drawing Petri nets in the examples needs the Graphviz <code>dot</code> executable on the <code>PATH</code>.</p>
 <h2 id="when-to-regenerate">When to regenerate<a class="headerlink" href="#when-to-regenerate" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Docstrings changed:</strong> run <code>just docs-api</code> and commit <code>docs/api/</code>. CI regenerates the API pages on pull requests and fails if the committed copy differs.</li>
-<li><strong>Package behaviour or an example changed:</strong> run <code>just docs-examples</code> (or just the affected example) and commit <code>docs/examples/</code>. CI executes every example on pull requests but does not compare output, because floating-point results and figure bytes differ between platforms.</li>
+<li><strong>Docstrings changed:</strong> run <code>just docs-api</code> and commit <code>docs/api/</code>.
+  CI regenerates the API pages on pull requests and fails if the committed copy differs.</li>
+<li><strong>Package behaviour or an example changed:</strong> run <code>just docs-examples</code> (or just the affected example) and commit <code>docs/examples/</code>.
+  CI executes every example on pull requests but does not compare output, because floating-point results and figure bytes differ between platforms.</li>
 </ul>
 <h2 id="adding-an-example">Adding an example<a class="headerlink" href="#adding-an-example" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Write a <a href="https://fredrikekre.github.io/Literate.jl/v2/fileformat/">Literate</a> script in <code>julia-docs/examples/</code>: <code>#</code> lines are Markdown, and the value of each code block's last expression is shown, with plots saved as images. End a block with <code>nothing #hide</code> to show no output.</li>
+<li>Write a <a href="https://fredrikekre.github.io/Literate.jl/v2/fileformat/">Literate</a> script in <code>julia-docs/examples/</code>: <code>#</code> lines are Markdown, and the value of each code block's last expression is shown, with plots saved as images.
+   End a block with <code>nothing #hide</code> to show no output.</li>
 <li>Seed every random number generator, including the <code>rng</code> of any filter constructed directly, so reruns reproduce.</li>
 <li>Add any new packages to <code>julia-docs/Project.toml</code>.</li>
 <li>Run <code>just docs-examples &lt;name&gt;</code>, add the page to the <code>nav</code> in <code>zensical.toml</code>, and check it with <code>just docs-serve</code>.</li>

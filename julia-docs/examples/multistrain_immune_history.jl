@@ -13,14 +13,23 @@ using AlgebraicEpiMech
 using AlgebraicPetri
 using AlgebraicPetri.TypedPetri: typed_product
 using Catlab
+using CairoMakie
 using LabelledArrays
 using OrdinaryDiffEqTsit5
-using Plots
 using SymbolicIndexingInterface: SymbolCache
 
 function solve_net(pn, u0, p, tspan)
     f = ODEFunction(vectorfield_flat(pn); sys = SymbolCache(collect(keys(u0))))
     return solve(ODEProblem(f, u0, tspan, p), Tsit5())
+end
+
+
+function plot_solution!(ax, sol, names)
+    for name in names
+        lines!(ax, sol.t, sol[name]; label = string(name), linewidth = 2)
+    end
+    axislegend(ax; position = :rt)
+    return ax
 end
 nothing #hide
 
@@ -43,7 +52,10 @@ N = 1000.0
 u0 = LVector(S_h1n1 = N - 5.0, I_h1n1 = 5.0, R_h1n1 = 0.0, S_h3n2 = N - 2.0, I_h3n2 = 2.0, R_h3n2 = 0.0)
 p = LVector(transmission_S_I_h1n1 = 0.6 / N, I_to_R_h1n1 = 0.3, transmission_S_I_h3n2 = 0.4 / N, I_to_R_h3n2 = 0.25)
 sol = solve_net(independent, u0, p, (0.0, 100.0))
-plot(sol; idxs = [:I_h1n1, :I_h3n2], xlabel = "Time (days)", ylabel = "Infectious", title = "Independent strains")
+fig = Figure(size = (700, 420))
+ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel = "Infectious", title = "Independent strains")
+plot_solution!(ax, sol, [:I_h1n1, :I_h3n2])
+fig
 
 # ## Competing strains
 #
@@ -64,11 +76,14 @@ to_graphviz(competing)
 u0_c = LVector(S_susceptible = N - 10.0, I_wild_type = 8.0, I_variant = 2.0, R_wild_type = 0.0, R_variant = 0.0)
 p_c = LVector(transmission_S_I_wild_type = 0.5 / N, I_to_R_wild_type = 0.25, transmission_S_I_variant = 0.8 / N, I_to_R_variant = 0.3)
 sol_c = solve_net(competing, u0_c, p_c, (0.0, 100.0))
-plot(
-    plot(sol_c; idxs = [:I_wild_type, :I_variant], ylabel = "Infectious", title = "Competing strains"),
-    plot(sol_c; idxs = [:S_susceptible], ylabel = "Susceptible", title = "Shared susceptible pool");
-    layout = (2, 1), size = (600, 600), xlabel = "Time (days)",
-)
+fig = Figure(size = (700, 620))
+ax_infected = Axis(fig[1, 1]; ylabel = "Infectious", title = "Competing strains")
+ax_susceptible = Axis(fig[2, 1]; xlabel = "Time (days)", ylabel = "Susceptible", title = "Shared susceptible pool")
+plot_solution!(ax_infected, sol_c, [:I_wild_type, :I_variant])
+plot_solution!(ax_susceptible, sol_c, [:S_susceptible])
+linkxaxes!(ax_infected, ax_susceptible)
+hidexdecorations!(ax_infected; grid = false)
+fig
 
 # ## Immune history
 #
@@ -131,9 +146,13 @@ p_h = LVector(; (t => rate(t) for t in transitions)...)
 
 sol_h = solve_net(latest, u0_h, p_h, (0.0, 150.0))
 invader = sol_h[:I_invader_from_naive] .+ sol_h[:I_invader_from_current]
-plot(sol_h.t, [sol_h[:S_U_current] invader sol_h[:S_U_invader]];
-    label = ["S immune to current (escape target)" "infectious with invader" "S immune to invader"],
-    xlabel = "Time (days)", ylabel = "People", lw = 2, title = "Invader escapes into the incumbent-immune pool")
+fig = Figure(size = (760, 440))
+ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel = "People", title = "Invader escapes into the incumbent-immune pool")
+lines!(ax, sol_h.t, sol_h[:S_U_current]; label = "S immune to current (escape target)", linewidth = 2)
+lines!(ax, sol_h.t, invader; label = "infectious with invader", linewidth = 2)
+lines!(ax, sol_h.t, sol_h[:S_U_invader]; label = "S immune to invader", linewidth = 2)
+axislegend(ax; position = :rt)
+fig
 
 # The invader wave drains `S_U_current`, and recovereds move on to `S_U_invader`: escape arises from
 # the composition, with no seeded pulse. Swapping `SEIRS()` for any other template, for example

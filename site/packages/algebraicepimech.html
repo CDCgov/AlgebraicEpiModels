@@ -966,7 +966,8 @@ Species are compartments, transitions are flows, and each model is typed over a 
 <p>An <code>EpidemiologicalTyping</code> fixes the type system every model is mapped into; <code>type_system(typing)</code> materialises it as a Petri net.</p>
 <ul>
 <li><code>OnePopulationTyping()</code>: every compartment has one population type, so every compartment is stratified the same way.</li>
-<li><code>UninfectedInfectedTyping()</code>: uninfected and infected compartments have different types and can be stratified differently. Competing strains and immune history need this.</li>
+<li><code>UninfectedInfectedTyping()</code>: uninfected and infected compartments have different types and can be stratified differently.
+  Competing strains and immune history need this.</li>
 </ul>
 <p>Transitions are typed by role: transmission, disease progression, reversion (waning back to susceptible), and observation.</p>
 <h2 id="templates">Templates<a class="headerlink" href="#templates" title="Permanent link">&para;</a></h2>
@@ -1002,9 +1003,11 @@ Species are compartments, transitions are flows, and each model is typed over a 
 <h2 id="composition">Composition<a class="headerlink" href="#composition" title="Permanent link">&para;</a></h2>
 <p>Structure is added by building a second model over the same typing and taking the typed product with <code>AlgebraicPetri.TypedPetri.typed_product</code>.</p>
 <ul>
-<li><strong>Stratification.</strong> <code>AgeStratification</code>, <code>GeographicStratification</code> and the general <code>ContactStratification</code> replicate each compartment per stratum, keep progression within strata, and give one transmission transition per (infectee, infector) pair of strata. Stratifications stack with <code>*</code> or <code>compose_stratifications</code>.</li>
+<li><strong>Stratification.</strong> <code>AgeStratification</code>, <code>GeographicStratification</code> and the general <code>ContactStratification</code> replicate each compartment per stratum, keep progression within strata, and give one transmission transition per (infectee, infector) pair of strata.
+  Stratifications stack with <code>*</code> or <code>compose_stratifications</code>.</li>
 <li><strong>Strains.</strong> <code>NoCrossImmunity</code> (independent strains, over <code>OnePopulationTyping</code>) and <code>CompleteCrossImmunity</code> (strains competing for one susceptible pool, over <code>UninfectedInfectedTyping</code>).</li>
-<li><strong>Immune history.</strong> <code>ImmuneHistory(strains; mode)</code> indexes susceptibles by the strains they are immune to, with <code>FullHistory()</code> (<span class="arithmatex">\(2^n\)</span> classes) or <code>LatestInfection()</code> (<span class="arithmatex">\(n + 1\)</span> classes). Escape and history updates follow from the product.</li>
+<li><strong>Immune history.</strong> <code>ImmuneHistory(strains; mode)</code> indexes susceptibles by the strains they are immune to, with <code>FullHistory()</code> (<span class="arithmatex">\(2^n\)</span> classes) or <code>LatestInfection()</code> (<span class="arithmatex">\(n + 1\)</span> classes).
+  Escape and history updates follow from the product.</li>
 </ul>
 <p>Composed species and transitions have tuple names such as <code>(:S, :child)</code>; <code>flatten_symbols</code> joins them into <code>:S_child</code>.</p>
 <h2 id="observation">Observation<a class="headerlink" href="#observation" title="Permanent link">&para;</a></h2>
@@ -1013,7 +1016,8 @@ Species are compartments, transitions are flows, and each model is typed over a 
 <li><code>AtCompartment(:I)</code> samples a compartment at a rate times its occupancy (prevalence-type signals).</li>
 <li><code>AtEvent(:transmission)</code> records a transition's flow (incidence-type signals).</li>
 </ul>
-<p>Attach observation after composition, so that each stratum gets its own chain. <code>observation_layout</code> reports the chains of an augmented net.</p>
+<p>Attach observation after composition, so that each stratum gets its own chain.
+<code>observation_layout</code> reports the chains of an augmented net.</p>
 <h2 id="vector-fields">Vector fields<a class="headerlink" href="#vector-fields" title="Permanent link">&para;</a></h2>
 <p><code>vectorfield_flat(pn)</code> returns an in-place mass-action ODE right-hand side <code>f!(du, u, p, t)</code> that indexes state and parameters by flattened name, so <code>LVector</code>s and <code>NamedTuple</code>s work directly.
 ConfigurableEpi builds on the same nets with <code>build_petri_vf</code>, which lets transition rates depend on latent processes, hyperparameters and time.</p>

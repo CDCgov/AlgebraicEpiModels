@@ -8,9 +8,9 @@ Drawing the nets with `to_graphviz` needs the [Graphviz](https://graphviz.org/do
 using AlgebraicEpiMech
 using AlgebraicPetri
 using Catlab
+using CairoMakie
 using LabelledArrays
 using OrdinaryDiffEqTsit5
-using Plots
 using SymbolicIndexingInterface: SymbolCache
 ```
 
@@ -59,13 +59,23 @@ function solve_net(pn, u0, p, tspan)
     return solve(ODEProblem(f, u0, tspan, p), Tsit5())
 end
 
+function solution_figure(sol, names; title, ylabel = "Population")
+    fig = Figure(size = (760, 420))
+    ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel, title)
+    for name in names
+        lines!(ax, sol.t, sol[name]; label = string(name), linewidth = 2)
+    end
+    Legend(fig[1, 2], ax; framevisible = false)
+    return fig
+end
+
 N = 1000.0
 u0 = LVector(S = N - 10.0, I = 10.0, R = 0.0)
 p = LVector(transmission_S_I = 0.5 / N, I_to_R = 0.25)
 tspan = (0.0, 120.0)
 
 sol = solve_net(sir_pn, u0, p, tspan)
-plot(sol; xlabel = "Time (days)", ylabel = "Population", title = "SIR", legend = :right)
+solution_figure(sol, keys(u0); title = "SIR")
 ```
 ![](compartmental_models-9.png)
 
@@ -82,7 +92,7 @@ to_graphviz(seir_typed)
 u0_seir = LVector(S = N - 10.0, E = 5.0, I = 5.0, R = 0.0)
 p_seir = LVector(transmission_S_I = 0.5 / N, E_to_I = 0.2, I_to_R = 0.25)
 sol_seir = solve_net(seir_pn, u0_seir, p_seir, tspan)
-plot(sol_seir; xlabel = "Time (days)", ylabel = "Population", title = "SEIR", legend = :right)
+solution_figure(sol_seir, keys(u0_seir); title = "SEIR")
 ```
 ![](compartmental_models-12.png)
 
@@ -108,7 +118,7 @@ p_si = LVector(
     I1_to_I2 = 0.2, I2_to_I3 = 0.5, I3_to_I4 = 0.2,
 )
 sol_si = solve_net(si_multi_pn, u0_si, p_si, tspan)
-plot(sol_si; xlabel = "Time (days)", ylabel = "Population", title = "SI with 4 infectious stages", legend = :right)
+solution_figure(sol_si, keys(u0_si); title = "SI with 4 infectious stages")
 ```
 ![](compartmental_models-15.png)
 
@@ -127,7 +137,7 @@ p_sm = LVector(
     E1_to_E2 = 0.5, E2_to_I1 = 0.5, I1_to_I2 = 0.4, I2_to_I3 = 0.4, I3_to_R = 0.4,
 )
 sol_sm = solve_net(dom(seir_multi_typed), u0_sm, p_sm, tspan)
-plot(sol_sm; xlabel = "Time (days)", ylabel = "Population", title = "SEIR, 2 E and 3 I stages", legend = :outertopright)
+solution_figure(sol_sm, keys(u0_sm); title = "SEIR, 2 E and 3 I stages")
 ```
 ![](compartmental_models-18.png)
 
@@ -152,6 +162,6 @@ to_graphviz(seir_obs_pn)
 u0_obs = LVector(S = N - 10.0, E = 5.0, I = 5.0, R = 0.0, O_E_1 = 0.0, O_E_2 = 0.0)
 p_obs = LVector(transmission_S_I = 0.5 / N, E_to_I = 0.2, I_to_R = 0.25, obs_inflow_E = 0.2, O_E_1_to_O_E_2 = 0.2)
 sol_obs = solve_net(seir_obs_pn, u0_obs, p_obs, tspan)
-plot(sol_obs; xlabel = "Time (days)", ylabel = "Population", title = "SEIR with an observation delay chain", legend = :outertopright)
+solution_figure(sol_obs, keys(u0_obs); title = "SEIR with an observation delay chain")
 ```
 ![](compartmental_models-21.png)

@@ -858,45 +858,39 @@
 
 <h1 id="AlgebraicEpiMech-API">AlgebraicEpiMech API<a class="headerlink" href="#AlgebraicEpiMech-API" title="Permanent link">&para;</a></h1>
 <p>Reference for the exported API of <code>AlgebraicEpiMech</code>, generated from docstrings.</p>
-<p><a id='AlgebraicEpiMech.AtCompartment'></a>
-<a id='AlgebraicEpiMech.AtCompartment-1'></a>
-<strong><code>AlgebraicEpiMech.AtCompartment</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.AtCompartment'></a> <a id='AlgebraicEpiMech.AtCompartment-1'></a> <strong><code>AlgebraicEpiMech.AtCompartment</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">struct</span> <span class="kt">AtCompartment</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">ObservationTarget</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">AtCompartment</span><span class="p">(</span><span class="n">species</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Sample a SPECIES: prevalence. Every species whose (flattened) name begins with <code>species</code> gains a catalytic tap <code>X -&gt; X + O</code>, carrying its own detection rate — whoever is in the compartment is currently detectable (although detection does not cause removal)</p>
+<p>Sample a SPECIES: prevalence.
+Every species whose (flattened) name begins with <code>species</code> gains a catalytic tap <code>X -&gt; X + O</code>, carrying its own detection rate — whoever is in the compartment is currently detectable (although detection does not cause removal)</p>
 <hr />
 <p><strong>Fields</strong></p>
 <ul>
 <li><code>species::Symbol</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.AtEvent'></a>
-<a id='AlgebraicEpiMech.AtEvent-1'></a>
-<strong><code>AlgebraicEpiMech.AtEvent</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.AtEvent'></a> <a id='AlgebraicEpiMech.AtEvent-1'></a> <strong><code>AlgebraicEpiMech.AtEvent</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">struct</span> <span class="kt">AtEvent</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">ObservationTarget</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">AtEvent</span><span class="p">(</span><span class="n">transition</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Record a TRANSITION: incidence. Every transition whose (flattened) name begins with <code>transition</code> gains an output arc into an accumulator, so it fires at that transition's own rate and counts exactly one observation per occurrence.</p>
+<p>Record a TRANSITION: incidence.
+Every transition whose (flattened) name begins with <code>transition</code> gains an output arc into an accumulator, so it fires at that transition's own rate and counts exactly one observation per occurrence.</p>
 <p><code>AtEvent(:transmission)</code> counts infections as they happen, which is what decouples a reporting delay from the latent period — the delay is then whatever the chain adds and nothing else.</p>
 <hr />
 <p><strong>Fields</strong></p>
 <ul>
 <li><code>transition::Symbol</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.CompartmentalModel'></a>
-<a id='AlgebraicEpiMech.CompartmentalModel-1'></a>
-<strong><code>AlgebraicEpiMech.CompartmentalModel</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.CompartmentalModel'></a> <a id='AlgebraicEpiMech.CompartmentalModel-1'></a> <strong><code>AlgebraicEpiMech.CompartmentalModel</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">CompartmentalModel</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">EpiMechModel</span>
 </span></code></pre></div>
 <p>Abstract base type for compartmental epidemiological models.</p>
 <p>Compartmental models define the specific disease dynamics and transitions between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.CompleteCrossImmunity'></a>
-<a id='AlgebraicEpiMech.CompleteCrossImmunity-1'></a>
-<strong><code>AlgebraicEpiMech.CompleteCrossImmunity</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.CompleteCrossImmunity'></a> <a id='AlgebraicEpiMech.CompleteCrossImmunity-1'></a> <strong><code>AlgebraicEpiMech.CompleteCrossImmunity</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">struct</span> <span class="kt">CompleteCrossImmunity</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">MultiStrainModel</span>
 </span></code></pre></div>
 <p>Complete cross-immunity multistrain model.</p>
@@ -931,13 +925,12 @@
 <li><code>number_of_strains::Int64</code></li>
 <li><code>strain_names::Vector{Symbol}</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.ContactStratification'></a>
-<a id='AlgebraicEpiMech.ContactStratification-1'></a>
-<strong><code>AlgebraicEpiMech.ContactStratification</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ContactStratification'></a> <a id='AlgebraicEpiMech.ContactStratification-1'></a> <strong><code>AlgebraicEpiMech.ContactStratification</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">struct</span> <span class="kt">ContactStratification</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">Stratification</span>
 </span></code></pre></div>
 <p>Contact-based stratification for epidemiological models.</p>
-<p>Represents stratifications where populations are divided into strata with contact-based interactions (full contact matrix between all pairs). This generalizes age groups, geographic regions modelled as cross-region contact (rather than explicit movement), risk groups, etc.</p>
+<p>Represents stratifications where populations are divided into strata with contact-based interactions (full contact matrix between all pairs).
+This generalizes age groups, geographic regions modelled as cross-region contact (rather than explicit movement), risk groups, etc.</p>
 <p>Multiple contact stratifications can be stacked via <code>compose_stratifications</code> to create product strata (e.g., age × geography).</p>
 <p><strong>Fields</strong></p>
 <ul>
@@ -966,13 +959,12 @@
 <li><code>stratum_names::Vector{Symbol}</code></li>
 <li><code>label::Symbol</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.EpiMechModel'></a>
-<a id='AlgebraicEpiMech.EpiMechModel-1'></a>
-<strong><code>AlgebraicEpiMech.EpiMechModel</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.EpiMechModel'></a> <a id='AlgebraicEpiMech.EpiMechModel-1'></a> <strong><code>AlgebraicEpiMech.EpiMechModel</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">EpiMechModel</span>
 </span></code></pre></div>
 <p>Abstract base type for all epidemiological-mechanical models in the AlgebraicEpiMech framework.</p>
-<p>All concrete epidemiological-mechanical model types should be subtypes of <code>EpiMechModel</code>. This abstract type serves as the root of the type hierarchy for models that combine epidemiological dynamics with mechanical or algebraic structures.</p>
+<p>All concrete epidemiological-mechanical model types should be subtypes of <code>EpiMechModel</code>.
+This abstract type serves as the root of the type hierarchy for models that combine epidemiological dynamics with mechanical or algebraic structures.</p>
 <p><strong>Extended help</strong></p>
 <p>Subtypes of <code>EpiMechModel</code> should implement the necessary interface methods for their specific model formulation.</p>
 <p><strong>See also</strong></p>
@@ -981,28 +973,24 @@
 </ul>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.EpidemiologicalTyping'></a>
-<a id='AlgebraicEpiMech.EpidemiologicalTyping-1'></a>
-<strong><code>AlgebraicEpiMech.EpidemiologicalTyping</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.EpidemiologicalTyping'></a> <a id='AlgebraicEpiMech.EpidemiologicalTyping-1'></a> <strong><code>AlgebraicEpiMech.EpidemiologicalTyping</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">EpidemiologicalTyping</span>
 </span></code></pre></div>
 <p>Abstract base type for epidemiological typing strategies.</p>
-<p>An <code>EpidemiologicalTyping</code> describes how populations and transitions are typed when constructing epidemiological models. <a href="algebraicepimech.html#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}"><code>type_system</code></a> materializes the strategy as the <code>LabelledPetriNet</code> used as the codomain of a typed Petri net.</p>
+<p>An <code>EpidemiologicalTyping</code> describes how populations and transitions are typed when constructing epidemiological models.
+[<code>type_system</code>](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}) materializes the strategy as the <code>LabelledPetriNet</code> used as the codomain of a typed Petri net.</p>
 <p><strong>Reference</strong></p>
 <p><a href="https://royalsocietypublishing.org/rsta/article/380/2233/20210309/112239">Libkind et al. (2023) <em>An algebraic framework for structured epidemic modelling</em></a></p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.FullHistory'></a>
-<a id='AlgebraicEpiMech.FullHistory-1'></a>
-<strong><code>AlgebraicEpiMech.FullHistory</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.FullHistory'></a> <a id='AlgebraicEpiMech.FullHistory-1'></a> <strong><code>AlgebraicEpiMech.FullHistory</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">struct</span> <span class="kt">FullHistory</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">ImmuneHistoryMode</span>
 </span></code></pre></div>
-<p>Full (unordered) immune history: uninfected individuals are indexed by the <strong>set</strong> of strains they are immune to (<code>2^n</code> classes). Immunity accumulates — reversion routes to <code>h ∪ {i}</code>.</p>
+<p>Full (unordered) immune history: uninfected individuals are indexed by the <strong>set</strong> of strains they are immune to (<code>2^n</code> classes).
+Immunity accumulates — reversion routes to <code>h ∪ {i}</code>.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.ImmuneHistory'></a>
-<a id='AlgebraicEpiMech.ImmuneHistory-1'></a>
-<strong><code>AlgebraicEpiMech.ImmuneHistory</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ImmuneHistory'></a> <a id='AlgebraicEpiMech.ImmuneHistory-1'></a> <strong><code>AlgebraicEpiMech.ImmuneHistory</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">struct</span> <span class="kt">ImmuneHistory</span><span class="p">{</span><span class="kt">M</span><span class="o">&lt;:</span><span class="kt">ImmuneHistoryMode</span><span class="p">}</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">MultiStrainModel</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kt">ImmuneHistory</span><span class="p">{</span><span class="kt">M</span><span class="o">&lt;:</span><span class="kt">ImmuneHistoryMode</span><span class="p">}</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">MultiStrainModel</span>
@@ -1028,40 +1016,32 @@
 <li><code>strain_names::Vector{Symbol}</code></li>
 <li><code>mode::ImmuneHistoryMode</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}'></a>
-<a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}-1'></a>
-<strong><code>AlgebraicEpiMech.ImmuneHistory</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}'></a> <a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}-1'></a> <strong><code>AlgebraicEpiMech.ImmuneHistory</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">ImmuneHistory</span><span class="p">(</span><span class="n">n</span><span class="o">::</span><span class="kt">Int</span><span class="p">;</span><span class="w"> </span><span class="n">kwargs</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Auto-name <code>n</code> strains as <code>strain_1 … strain_n</code>.</p>
-<p><a id='AlgebraicEpiMech.ImmuneHistoryMode'></a>
-<a id='AlgebraicEpiMech.ImmuneHistoryMode-1'></a>
-<strong><code>AlgebraicEpiMech.ImmuneHistoryMode</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ImmuneHistoryMode'></a> <a id='AlgebraicEpiMech.ImmuneHistoryMode-1'></a> <strong><code>AlgebraicEpiMech.ImmuneHistoryMode</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">ImmuneHistoryMode</span>
 </span></code></pre></div>
 <p>Abstract base type for selections of how much immune history is retained.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.LatestInfection'></a>
-<a id='AlgebraicEpiMech.LatestInfection-1'></a>
-<strong><code>AlgebraicEpiMech.LatestInfection</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.LatestInfection'></a> <a id='AlgebraicEpiMech.LatestInfection-1'></a> <strong><code>AlgebraicEpiMech.LatestInfection</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">struct</span> <span class="kt">LatestInfection</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">ImmuneHistoryMode</span>
 </span></code></pre></div>
-<p>Latest-infection status: uninfected individuals are indexed by their <strong>most recent</strong> infection (<code>n + 1</code> classes). Reversion overwrites immune status — routes to <code>{i}</code>.</p>
+<p>Latest-infection status: uninfected individuals are indexed by their <strong>most recent</strong> infection (<code>n + 1</code> classes).
+Reversion overwrites immune status — routes to <code>{i}</code>.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.MultiStrainModel'></a>
-<a id='AlgebraicEpiMech.MultiStrainModel-1'></a>
-<strong><code>AlgebraicEpiMech.MultiStrainModel</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.MultiStrainModel'></a> <a id='AlgebraicEpiMech.MultiStrainModel-1'></a> <strong><code>AlgebraicEpiMech.MultiStrainModel</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">MultiStrainModel</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">EpiMechModel</span>
 </span></code></pre></div>
 <p>Abstract base type for multistrain epidemiological models.</p>
-<p>Multistrain models define how multiple pathogen strains interact through different assumptions about cross-immunity. These compose with compartmental models via typed_product to create strain-structured disease dynamics.</p>
+<p>Multistrain models define how multiple pathogen strains interact through different assumptions about cross-immunity.
+These compose with compartmental models via typed_product to create strain-structured disease dynamics.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.NoCrossImmunity'></a>
-<a id='AlgebraicEpiMech.NoCrossImmunity-1'></a>
-<strong><code>AlgebraicEpiMech.NoCrossImmunity</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.NoCrossImmunity'></a> <a id='AlgebraicEpiMech.NoCrossImmunity-1'></a> <strong><code>AlgebraicEpiMech.NoCrossImmunity</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">struct</span> <span class="kt">NoCrossImmunity</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">MultiStrainModel</span>
 </span></code></pre></div>
 <p>No cross-immunity multistrain model.</p>
@@ -1096,9 +1076,7 @@
 <li><code>number_of_strains::Int64</code></li>
 <li><code>strain_names::Vector{Symbol}</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.ObservationChainLayout'></a>
-<a id='AlgebraicEpiMech.ObservationChainLayout-1'></a>
-<strong><code>AlgebraicEpiMech.ObservationChainLayout</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ObservationChainLayout'></a> <a id='AlgebraicEpiMech.ObservationChainLayout-1'></a> <strong><code>AlgebraicEpiMech.ObservationChainLayout</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="k">struct</span> <span class="kt">ObservationChainLayout</span><span class="p">{</span><span class="kt">N</span><span class="p">}</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">ObservationChainLayout</span><span class="p">(</span><span class="n">source_name</span><span class="p">,</span><span class="w"> </span><span class="n">obs_names</span><span class="p">)</span>
@@ -1117,9 +1095,7 @@
 <li><code>obs_names::NTuple{N, Symbol} where N</code></li>
 <li><code>cumulative_name::Symbol</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.ObservationLayout'></a>
-<a id='AlgebraicEpiMech.ObservationLayout-1'></a>
-<strong><code>AlgebraicEpiMech.ObservationLayout</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ObservationLayout'></a> <a id='AlgebraicEpiMech.ObservationLayout-1'></a> <strong><code>AlgebraicEpiMech.ObservationLayout</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">struct</span> <span class="kt">ObservationLayout</span><span class="p">{</span><span class="kt">N</span><span class="p">,</span><span class="w"> </span><span class="kt">C</span><span class="o">&lt;:</span><span class="kt">Tuple</span><span class="p">,</span><span class="w"> </span><span class="kt">M</span><span class="p">}</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="n">ObservationLayout</span><span class="p">(</span><span class="n">obs_names</span><span class="p">,</span><span class="w"> </span><span class="n">chains</span><span class="p">)</span>
@@ -1138,19 +1114,16 @@
 <li><code>chains::Tuple</code></li>
 <li><code>cumulative_names::NTuple{M, Symbol} where M</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.ObservationTarget'></a>
-<a id='AlgebraicEpiMech.ObservationTarget-1'></a>
-<strong><code>AlgebraicEpiMech.ObservationTarget</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.ObservationTarget'></a> <a id='AlgebraicEpiMech.ObservationTarget-1'></a> <strong><code>AlgebraicEpiMech.ObservationTarget</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">ObservationTarget</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="n">ObservationTarget</span>
 </span></code></pre></div>
-<p>What an observation attaches to. <a href="algebraicepimech.html#AlgebraicEpiMech.AtEvent"><code>AtEvent</code></a> records a transition (incidence); <a href="algebraicepimech.html#AlgebraicEpiMech.AtCompartment"><code>AtCompartment</code></a> samples a species (prevalence).</p>
+<p>What an observation attaches to.
+<a href="algebraicepimech.html#AlgebraicEpiMech.AtEvent"><code>AtEvent</code></a> records a transition (incidence); <a href="algebraicepimech.html#AlgebraicEpiMech.AtCompartment"><code>AtCompartment</code></a> samples a species (prevalence).</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.OnePopulationTyping'></a>
-<a id='AlgebraicEpiMech.OnePopulationTyping-1'></a>
-<strong><code>AlgebraicEpiMech.OnePopulationTyping</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.OnePopulationTyping'></a> <a id='AlgebraicEpiMech.OnePopulationTyping-1'></a> <strong><code>AlgebraicEpiMech.OnePopulationTyping</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">struct</span> <span class="kt">OnePopulationTyping</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">EpidemiologicalTyping</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="n">OnePopulationTyping</span><span class="p">(;</span><span class="w"> </span><span class="n">population_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Population</span><span class="p">)</span>
@@ -1165,9 +1138,7 @@
 <ul>
 <li><code>population_type::Symbol</code>: The symbolic name for the population type.</li>
 </ul>
-<p><a id='AlgebraicEpiMech.SEI'></a>
-<a id='AlgebraicEpiMech.SEI-1'></a>
-<strong><code>AlgebraicEpiMech.SEI</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SEI'></a> <a id='AlgebraicEpiMech.SEI-1'></a> <strong><code>AlgebraicEpiMech.SEI</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">struct</span> <span class="kt">SEI</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Exposed-Infected (SEI) compartmental model.</p>
@@ -1190,9 +1161,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SEIR'></a>
-<a id='AlgebraicEpiMech.SEIR-1'></a>
-<strong><code>AlgebraicEpiMech.SEIR</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SEIR'></a> <a id='AlgebraicEpiMech.SEIR-1'></a> <strong><code>AlgebraicEpiMech.SEIR</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">struct</span> <span class="kt">SEIR</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Exposed-Infected-Recovered (SEIR) compartmental model.</p>
@@ -1217,9 +1186,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SEIRS'></a>
-<a id='AlgebraicEpiMech.SEIRS-1'></a>
-<strong><code>AlgebraicEpiMech.SEIRS</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SEIRS'></a> <a id='AlgebraicEpiMech.SEIRS-1'></a> <strong><code>AlgebraicEpiMech.SEIRS</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">struct</span> <span class="kt">SEIRS</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Exposed-Infected-Recovered-Susceptible (SEIRS) compartmental model.</p>
@@ -1245,9 +1212,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SEIS'></a>
-<a id='AlgebraicEpiMech.SEIS-1'></a>
-<strong><code>AlgebraicEpiMech.SEIS</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SEIS'></a> <a id='AlgebraicEpiMech.SEIS-1'></a> <strong><code>AlgebraicEpiMech.SEIS</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="k">struct</span> <span class="kt">SEIS</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Exposed-Infected-Susceptible (SEIS) compartmental model.</p>
@@ -1271,9 +1236,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SI'></a>
-<a id='AlgebraicEpiMech.SI-1'></a>
-<strong><code>AlgebraicEpiMech.SI</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SI'></a> <a id='AlgebraicEpiMech.SI-1'></a> <strong><code>AlgebraicEpiMech.SI</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">struct</span> <span class="kt">SI</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Infected (SI) compartmental model.</p>
@@ -1293,9 +1256,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SIR'></a>
-<a id='AlgebraicEpiMech.SIR-1'></a>
-<strong><code>AlgebraicEpiMech.SIR</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SIR'></a> <a id='AlgebraicEpiMech.SIR-1'></a> <strong><code>AlgebraicEpiMech.SIR</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="k">struct</span> <span class="kt">SIR</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Infected-Recovered (SIR) compartmental model.</p>
@@ -1317,9 +1278,7 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.SIS'></a>
-<a id='AlgebraicEpiMech.SIS-1'></a>
-<strong><code>AlgebraicEpiMech.SIS</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.SIS'></a> <a id='AlgebraicEpiMech.SIS-1'></a> <strong><code>AlgebraicEpiMech.SIS</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="k">struct</span> <span class="kt">SIS</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">CompartmentalModel</span>
 </span></code></pre></div>
 <p>Susceptible-Infected-Susceptible (SIS) compartmental model.</p>
@@ -1340,22 +1299,19 @@
 <li><code>number_I_stages::Int64</code></li>
 <li><code>number_of_states::Int64</code></li>
 </ul>
-<p><a id='AlgebraicEpiMech.Stratification'></a>
-<a id='AlgebraicEpiMech.Stratification-1'></a>
-<strong><code>AlgebraicEpiMech.Stratification</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.Stratification'></a> <a id='AlgebraicEpiMech.Stratification-1'></a> <strong><code>AlgebraicEpiMech.Stratification</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="k">abstract</span><span class="w"> </span><span class="k">type</span> <span class="kt">Stratification</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">EpiMechModel</span>
 </span></code></pre></div>
 <p>Represents a stratification structure for epidemiological models.</p>
 <hr />
 <p><strong>Fields</strong></p>
-<p><a id='AlgebraicEpiMech.UninfectedInfectedTyping'></a>
-<a id='AlgebraicEpiMech.UninfectedInfectedTyping-1'></a>
-<strong><code>AlgebraicEpiMech.UninfectedInfectedTyping</code></strong> &mdash; <em>Type</em>.</p>
+<p><a id='AlgebraicEpiMech.UninfectedInfectedTyping'></a> <a id='AlgebraicEpiMech.UninfectedInfectedTyping-1'></a> <strong><code>AlgebraicEpiMech.UninfectedInfectedTyping</code></strong> &mdash; <em>Type</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="k">struct</span> <span class="kt">UninfectedInfectedTyping</span><span class="w"> </span><span class="o">&lt;:</span><span class="w"> </span><span class="kt">EpidemiologicalTyping</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="n">UninfectedInfectedTyping</span><span class="p">(;</span><span class="w"> </span><span class="n">uninfected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Uninfected</span><span class="p">,</span><span class="w"> </span><span class="n">infected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Infected</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Typing strategy that distinguishes uninfected and infected populations. The two populations may have different stratifications.</p>
+<p>Typing strategy that distinguishes uninfected and infected populations.
+The two populations may have different stratifications.</p>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-40-1"><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="n">typing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">UninfectedInfectedTyping</span><span class="p">()</span>
 </span><span id="__span-40-2"><a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="n">typing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">UninfectedInfectedTyping</span><span class="p">(</span>
@@ -1363,16 +1319,14 @@
 </span><span id="__span-40-4"><a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="w">    </span><span class="n">infected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Infectious</span><span class="p">,</span>
 </span><span id="__span-40-5"><a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>See also: <a href="algebraicepimech.html#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}"><code>type_system</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.OnePopulationTyping"><code>OnePopulationTyping</code></a></p>
+<p>See also: [<code>type_system</code>](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}), <a href="algebraicepimech.html#AlgebraicEpiMech.OnePopulationTyping"><code>OnePopulationTyping</code></a></p>
 <hr />
 <p><strong>Fields</strong></p>
 <ul>
 <li><code>uninfected_type::Symbol</code>: The symbolic name for the uninfected population.</li>
 <li><code>infected_type::Symbol</code>: The symbolic name for the infected population.</li>
 </ul>
-<p><a id='AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}'></a>
-<a id='AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}-1'></a>
-<strong><code>AlgebraicEpiMech.AgeStratification</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}'></a> <a id='AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}-1'></a> <strong><code>AlgebraicEpiMech.AgeStratification</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-41-1"><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="n">AgeStratification</span><span class="p">(</span>
 </span><span id="__span-41-2"><a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a><span class="w">    </span><span class="n">names</span><span class="o">::</span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">}</span>
 </span><span id="__span-41-3"><a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">ContactStratification</span>
@@ -1381,14 +1335,13 @@
 </span><span id="__span-42-2"><a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="n">AgeStratification</span><span class="p">(</span><span class="n">names</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Convenience constructor for age-based contact stratification.</p>
-<p>Creates a <code>ContactStratification</code> with label <code>:age</code>. Provided for backward compatibility and semantic clarity.</p>
+<p>Creates a <code>ContactStratification</code> with label <code>:age</code>.
+Provided for backward compatibility and semantic clarity.</p>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-43-1"><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AgeStratification</span><span class="p">([</span><span class="ss">:child</span><span class="p">,</span><span class="w"> </span><span class="ss">:adult</span><span class="p">,</span><span class="w"> </span><span class="ss">:elderly</span><span class="p">])</span>
 </span><span id="__span-43-2"><a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AgeStratification</span><span class="p">(</span><span class="ss">:child</span><span class="p">,</span><span class="w"> </span><span class="ss">:adult</span><span class="p">,</span><span class="w"> </span><span class="ss">:elderly</span><span class="p">)</span><span class="w">  </span><span class="c"># splatting syntax</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}}'></a>
-<a id='AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}}-1'></a>
-<strong><code>AlgebraicEpiMech.GeographicStratification</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}}'></a> <a id='AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}}-1'></a> <strong><code>AlgebraicEpiMech.GeographicStratification</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-44-1"><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="n">GeographicStratification</span><span class="p">(</span>
 </span><span id="__span-44-2"><a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a><span class="w">    </span><span class="n">names</span><span class="o">::</span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">}</span>
 </span><span id="__span-44-3"><a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">ContactStratification</span>
@@ -1397,14 +1350,13 @@
 </span><span id="__span-45-2"><a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a><span class="n">GeographicStratification</span><span class="p">(</span><span class="n">names</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Convenience constructor for geography-based contact stratification.</p>
-<p>Creates a <code>ContactStratification</code> with label <code>:geography</code>. Represents geographic regions with cross-region contact (not movement-based models).</p>
+<p>Creates a <code>ContactStratification</code> with label <code>:geography</code>.
+Represents geographic regions with cross-region contact (not movement-based models).</p>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-46-1"><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="n">geo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GeographicStratification</span><span class="p">([</span><span class="ss">:urban</span><span class="p">,</span><span class="w"> </span><span class="ss">:suburban</span><span class="p">,</span><span class="w"> </span><span class="ss">:rural</span><span class="p">])</span>
 </span><span id="__span-46-2"><a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="n">geo</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GeographicStratification</span><span class="p">(</span><span class="ss">:urban</span><span class="p">,</span><span class="w"> </span><span class="ss">:suburban</span><span class="p">,</span><span class="w"> </span><span class="ss">:rural</span><span class="p">)</span><span class="w">  </span><span class="c"># splatting syntax</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a>
-<a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a>
-<strong><code>AlgebraicEpiMech.add_disease_progression!</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a> <a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a> <strong><code>AlgebraicEpiMech.add_disease_progression!</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-47-1"><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a><span class="n">add_disease_progression!</span><span class="p">(</span>
 </span><span id="__span-47-2"><a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-47-3"><a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a><span class="w">    </span><span class="n">from_junction</span><span class="p">,</span>
@@ -1414,9 +1366,7 @@
 </span></code></pre></div>
 <p>Add disease progression mechanism: from<em>compartment → to</em>compartment</p>
 <p>Used for transitions like E→I, I→R, etc. (infected → infected transitions)</p>
-<p><a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}'></a>
-<a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}-1'></a>
-<strong><code>AlgebraicEpiMech.add_infection!</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}'></a> <a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}-1'></a> <strong><code>AlgebraicEpiMech.add_infection!</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-48-1"><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="n">add_infection!</span><span class="p">(</span>
 </span><span id="__span-48-2"><a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-48-3"><a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a><span class="w">    </span><span class="n">infectee_junction</span><span class="p">,</span>
@@ -1426,15 +1376,14 @@
 </span><span id="__span-48-7"><a id="__codelineno-48-7" name="__codelineno-48-7" href="#__codelineno-48-7"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Any</span>
 </span></code></pre></div>
 <p>Add infection mechanism: Infectee + Infector → first_infected + Infector</p>
-<p>General infection mechanism where an infectee (typically S) interacts with an infector (typically I) to produce a newly infected individual that enters the first*infected compartment, while the infector remains unchanged. The <code>first*infected_junction</code> can be:</p>
+<p>General infection mechanism where an infectee (typically S) interacts with an infector (typically I) to produce a newly infected individual that enters the first*infected compartment, while the infector remains unchanged.
+The <code>first*infected_junction</code> can be:</p>
 <ul>
 <li>An I stage for SIR-like models (direct infection)</li>
 <li>An E stage for SEIR-like models (exposure before infectiousness)</li>
 </ul>
 <p>The <code>typing</code> argument determines the population types used.</p>
-<p><a id='AlgebraicEpiMech.add_reversion_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a>
-<a id='AlgebraicEpiMech.add_reversion_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a>
-<strong><code>AlgebraicEpiMech.add_reversion_progression!</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.add_reversion_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a> <a id='AlgebraicEpiMech.add_reversion_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a> <strong><code>AlgebraicEpiMech.add_reversion_progression!</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-49-1"><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a><span class="n">add_reversion_progression!</span><span class="p">(</span>
 </span><span id="__span-49-2"><a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-49-3"><a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="w">    </span><span class="n">from_junction</span><span class="p">,</span>
@@ -1444,9 +1393,7 @@
 </span></code></pre></div>
 <p>Add reversion progression mechanism: e.g. R → S (infected → uninfected transitions)</p>
 <p>Used for transitions from infected compartments back to uninfected compartments.</p>
-<p><a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a>
-<a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a>
-<strong><code>AlgebraicEpiMech.add_uninfected_density_progression!</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a> <a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a> <strong><code>AlgebraicEpiMech.add_uninfected_density_progression!</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-50-1"><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="n">add_uninfected_density_progression!</span><span class="p">(</span>
 </span><span id="__span-50-2"><a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-50-3"><a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="w">    </span><span class="n">from_junction</span><span class="p">,</span>
@@ -1454,10 +1401,9 @@
 </span><span id="__span-50-5"><a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">OnePopulationTyping</span>
 </span><span id="__span-50-6"><a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Any</span>
 </span></code></pre></div>
-<p>Add uninfected density progression mechanisms. This is useful for transitions like waning partial immunity (uninfected → uninfected transitions, e.g., V → S).</p>
-<p><a id='AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}'></a>
-<a id='AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}-1'></a>
-<strong><code>AlgebraicEpiMech.attach_observation</code></strong> &mdash; <em>Method</em>.</p>
+<p>Add uninfected density progression mechanisms.
+This is useful for transitions like waning partial immunity (uninfected → uninfected transitions, e.g., V → S).</p>
+<p><a id='AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}'></a> <a id='AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}-1'></a> <strong><code>AlgebraicEpiMech.attach_observation</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-51-1"><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="n">attach_observation</span><span class="p">(</span>
 </span><span id="__span-51-2"><a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a><span class="w">    </span><span class="n">pn</span><span class="p">,</span>
 </span><span id="__span-51-3"><a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a><span class="w">    </span><span class="n">target</span><span class="o">::</span><span class="kt">ObservationTarget</span><span class="p">;</span>
@@ -1467,14 +1413,16 @@
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-52-1"><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="n">attach_observation</span><span class="p">(</span><span class="n">pn</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">;</span><span class="w"> </span><span class="n">n_stages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:O</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">LabelledPetriNet</span>
 </span></code></pre></div>
-<p>Attach an observation chain to <code>pn</code>, returning a new net. The result is the colimit described at the top of this file, materialized in one direct pass (see the note there for why it is not built by pushout).</p>
+<p>Attach an observation chain to <code>pn</code>, returning a new net.
+The result is the colimit described at the top of this file, materialized in one direct pass (see the note there for why it is not built by pushout).</p>
 <p><code>n_stages</code> Erlang delay stages are added per chain: the first receives the observation, each subsequent one takes flow from the last, and the final stage is cumulative (no outflow), i.e. the accumulator the observation model reads.</p>
-<p>Reapplying the same target, prefix, and stage count is idempotent. Reusing a target and prefix for an incompatible chain shape throws an <code>ArgumentError</code>; choose a different prefix when both observation layouts are required.</p>
-<p>Chains are grouped by stratum. For <a href="algebraicepimech.html#AlgebraicEpiMech.AtEvent"><code>AtEvent</code></a> the group is the transition's net product — for infection routes <code>S_x + I_y -&gt; E_x + I_y</code> that is <code>E_x</code>, so all routes infecting <code>x</code> count into <code>x</code>'s chain. For <a href="algebraicepimech.html#AlgebraicEpiMech.AtCompartment"><code>AtCompartment</code></a> each matched species gets its own chain.</p>
+<p>Reapplying the same target, prefix, and stage count is idempotent.
+Reusing a target and prefix for an incompatible chain shape throws an <code>ArgumentError</code>; choose a different prefix when both observation layouts are required.</p>
+<p>Chains are grouped by stratum.
+For <a href="algebraicepimech.html#AlgebraicEpiMech.AtEvent"><code>AtEvent</code></a> the group is the transition's net product — for infection routes <code>S_x + I_y -&gt; E_x + I_y</code> that is <code>E_x</code>, so all routes infecting <code>x</code> count into <code>x</code>'s chain.
+For <a href="algebraicepimech.html#AlgebraicEpiMech.AtCompartment"><code>AtCompartment</code></a> each matched species gets its own chain.</p>
 <p>Apply this after all <code>typed_product</code> composition so chains are grouped over the final strata.</p>
-<p><a id='AlgebraicEpiMech.compose_stratifications-Tuple{ContactStratification, ContactStratification}'></a>
-<a id='AlgebraicEpiMech.compose_stratifications-Tuple{ContactStratification, ContactStratification}-1'></a>
-<strong><code>AlgebraicEpiMech.compose_stratifications</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.compose_stratifications-Tuple{ContactStratification, ContactStratification}'></a> <a id='AlgebraicEpiMech.compose_stratifications-Tuple{ContactStratification, ContactStratification}-1'></a> <strong><code>AlgebraicEpiMech.compose_stratifications</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-53-1"><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a><span class="n">compose_stratifications</span><span class="p">(</span>
 </span><span id="__span-53-2"><a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a><span class="w">    </span><span class="n">a</span><span class="o">::</span><span class="kt">ContactStratification</span><span class="p">,</span>
 </span><span id="__span-53-3"><a id="__codelineno-53-3" name="__codelineno-53-3" href="#__codelineno-53-3"></a><span class="w">    </span><span class="n">b</span><span class="o">::</span><span class="kt">ContactStratification</span>
@@ -1488,7 +1436,7 @@
 </ul>
 <p><strong>Returns</strong></p>
 <ul>
-<li><code>ContactStratification</code>: New contact stratification representing the product of <code>a</code> and   <code>b</code>, with combined stratum names and a composite label.</li>
+<li><code>ContactStratification</code>: New contact stratification representing the product of <code>a</code> and <code>b</code>, with combined stratum names and a composite label.</li>
 </ul>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-54-1"><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a><span class="n">age</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ContactStratification</span><span class="p">([</span><span class="ss">:child</span><span class="p">,</span><span class="w"> </span><span class="ss">:adult</span><span class="p">],</span><span class="w"> </span><span class="ss">:age</span><span class="p">)</span>
@@ -1497,9 +1445,7 @@
 </span><span id="__span-54-4"><a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a><span class="c"># Resulting stratum names: [:childxurban, :childxrural, :adultxurban, :adultxrural]</span>
 </span><span id="__span-54-5"><a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a><span class="c"># Resulting label: :age_x_geography</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}'></a>
-<a id='AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}'></a> <a id='AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}-1'></a> <strong><code>AlgebraicEpiMech.create_model</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-55-1"><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a><span class="n">create_model</span><span class="p">(</span>
 </span><span id="__span-55-2"><a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-55-3"><a id="__codelineno-55-3" name="__codelineno-55-3" href="#__codelineno-55-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">EpiMechModel</span><span class="p">;</span>
@@ -1507,7 +1453,9 @@
 </span><span id="__span-55-5"><a id="__codelineno-55-5" name="__codelineno-55-5" href="#__codelineno-55-5"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">CategoricalAlgebra</span><span class="o">.</span><span class="n">Pointwise</span><span class="o">.</span><span class="n">ACSetTransformations</span><span class="o">.</span><span class="kt">StructACSetTransformation</span><span class="p">{</span><span class="kt">ACSets</span><span class="o">.</span><span class="kt">Schemas</span><span class="o">.</span><span class="kt">TypeLevelBasicSchema</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Tuple</span><span class="p">{</span><span class="ss">:T</span><span class="p">,</span><span class="w"> </span><span class="ss">:S</span><span class="p">,</span><span class="w"> </span><span class="ss">:I</span><span class="p">,</span><span class="w"> </span><span class="ss">:O</span><span class="p">},</span><span class="w"> </span><span class="kt">Tuple</span><span class="p">{(</span><span class="ss">:it</span><span class="p">,</span><span class="w"> </span><span class="ss">:I</span><span class="p">,</span><span class="w"> </span><span class="ss">:T</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="ss">:is</span><span class="p">,</span><span class="w"> </span><span class="ss">:I</span><span class="p">,</span><span class="w"> </span><span class="ss">:S</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="ss">:ot</span><span class="p">,</span><span class="w"> </span><span class="ss">:O</span><span class="p">,</span><span class="w"> </span><span class="ss">:T</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="ss">:os</span><span class="p">,</span><span class="w"> </span><span class="ss">:O</span><span class="p">,</span><span class="w"> </span><span class="ss">:S</span><span class="p">)},</span><span class="w"> </span><span class="kt">Tuple</span><span class="p">{</span><span class="ss">:Name</span><span class="p">},</span><span class="w"> </span><span class="kt">Tuple</span><span class="p">{(</span><span class="ss">:tname</span><span class="p">,</span><span class="w"> </span><span class="ss">:T</span><span class="p">,</span><span class="w"> </span><span class="ss">:Name</span><span class="p">),</span><span class="w"> </span><span class="p">(</span><span class="ss">:sname</span><span class="p">,</span><span class="w"> </span><span class="ss">:S</span><span class="p">,</span><span class="w"> </span><span class="ss">:Name</span><span class="p">)},</span><span class="w"> </span><span class="kt">Tuple</span><span class="p">{}},</span><span class="w"> </span><span class="kt">Comp</span><span class="p">,</span><span class="w"> </span><span class="kt">AlgebraicPetri</span><span class="o">.</span><span class="kt">LabelledPetriNet</span><span class="p">,</span><span class="w"> </span><span class="kt">AlgebraicPetri</span><span class="o">.</span><span class="kt">LabelledPetriNet</span><span class="p">}</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="kt">Comp</span><span class="o">&lt;:</span><span class="kt">NamedTuple</span>
 </span></code></pre></div>
 <p>Create a typed Petri net model from an epidemiological typing strategy and model specification.</p>
-<p>This is the unified entry point for creating all model types in AlgebraicEpiMech. Through multiple dispatch on the <code>model</code> parameter, it supports any subtype of <code>EpiMechModel</code>. The undirected wiring diagram (UWD) provides an intermediate structural representation, recording how compartments and mechanisms connect independently of the final typed Petri net constructed by <code>oapply_typed</code>.</p>
+<p>This is the unified entry point for creating all model types in AlgebraicEpiMech.
+Through multiple dispatch on the <code>model</code> parameter, it supports any subtype of <code>EpiMechModel</code>.
+The undirected wiring diagram (UWD) provides an intermediate structural representation, recording how compartments and mechanisms connect independently of the final typed Petri net constructed by <code>oapply_typed</code>.</p>
 <p><strong>Functionality Overview</strong></p>
 <p>The <code>create_model</code> function builds the typed Petri net representation of the epidemiological-mechanical model in four steps:</p>
 <ol>
@@ -1523,19 +1471,21 @@
 <li><code>model::EpiMechModel</code>: The model specification (uses dispatch for different types)</li>
 </ul>
 <p><strong>Keyword Arguments</strong></p>
-<p>Keyword arguments are forwarded to <code>create_model_uwd</code>. Model-specific keywords include:</p>
+<p>Keyword arguments are forwarded to <code>create_model_uwd</code>.
+Model-specific keywords include:</p>
 <ul>
-<li><code>include_reflexives::Bool=true</code> (for <code>ContactStratification</code>): Controls whether per-stratum reflexive boxes (disease, reversion, and waning) are added. Required for <code>typed_product</code> composition; disable for standalone use to avoid zero-effect transitions.</li>
+<li><code>include_reflexives::Bool=true</code> (for <code>ContactStratification</code>): Controls whether per-stratum reflexive boxes (disease, reversion, and waning) are added.
+  Required for <code>typed_product</code> composition; disable for standalone use to avoid zero-effect transitions.</li>
 </ul>
 <p><strong>Returns</strong></p>
 <ul>
-<li>
-<p><code>ACSetTransformation</code>: A typed Petri net with two components accessible via:</p>
+<li><code>ACSetTransformation</code>: A typed Petri net with two components accessible via:</li>
+</ul>
 <ul>
 <li><code>dom(typed_model)</code>: Extract the underlying <code>LabelledPetriNet</code> for ODE solving</li>
-<li><code>codom(typed_model)</code>: Access the Petri-net type system</li>
 </ul>
-</li>
+<ul>
+<li><code>codom(typed_model)</code>: Access the Petri-net type system</li>
 </ul>
 <p><strong>Model-Specific Transition Naming</strong></p>
 <p>Transition names are generated automatically based on model type:</p>
@@ -1574,18 +1524,19 @@
 </span><span id="__span-56-26"><a id="__codelineno-56-26" name="__codelineno-56-26" href="#__codelineno-56-26"></a><span class="c"># Transition names become tuples: (:transmission_S_I, :child_adult)</span>
 </span></code></pre></div>
 <p><strong>Compositional Design</strong></p>
-<p>Models expressed as typed Petri nets compose via <code>typed_product</code> using their common type-system codomain when box names match. The <code>vectorfield_flat</code> function automatically handles tuple transition names in composed models for ODE parameter assignment.</p>
-<p>See also: <a href="algebraicepimech.html#AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}"><code>create_model_uwd</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}"><code>generate_transition_names</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}"><code>type_system</code></a>,           <code>typed_product</code> (from <code>AlgebraicPetri.TypedPetri</code>), <a href="algebraicepimech.html#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}"><code>vectorfield_flat</code></a></p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p>Models expressed as typed Petri nets compose via <code>typed_product</code> using their common type-system codomain when box names match.
+The <code>vectorfield_flat</code> function automatically handles tuple transition names in composed models for ODE parameter assignment.</p>
+<p>See also: [<code>create_model_uwd</code>](algebraicepimech.md#AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}), [<code>generate_transition_names</code>](algebraicepimech.md#AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}), [<code>type_system</code>](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}), <code>typed_product</code> (from <code>AlgebraicPetri.TypedPetri</code>), <a href="algebraicepimech.html#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}"><code>vectorfield_flat</code></a></p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-57-1"><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-57-2"><a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-57-3"><a id="__codelineno-57-3" name="__codelineno-57-3" href="#__codelineno-57-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">CompartmentalModel</span>
 </span><span id="__span-57-4"><a id="__codelineno-57-4" name="__codelineno-57-4" href="#__codelineno-57-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">WiringDiagrams</span><span class="o">.</span><span class="n">RelationDiagrams</span><span class="o">.</span><span class="kt">TypedUnnamedRelationDiagram</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Create an undirected wiring diagram (UWD) for a compartmental model within a specific typing.</p>
-<p>This function returns the undirected wiring diagram that defines the compartmental structure and transitions, using the type names from the typing. The compartments are typed according to the typing's population structure. The returned UWD does not declare an outer boundary/ports; <code>oapply_typed</code> derives the boundary from its junctions when materializing the typed Petri net.</p>
+<p>This function returns the undirected wiring diagram that defines the compartmental structure and transitions, using the type names from the typing.
+The compartments are typed according to the typing's population structure.
+The returned UWD does not declare an outer boundary/ports; <code>oapply_typed</code> derives the boundary from its junctions when materializing the typed Petri net.</p>
 <p><strong>Arguments</strong></p>
 <ul>
 <li><code>typing::EpidemiologicalTyping</code>: The population typing defining type names</li>
@@ -1604,9 +1555,7 @@
 </span><span id="__span-58-6"><a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="n">typing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">UninfectedInfectedTyping</span><span class="p">(</span><span class="n">uninfected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Susceptible</span><span class="p">,</span><span class="w"> </span><span class="n">infected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Infectious</span><span class="p">)</span>
 </span><span id="__span-58-7"><a id="__codelineno-58-7" name="__codelineno-58-7" href="#__codelineno-58-7"></a><span class="n">seir_uwd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">create_model_uwd</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span><span class="w"> </span><span class="n">SEIR</span><span class="p">())</span><span class="w">  </span><span class="c"># S::Susceptible, E,I,R::Infectious</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, ContactStratification}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, ContactStratification}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, ContactStratification}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, ContactStratification}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-59-1"><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-59-2"><a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-59-3"><a id="__codelineno-59-3" name="__codelineno-59-3" href="#__codelineno-59-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">ContactStratification</span><span class="p">;</span>
@@ -1614,7 +1563,8 @@
 </span><span id="__span-59-5"><a id="__codelineno-59-5" name="__codelineno-59-5" href="#__codelineno-59-5"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">WiringDiagrams</span><span class="o">.</span><span class="n">RelationDiagrams</span><span class="o">.</span><span class="kt">TypedUnnamedRelationDiagram</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Construct an undirected wiring diagram (UWD) for contact strata.</p>
-<p>Creates an UWD where transmission boxes represent contact patterns between different strata. Example strata include age groups, risk levels, or demographic divisions, but only covers instantaneous transmission dynamics, e.g. movement between geographic regions would require additional demographic modeling.</p>
+<p>Creates an UWD where transmission boxes represent contact patterns between different strata.
+Example strata include age groups, risk levels, or demographic divisions, but only covers instantaneous transmission dynamics, e.g. movement between geographic regions would require additional demographic modeling.</p>
 <p>The UWD structure depends on the typing:</p>
 <ul>
 <li><code>OnePopulationTyping</code>: Single junction per age group (combined susceptible/infected)</li>
@@ -1638,9 +1588,7 @@
 </ul>
 <p><strong>Composition Behavior</strong></p>
 <p>When composed with a compartmental model UWD via <code>typed_product</code>, the transmission boxes will align based on the <code>:transmission</code> name, allowing the contact structure to modulate the disease dynamics defined in the compartmental model.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-60-1"><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-60-2"><a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-60-3"><a id="__codelineno-60-3" name="__codelineno-60-3" href="#__codelineno-60-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">SEIRS</span>
@@ -1653,12 +1601,12 @@
 <li>Recovery transition: I_last → R</li>
 <li>Waning immunity transition: R → S</li>
 </ul>
-<p>Represents diseases with latent periods and temporary immunity. The dual multi-stage capability enables independent control of latent and infectious period distributions. Recovery occurs from the last I stage, and waning immunity returns individuals from R to S.</p>
+<p>Represents diseases with latent periods and temporary immunity.
+The dual multi-stage capability enables independent control of latent and infectious period distributions.
+Recovery occurs from the last I stage, and waning immunity returns individuals from R to S.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>Apply to typing with <code>oapply_typed</code> to create a typed Petri net for composition.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-61-1"><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-61-2"><a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-61-3"><a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">SEIR</span>
@@ -1670,12 +1618,11 @@
 <li>R (recovered) compartment</li>
 <li>Recovery transition: I_last → R</li>
 </ul>
-<p>The dual multi-stage capability (independent E and I stages) enables independent control of latent and infectious period distributions. Recovery always occurs from the last I stage.</p>
+<p>The dual multi-stage capability (independent E and I stages) enables independent control of latent and infectious period distributions.
+Recovery always occurs from the last I stage.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>Apply to typing with <code>oapply_typed</code> to create a typed Petri net for composition.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-62-1"><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-62-2"><a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-62-3"><a id="__codelineno-62-3" name="__codelineno-62-3" href="#__codelineno-62-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">SEIS</span>
@@ -1686,12 +1633,12 @@
 <ul>
 <li>Reversion transition: I_last → S (waning immunity)</li>
 </ul>
-<p>Represents diseases with latent periods but no lasting immunity. The dual multi-stage capability enables independent control of latent and infectious period distributions. Reversion occurs from the last I stage back to S.</p>
+<p>Represents diseases with latent periods but no lasting immunity.
+The dual multi-stage capability enables independent control of latent and infectious period distributions.
+Reversion occurs from the last I stage back to S.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>Apply to typing with <code>oapply_typed</code> to create a typed Petri net for composition.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-63-1"><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-63-2"><a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-63-3"><a id="__codelineno-63-3" name="__codelineno-63-3" href="#__codelineno-63-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">SIR</span>
@@ -1703,12 +1650,11 @@
 <li>R (recovered) compartment</li>
 <li>Recovery transition: I_last → R</li>
 </ul>
-<p>The multi-stage I capability from SI is preserved, enabling gamma-distributed infectious periods. Recovery always occurs from the last I stage, ensuring proper sequencing.</p>
+<p>The multi-stage I capability from SI is preserved, enabling gamma-distributed infectious periods.
+Recovery always occurs from the last I stage, ensuring proper sequencing.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>Apply to typing with <code>oapply_typed</code> to create a typed Petri net for composition.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-64-1"><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-64-2"><a id="__codelineno-64-2" name="__codelineno-64-2" href="#__codelineno-64-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-64-3"><a id="__codelineno-64-3" name="__codelineno-64-3" href="#__codelineno-64-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">SIS</span>
@@ -1719,39 +1665,39 @@
 <ul>
 <li>Reversion transition: I_last → S (waning immunity)</li>
 </ul>
-<p>Represents diseases where recovery returns individuals to susceptible state. The multi-stage I capability enables realistic infectious period distributions. Reversion occurs from the last I stage back to S.</p>
+<p>Represents diseases where recovery returns individuals to susceptible state.
+The multi-stage I capability enables realistic infectious period distributions.
+Reversion occurs from the last I stage back to S.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>Apply to typing with <code>oapply_typed</code> to create a typed Petri net for composition.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-65-1"><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-65-2"><a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-65-3"><a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">Union</span><span class="p">{</span><span class="kt">SEI</span><span class="p">,</span><span class="w"> </span><span class="kt">SI</span><span class="p">}</span>
 </span><span id="__span-65-4"><a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">WiringDiagrams</span><span class="o">.</span><span class="n">RelationDiagrams</span><span class="o">.</span><span class="kt">TypedUnnamedRelationDiagram</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Construct a complete undirected wiring diagram (UWD) for SI or SEI models.</p>
-<p>Populates an initially empty UWD with compartments and mechanisms via <code>setup_basic!</code>. These are the base models that other compartmental models extend from.</p>
+<p>Populates an initially empty UWD with compartments and mechanisms via <code>setup_basic!</code>.
+These are the base models that other compartmental models extend from.</p>
 <p><strong>Usage with oapply_typed</strong></p>
 <p>The returned UWD can be applied to the typing using <code>oapply_typed</code> to create a typed Petri net, enabling composition with other typed Petri nets (e.g., demographic processes, interventions).</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-66-1"><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="n">create_model_uwd</span><span class="p">(</span><span class="n">_</span><span class="o">::</span><span class="kt">OnePopulationTyping</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="o">::</span><span class="kt">ImmuneHistory</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Immune-history stratification requires the uninfected/infected type split.</p>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, NoCrossImmunity}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, NoCrossImmunity}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, NoCrossImmunity}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, NoCrossImmunity}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-67-1"><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-67-2"><a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">OnePopulationTyping</span><span class="p">,</span>
 </span><span id="__span-67-3"><a id="__codelineno-67-3" name="__codelineno-67-3" href="#__codelineno-67-3"></a><span class="w">    </span><span class="n">multistrain</span><span class="o">::</span><span class="kt">NoCrossImmunity</span>
 </span><span id="__span-67-4"><a id="__codelineno-67-4" name="__codelineno-67-4" href="#__codelineno-67-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">WiringDiagrams</span><span class="o">.</span><span class="n">RelationDiagrams</span><span class="o">.</span><span class="kt">TypedUnnamedRelationDiagram</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Construct an undirected wiring diagram (UWD) for a no cross-immunity multistrain model.</p>
-<p>Creates a strain-stratified UWD where each strain operates independently. The strains are represented as separate junctions, and each strain has its own set of disease transition boxes (<code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>) that will compose with corresponding boxes from a compartmental model via <code>typed_product</code>.</p>
-<p>All box types are always included; <code>typed_product</code> will only compose boxes that exist in both UWDs, naturally filtering out non-matching transitions. That filtering is silent — a transition present in one factor and absent from the other is dropped without error — which is why each factor carries a reflexive box per transition type it wants preserved.</p>
-<p>There is deliberately no reflexive observation box. Observation is attached to the COMPOSED net by <code>attach_observation</code>, so a stratification factor never has to know it exists.</p>
+<p>Creates a strain-stratified UWD where each strain operates independently.
+The strains are represented as separate junctions, and each strain has its own set of disease transition boxes (<code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>) that will compose with corresponding boxes from a compartmental model via <code>typed_product</code>.</p>
+<p>All box types are always included; <code>typed_product</code> will only compose boxes that exist in both UWDs, naturally filtering out non-matching transitions.
+That filtering is silent — a transition present in one factor and absent from the other is dropped without error — which is why each factor carries a reflexive box per transition type it wants preserved.</p>
+<p>There is deliberately no reflexive observation box.
+Observation is attached to the COMPOSED net by <code>attach_observation</code>, so a stratification factor never has to know it exists.</p>
 <p><strong>Arguments</strong></p>
 <ul>
 <li><code>typing::OnePopulationTyping</code>: The required single-population typing</li>
@@ -1772,16 +1718,15 @@
 </span><span id="__span-68-8"><a id="__codelineno-68-8" name="__codelineno-68-8" href="#__codelineno-68-8"></a><span class="n">strain_typed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">create_model</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span><span class="w"> </span><span class="n">multistrain</span><span class="p">)</span>
 </span><span id="__span-68-9"><a id="__codelineno-68-9" name="__codelineno-68-9" href="#__codelineno-68-9"></a><span class="n">combined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">typed_product</span><span class="p">(</span><span class="n">sir_typed</span><span class="p">,</span><span class="w"> </span><span class="n">strain_typed</span><span class="p">)</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, CompleteCrossImmunity}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, CompleteCrossImmunity}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, CompleteCrossImmunity}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, CompleteCrossImmunity}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-69-1"><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-69-2"><a id="__codelineno-69-2" name="__codelineno-69-2" href="#__codelineno-69-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">UninfectedInfectedTyping</span><span class="p">,</span>
 </span><span id="__span-69-3"><a id="__codelineno-69-3" name="__codelineno-69-3" href="#__codelineno-69-3"></a><span class="w">    </span><span class="n">multistrain</span><span class="o">::</span><span class="kt">CompleteCrossImmunity</span>
 </span><span id="__span-69-4"><a id="__codelineno-69-4" name="__codelineno-69-4" href="#__codelineno-69-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">Catlab</span><span class="o">.</span><span class="n">WiringDiagrams</span><span class="o">.</span><span class="n">RelationDiagrams</span><span class="o">.</span><span class="kt">TypedUnnamedRelationDiagram</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">,</span><span class="w"> </span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Construct an undirected wiring diagram (UWD) for a complete cross-immunity multistrain model.</p>
-<p>Creates a strain-structured UWD where all strains share a common susceptible pool but have separate infected compartments. Infection by any strain depletes the shared susceptible pool and confers immunity to all strains.</p>
+<p>Creates a strain-structured UWD where all strains share a common susceptible pool but have separate infected compartments.
+Infection by any strain depletes the shared susceptible pool and confers immunity to all strains.</p>
 <p>The UWD has:</p>
 <ul>
 <li>One shared uninfected/susceptible junction</li>
@@ -1810,9 +1755,7 @@
 </span><span id="__span-70-8"><a id="__codelineno-70-8" name="__codelineno-70-8" href="#__codelineno-70-8"></a><span class="n">strain_typed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">create_model</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span><span class="w"> </span><span class="n">multistrain</span><span class="p">)</span>
 </span><span id="__span-70-9"><a id="__codelineno-70-9" name="__codelineno-70-9" href="#__codelineno-70-9"></a><span class="n">combined</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">typed_product</span><span class="p">(</span><span class="n">sir_typed</span><span class="p">,</span><span class="w"> </span><span class="n">strain_typed</span><span class="p">)</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, ImmuneHistory}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, ImmuneHistory}-1'></a>
-<strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, ImmuneHistory}'></a> <a id='AlgebraicEpiMech.create_model_uwd-Tuple{UninfectedInfectedTyping, ImmuneHistory}-1'></a> <strong><code>AlgebraicEpiMech.create_model_uwd</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-71-1"><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a><span class="n">create_model_uwd</span><span class="p">(</span>
 </span><span id="__span-71-2"><a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">UninfectedInfectedTyping</span><span class="p">,</span>
 </span><span id="__span-71-3"><a id="__codelineno-71-3" name="__codelineno-71-3" href="#__codelineno-71-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">ImmuneHistory</span>
@@ -1823,9 +1766,11 @@
 <ul>
 <li>Uninfected junctions <code>U_h</code>, one per immune-history class.</li>
 <li>Infected junctions <code>(h,i)</code> = "history <code>h</code>, currently fighting strain <code>i</code>", one per (class, susceptible-strain) pair.</li>
-<li><strong><code>:transmission</code></strong> (escape-selective): <code>U_h + (h',i) → (h,i)</code> for every susceptible class <code>h</code> (<code>i ∉ h</code>) and every infector <code>(h',i)</code>. A class immune to <code>i</code> simply has no such box, so the pullback drops that infection — the escape.</li>
+<li><strong><code>:transmission</code></strong> (escape-selective): <code>U_h + (h',i) → (h,i)</code> for every susceptible class <code>h</code> (<code>i ∉ h</code>) and every infector <code>(h',i)</code>.
+  A class immune to <code>i</code> simply has no such box, so the pullback drops that infection — the escape.</li>
 <li><strong><code>:disease</code></strong> is reflexive on each <code>(h,i)</code>, so the base model's progression runs inside a fixed <code>(h,i)</code>.</li>
-<li><strong><code>:reversion</code></strong> is off-diagonal: <code>(h,i) → U_{recover}</code> with <code>recover = h∪{i}</code> (<code>FullHistory</code>) or <code>{i}</code> (<code>LatestInfection</code>). This is the one stratum-changing move — recovering from <code>i</code> folds it into the immune history.</li>
+<li><strong><code>:reversion</code></strong> is off-diagonal: <code>(h,i) → U_{recover}</code> with <code>recover = h∪{i}</code> (<code>FullHistory</code>) or <code>{i}</code> (<code>LatestInfection</code>).
+  This is the one stratum-changing move — recovering from <code>i</code> folds it into the immune history.</li>
 <li><strong><code>:waning</code></strong> reflexive on each <code>U_h</code> (inert with SEIRS; lets a waning-bearing base compose).</li>
 </ul>
 <p><strong>Examples</strong></p>
@@ -1833,9 +1778,7 @@
 </span><span id="__span-72-2"><a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a><span class="n">history</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">create_model</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span><span class="w"> </span><span class="n">ImmuneHistory</span><span class="p">([</span><span class="ss">:current</span><span class="p">,</span><span class="w"> </span><span class="ss">:invader</span><span class="p">]))</span>
 </span><span id="__span-72-3"><a id="__codelineno-72-3" name="__codelineno-72-3" href="#__codelineno-72-3"></a><span class="n">model</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">typed_product</span><span class="p">(</span><span class="n">create_model</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span><span class="w"> </span><span class="n">SEIRS</span><span class="p">()),</span><span class="w"> </span><span class="n">history</span><span class="p">)</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}'></a>
-<a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}-1'></a>
-<strong><code>AlgebraicEpiMech.flatten_symbols</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}'></a> <a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}-1'></a> <strong><code>AlgebraicEpiMech.flatten_symbols</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-73-1"><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="n">flatten_symbols</span><span class="p">(</span><span class="n">name</span><span class="o">::</span><span class="kt">Tuple</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Symbol</span>
 </span></code></pre></div>
 <p>Recursively flatten a tuple of symbols and join them with underscores.</p>
@@ -1844,16 +1787,15 @@
 </span><span id="__span-74-2"><a id="__codelineno-74-2" name="__codelineno-74-2" href="#__codelineno-74-2"></a><span class="n">flatten_symbols</span><span class="p">(((</span><span class="ss">:x</span><span class="p">,</span><span class="w"> </span><span class="ss">:y</span><span class="p">),</span><span class="w"> </span><span class="ss">:z</span><span class="p">))</span><span class="w"> </span><span class="c"># returns :x_y_z</span>
 </span><span id="__span-74-3"><a id="__codelineno-74-3" name="__codelineno-74-3" href="#__codelineno-74-3"></a><span class="n">flatten_symbols</span><span class="p">((((</span><span class="ss">:a</span><span class="p">,</span><span class="w"> </span><span class="ss">:b</span><span class="p">),</span><span class="w"> </span><span class="ss">:c</span><span class="p">),</span><span class="w"> </span><span class="ss">:d</span><span class="p">))</span><span class="w"> </span><span class="c"># returns :a_b_c_d</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}'></a>
-<a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}-1'></a>
-<strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}'></a> <a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}-1'></a> <strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-75-1"><a id="__codelineno-75-1" name="__codelineno-75-1" href="#__codelineno-75-1"></a><span class="n">generate_transition_names</span><span class="p">(</span>
 </span><span id="__span-75-2"><a id="__codelineno-75-2" name="__codelineno-75-2" href="#__codelineno-75-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-75-3"><a id="__codelineno-75-3" name="__codelineno-75-3" href="#__codelineno-75-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">CompartmentalModel</span>
 </span><span id="__span-75-4"><a id="__codelineno-75-4" name="__codelineno-75-4" href="#__codelineno-75-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Generate transition names from UWD structure for compartmental models.</p>
-<p>For boxes with 2 ports (one input, one output), generates names in the format <code>input_to_output</code>. For boxes with 4 ports (two inputs, two outputs), generates names in the format <code>box_name_input1_input2</code> where inputs are sorted in reverse alphabetical order for consistency (e.g., <code>transmission_S_I</code>).</p>
+<p>For boxes with 2 ports (one input, one output), generates names in the format <code>input_to_output</code>.
+For boxes with 4 ports (two inputs, two outputs), generates names in the format <code>box_name_input1_input2</code> where inputs are sorted in reverse alphabetical order for consistency (e.g., <code>transmission_S_I</code>).</p>
 <p><strong>Arguments</strong></p>
 <ul>
 <li><code>uwd</code>: The undirected wiring diagram with species names in junction :variable attributes</li>
@@ -1870,18 +1812,18 @@
 </span><span id="__span-76-4"><a id="__codelineno-76-4" name="__codelineno-76-4" href="#__codelineno-76-4"></a><span class="n">names</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">generate_transition_names</span><span class="p">(</span><span class="n">uwd</span><span class="p">,</span><span class="w"> </span><span class="n">SEIR</span><span class="p">())</span>
 </span><span id="__span-76-5"><a id="__codelineno-76-5" name="__codelineno-76-5" href="#__codelineno-76-5"></a><span class="c"># Returns: [:transmission_S_I, :E_to_I, :I_to_R]</span>
 </span></code></pre></div>
-<p>See also: <a href="algebraicepimech.html#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}"><code>create_model</code></a></p>
-<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ContactStratification}'></a>
-<a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ContactStratification}-1'></a>
-<strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
+<p>See also: [<code>create_model</code>](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})</p>
+<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ContactStratification}'></a> <a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ContactStratification}-1'></a> <strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-77-1"><a id="__codelineno-77-1" name="__codelineno-77-1" href="#__codelineno-77-1"></a><span class="n">generate_transition_names</span><span class="p">(</span>
 </span><span id="__span-77-2"><a id="__codelineno-77-2" name="__codelineno-77-2" href="#__codelineno-77-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-77-3"><a id="__codelineno-77-3" name="__codelineno-77-3" href="#__codelineno-77-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">ContactStratification</span>
 </span><span id="__span-77-4"><a id="__codelineno-77-4" name="__codelineno-77-4" href="#__codelineno-77-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
 <p>Generate transition names from UWD structure for age stratification models.</p>
-<p>For transmission boxes with 4 ports (two inputs, two outputs), generates names capturing the age-to-age contact pattern in the format <code>infectee_infector</code>. This naming convention clearly identifies which age group is being infected (infectee) by which age group (infector), enabling interpretation of age-structured contact matrices.</p>
-<p>For boxes with 2 ports (one input, one output), generates names in the format <code>input_to_output</code>. This fallback handles any non-standard box types that might appear in extended models.</p>
+<p>For transmission boxes with 4 ports (two inputs, two outputs), generates names capturing the age-to-age contact pattern in the format <code>infectee_infector</code>.
+This naming convention clearly identifies which age group is being infected (infectee) by which age group (infector), enabling interpretation of age-structured contact matrices.</p>
+<p>For boxes with 2 ports (one input, one output), generates names in the format <code>input_to_output</code>.
+This fallback handles any non-standard box types that might appear in extended models.</p>
 <p><strong>Arguments</strong></p>
 <ul>
 <li><code>uwd</code>: The undirected wiring diagram with age group names in junction :variable attributes</li>
@@ -1900,28 +1842,26 @@
 </span><span id="__span-78-6"><a id="__codelineno-78-6" name="__codelineno-78-6" href="#__codelineno-78-6"></a><span class="c"># Returns: [:child_child, :child_adult, :adult_child, :adult_adult]</span>
 </span><span id="__span-78-7"><a id="__codelineno-78-7" name="__codelineno-78-7" href="#__codelineno-78-7"></a><span class="c"># Representing: child←child, child←adult, adult←child, adult←adult transmission</span>
 </span></code></pre></div>
-<p>See also: <a href="algebraicepimech.html#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}"><code>create_model</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.ContactStratification"><code>ContactStratification</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}"><code>AgeStratification</code></a></p>
-<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ImmuneHistory}'></a>
-<a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ImmuneHistory}-1'></a>
-<strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
+<p>See also: [<code>create_model</code>](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}), <a href="algebraicepimech.html#AlgebraicEpiMech.ContactStratification"><code>ContactStratification</code></a>, <a href="algebraicepimech.html#AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}"><code>AgeStratification</code></a></p>
+<p><a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ImmuneHistory}'></a> <a id='AlgebraicEpiMech.generate_transition_names-Tuple{Any, ImmuneHistory}-1'></a> <strong><code>AlgebraicEpiMech.generate_transition_names</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-79-1"><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="n">generate_transition_names</span><span class="p">(</span>
 </span><span id="__span-79-2"><a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="w">    </span><span class="n">uwd</span><span class="p">,</span>
 </span><span id="__span-79-3"><a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a><span class="w">    </span><span class="n">model</span><span class="o">::</span><span class="kt">ImmuneHistory</span>
 </span><span id="__span-79-4"><a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Symbol</span><span class="p">}</span>
 </span></code></pre></div>
-<p>Generate transition names for the <code>ImmuneHistory</code> stratification factor. These become the second component of the composed <code>typed_product</code> transition names.</p>
+<p>Generate transition names for the <code>ImmuneHistory</code> stratification factor.
+These become the second component of the composed <code>typed_product</code> transition names.</p>
 <ul>
 <li><strong><code>:transmission</code></strong> (4-port) → <code>infect_&lt;strain&gt;_&lt;susceptible-class&gt;_by_&lt;infector-class&gt;</code>, exposing the infecting strain (recovered from the infector junction) so the composed name stays keyable per strain.</li>
-<li><strong>reflexive / reversion boxes</strong> (2–3 port) → the first junction's variable, mirroring <code>ContactStratification</code> — e.g. the <code>:disease</code> reflexives and the off-diagonal <code>:reversion</code> on <code>(h,i)</code> are named by that <code>(h,i)</code>, and <code>:waning</code> by its <code>U_h</code>. Composition with the base disambiguates them (base name differs).</li>
+<li><strong>reflexive / reversion boxes</strong> (2–3 port) → the first junction's variable, mirroring <code>ContactStratification</code> — e.g. the <code>:disease</code> reflexives and the off-diagonal <code>:reversion</code> on <code>(h,i)</code> are named by that <code>(h,i)</code>, and <code>:waning</code> by its <code>U_h</code>.
+  Composition with the base disambiguates them (base name differs).</li>
 </ul>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-80-1"><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="n">factor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">create_model_uwd</span><span class="p">(</span><span class="n">UninfectedInfectedTyping</span><span class="p">(),</span><span class="w"> </span><span class="n">ImmuneHistory</span><span class="p">([</span><span class="ss">:current</span><span class="p">,</span><span class="w"> </span><span class="ss">:invader</span><span class="p">]))</span>
 </span><span id="__span-80-2"><a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a><span class="n">names</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">generate_transition_names</span><span class="p">(</span><span class="n">factor</span><span class="p">,</span><span class="w"> </span><span class="n">ImmuneHistory</span><span class="p">([</span><span class="ss">:current</span><span class="p">,</span><span class="w"> </span><span class="ss">:invader</span><span class="p">]))</span>
 </span><span id="__span-80-3"><a id="__codelineno-80-3" name="__codelineno-80-3" href="#__codelineno-80-3"></a><span class="c"># transmission names begin `infect_current…` / `infect_invader…`</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.observation_layout-Tuple{Any}'></a>
-<a id='AlgebraicEpiMech.observation_layout-Tuple{Any}-1'></a>
-<strong><code>AlgebraicEpiMech.observation_layout</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.observation_layout-Tuple{Any}'></a> <a id='AlgebraicEpiMech.observation_layout-Tuple{Any}-1'></a> <strong><code>AlgebraicEpiMech.observation_layout</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-81-1"><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="n">observation_layout</span><span class="p">(</span><span class="n">pn</span><span class="p">;</span><span class="w"> </span><span class="n">prefix</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">ObservationLayout</span>
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-82-1"><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="n">observation_layout</span><span class="p">(</span><span class="n">pn</span><span class="o">::</span><span class="kt">LabelledPetriNet</span><span class="p">;</span><span class="w"> </span><span class="n">prefix</span><span class="o">::</span><span class="kt">Symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:O</span><span class="p">)</span>
@@ -1933,10 +1873,10 @@
 <li><code>chains</code>: ordered <a href="algebraicepimech.html#AlgebraicEpiMech.ObservationChainLayout"><code>ObservationChainLayout</code></a> values</li>
 <li><code>cumulative_names</code>: flattened terminal observation state for each chain</li>
 </ul>
-<p>This centralizes the observation naming/ordering contract, so downstream packages do not each re-implement observation-state parsing. <code>prefix</code> must match the prefix passed to <a href="algebraicepimech.html#AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}"><code>attach_observation</code></a>. The function recognises the <code>&lt;prefix&gt;_&lt;source&gt;_&lt;stage&gt;</code> leaf that <code>attach_observation</code> produces; a chain named otherwise is not recognised as one.</p>
-<p><a id='AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}'></a>
-<a id='AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}-1'></a>
-<strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
+<p>This centralizes the observation naming/ordering contract, so downstream packages do not each re-implement observation-state parsing.
+<code>prefix</code> must match the prefix passed to [<code>attach_observation</code>](algebraicepimech.md#AlgebraicEpiMech.attach_observation-Tuple{Any, ObservationTarget}).
+The function recognises the <code>&lt;prefix&gt;_&lt;source&gt;_&lt;stage&gt;</code> leaf that <code>attach_observation</code> produces; a chain named otherwise is not recognised as one.</p>
+<p><a id='AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}'></a> <a id='AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}-1'></a> <strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-83-1"><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="n">type_system</span><span class="p">(</span>
 </span><span id="__span-83-2"><a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span>
 </span><span id="__span-83-3"><a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a><span class="w">    </span><span class="n">population_transitions</span><span class="o">...</span>
@@ -1944,10 +1884,9 @@
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-84-1"><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="n">type_system</span><span class="p">(</span><span class="n">typing</span><span class="o">::</span><span class="kt">EpidemiologicalTyping</span><span class="p">,</span><span class="w"> </span><span class="n">population_transitions</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Materialize an epidemiological typing strategy as the <code>LabelledPetriNet</code> used as the codomain of a typed Petri net. Concrete <code>EpidemiologicalTyping</code> subtypes must implement this interface.</p>
-<p><a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}'></a>
-<a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}-1'></a>
-<strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
+<p>Materialize an epidemiological typing strategy as the <code>LabelledPetriNet</code> used as the codomain of a typed Petri net.
+Concrete <code>EpidemiologicalTyping</code> subtypes must implement this interface.</p>
+<p><a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}'></a> <a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}-1'></a> <strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-85-1"><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="n">type_system</span><span class="p">(</span>
 </span><span id="__span-85-2"><a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">OnePopulationTyping</span><span class="p">,</span>
 </span><span id="__span-85-3"><a id="__codelineno-85-3" name="__codelineno-85-3" href="#__codelineno-85-3"></a><span class="w">    </span><span class="n">population_transitions</span><span class="o">...</span>
@@ -1955,7 +1894,8 @@
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-86-1"><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="n">type_system</span><span class="p">(</span><span class="n">typing</span><span class="o">::</span><span class="kt">OnePopulationTyping</span><span class="p">,</span><span class="w"> </span><span class="n">population_transitions</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Create the single-population Petri-net type system described by <code>typing</code>. Additional transition specifications are appended to the standard <code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>, and <code>:waning</code> transitions.</p>
+<p>Create the single-population Petri-net type system described by <code>typing</code>.
+Additional transition specifications are appended to the standard <code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>, and <code>:waning</code> transitions.</p>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-87-1"><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="n">typing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">OnePopulationTyping</span><span class="p">(</span><span class="n">population_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Individual</span><span class="p">)</span>
 </span><span id="__span-87-2"><a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a><span class="n">codomain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">type_system</span><span class="p">(</span>
@@ -1963,9 +1903,7 @@
 </span><span id="__span-87-4"><a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a><span class="w">    </span><span class="ss">:birth</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="ss">:Individual</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="ss">:Individual</span><span class="p">,</span><span class="w"> </span><span class="ss">:Individual</span><span class="p">)),</span>
 </span><span id="__span-87-5"><a id="__codelineno-87-5" name="__codelineno-87-5" href="#__codelineno-87-5"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}'></a>
-<a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}-1'></a>
-<strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}'></a> <a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}-1'></a> <strong><code>AlgebraicEpiMech.type_system</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-88-1"><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="n">type_system</span><span class="p">(</span>
 </span><span id="__span-88-2"><a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="w">    </span><span class="n">typing</span><span class="o">::</span><span class="kt">UninfectedInfectedTyping</span><span class="p">,</span>
 </span><span id="__span-88-3"><a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a><span class="w">    </span><span class="n">population_transitions</span><span class="o">...</span>
@@ -1973,7 +1911,8 @@
 </span></code></pre></div>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-89-1"><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="n">type_system</span><span class="p">(</span><span class="n">typing</span><span class="o">::</span><span class="kt">UninfectedInfectedTyping</span><span class="p">,</span><span class="w"> </span><span class="n">population_transitions</span><span class="o">...</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Create the uninfected/infected Petri-net type system described by <code>typing</code>. Additional transition specifications are appended to the standard <code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>, and <code>:waning</code> transitions.</p>
+<p>Create the uninfected/infected Petri-net type system described by <code>typing</code>.
+Additional transition specifications are appended to the standard <code>:transmission</code>, <code>:disease</code>, <code>:reversion</code>, and <code>:waning</code> transitions.</p>
 <p><strong>Examples</strong></p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-90-1"><a id="__codelineno-90-1" name="__codelineno-90-1" href="#__codelineno-90-1"></a><span class="n">typing</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">UninfectedInfectedTyping</span><span class="p">(</span>
 </span><span id="__span-90-2"><a id="__codelineno-90-2" name="__codelineno-90-2" href="#__codelineno-90-2"></a><span class="w">    </span><span class="n">uninfected_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ss">:Susceptible</span><span class="p">,</span>
@@ -1984,14 +1923,13 @@
 </span><span id="__span-90-7"><a id="__codelineno-90-7" name="__codelineno-90-7" href="#__codelineno-90-7"></a><span class="w">    </span><span class="ss">:vaccination</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="ss">:Susceptible</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="ss">:Susceptible</span><span class="p">),</span>
 </span><span id="__span-90-8"><a id="__codelineno-90-8" name="__codelineno-90-8" href="#__codelineno-90-8"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}'></a>
-<a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}-1'></a>
-<strong><code>AlgebraicEpiMech.vectorfield_flat</code></strong> &mdash; <em>Method</em>.</p>
+<p><a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}'></a> <a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}-1'></a> <strong><code>AlgebraicEpiMech.vectorfield_flat</code></strong> &mdash; <em>Method</em>.</p>
 <div class="language-julia highlight"><pre><span></span><code><span id="__span-91-1"><a id="__codelineno-91-1" name="__codelineno-91-1" href="#__codelineno-91-1"></a><span class="n">vectorfield_flat</span><span class="p">(</span>
 </span><span id="__span-91-2"><a id="__codelineno-91-2" name="__codelineno-91-2" href="#__codelineno-91-2"></a><span class="w">    </span><span class="n">pn</span><span class="o">::</span><span class="kt">AlgebraicPetri</span><span class="o">.</span><span class="n">AbstractPetriNet</span>
 </span><span id="__span-91-3"><a id="__codelineno-91-3" name="__codelineno-91-3" href="#__codelineno-91-3"></a><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">AlgebraicEpiMech</span><span class="o">.</span><span class="sa">var</span><span class="s">"#vectorfield!#vectorfield_flat##8"</span><span class="p">{</span><span class="kt">AlgebraicEpiMech</span><span class="o">.</span><span class="kt">_NamePositions</span><span class="p">,</span><span class="w"> </span><span class="kt">AlgebraicEpiMech</span><span class="o">.</span><span class="kt">_NamePositions</span><span class="p">,</span><span class="w"> </span><span class="kt">AlgebraicEpiMech</span><span class="o">.</span><span class="kt">_NamePositions</span><span class="p">,</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">Int64</span><span class="p">,</span><span class="w"> </span><span class="kt">Int64</span><span class="p">}}},</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Vector</span><span class="p">{</span><span class="kt">Tuple</span><span class="p">{</span><span class="kt">Int64</span><span class="p">,</span><span class="w"> </span><span class="kt">Int64</span><span class="p">}}},</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">T</span><span class="p">},</span><span class="w"> </span><span class="kt">Vector</span><span class="p">{</span><span class="kt">T1</span><span class="p">},</span><span class="w"> </span><span class="kt">Int64</span><span class="p">,</span><span class="w"> </span><span class="kt">Int64</span><span class="p">}</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="p">{</span><span class="kt">T</span><span class="p">,</span><span class="w"> </span><span class="kt">T1</span><span class="p">}</span>
 </span></code></pre></div>
-<p>Generate an ODE vectorfield function from a Petri net using mass action kinetics as per <code>AlgebraicPetri.vectorfield</code>. The only difference is that species and transition names are flattened using <code>flatten_symbols</code>, converting nested tuples into single symbols joined by underscores.</p>
+<p>Generate an ODE vectorfield function from a Petri net using mass action kinetics as per <code>AlgebraicPetri.vectorfield</code>.
+The only difference is that species and transition names are flattened using <code>flatten_symbols</code>, converting nested tuples into single symbols joined by underscores.</p>
 <p><strong>Arguments</strong></p>
 <ul>
 <li><code>pn::AbstractPetriNet</code>: A Petri net representing the reaction network</li>
@@ -2006,7 +1944,8 @@
 </ul>
 <p>This function complies with SciML conventions for in-place ODE vectorfields.</p>
 <p><strong>Performance</strong></p>
-<p>Everything that can be resolved from the net alone — flattened names, the mass-action input lists, the nonzero stoichiometry — is resolved once at build time, and the right-hand side is a sparse loop over arcs rather than a dense loop over <code>transitions × species</code>. Name lookup into the arguments is also done once per concrete argument type: <code>u</code>, <code>du</code> and <code>p</code> may be anything whose <code>propertynames</code> lists the flattened names in the same order as its integer indexing (<code>LVector</code>, <code>NamedTuple</code>, ...), and that position map is cached on first sight of the type; an <code>AbstractDict</code> is looked up by name on every call.</p>
+<p>Everything that can be resolved from the net alone — flattened names, the mass-action input lists, the nonzero stoichiometry — is resolved once at build time, and the right-hand side is a sparse loop over arcs rather than a dense loop over <code>transitions × species</code>.
+Name lookup into the arguments is also done once per concrete argument type: <code>u</code>, <code>du</code> and <code>p</code> may be anything whose <code>propertynames</code> lists the flattened names in the same order as its integer indexing (<code>LVector</code>, <code>NamedTuple</code>, ...), and that position map is cached on first sight of the type; an <code>AbstractDict</code> is looked up by name on every call.</p>
 
 
 

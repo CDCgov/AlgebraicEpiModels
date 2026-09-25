@@ -1013,9 +1013,12 @@ Only the particle filter handles jump drivers such as <code>ArrivalProcess</code
 </span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="w">       </span><span class="c"># (parameter, statistic, value) estimates and diagnostics</span>
 </span></code></pre></div>
 <ul>
-<li><strong>Rates.</strong> <code>build_petri_vf(pn, rates; defaults)</code> gives the vector field. <code>rates(latent, hyperparams, t)</code> returns the time-varying transition rates by name; <code>defaults</code> fixes the rest.</li>
-<li><strong>Drivers.</strong> <code>AR1ParamSpec</code>, <code>RWParamSpec</code> and <code>IntegratedParamSpec</code> are continuous latents, and <code>ArrivalProcess</code> is a marked jump process. <code>StateLayout</code> places compartments, observation accumulators and latents in one state vector, and <code>build_stochastic_update</code> builds their noise update.</li>
-<li><strong>Observation.</strong> <code>SignalObservationSpec</code> reads a signal's accumulator, scales it by <code>mean_modifier</code> and adds noise (<code>NegBinomialNoise</code>, <code>PoissonNoise</code> and others). Ascertainment trends, day-of-week effects and seasonal forcing plug in here.</li>
+<li><strong>Rates.</strong> <code>build_petri_vf(pn, rates; defaults)</code> gives the vector field.
+  <code>rates(latent, hyperparams, t)</code> returns the time-varying transition rates by name; <code>defaults</code> fixes the rest.</li>
+<li><strong>Drivers.</strong> <code>AR1ParamSpec</code>, <code>RWParamSpec</code> and <code>IntegratedParamSpec</code> are continuous latents, and <code>ArrivalProcess</code> is a marked jump process.
+  <code>StateLayout</code> places compartments, observation accumulators and latents in one state vector, and <code>build_stochastic_update</code> builds their noise update.</li>
+<li><strong>Observation.</strong> <code>SignalObservationSpec</code> reads a signal's accumulator, scales it by <code>mean_modifier</code> and adds noise (<code>NegBinomialNoise</code>, <code>PoissonNoise</code> and others).
+  Ascertainment trends, day-of-week effects and seasonal forcing plug in here.</li>
 <li><strong>Hyperparameters.</strong> <code>hyperparams</code> holds every fixed value and the starting value of each learned one; <code>priors</code> names the learned subset.</li>
 </ul>
 <p><a href="../examples/inference_engines.html">Inference engines</a> runs all three engines on simulated data, and <a href="../examples/low_level_filtering.html">Low-level filtering</a> wires the same building blocks into LowLevelParticleFilters directly.</p>
@@ -1046,8 +1049,10 @@ Only the particle filter handles jump drivers such as <code>ArrivalProcess</code
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Latent coefficients live in the state vector in the <strong>unconstrained</strong> chart of their <code>init</code> prior and are read back constrained through <code>stochastic.extract</code>; every observation spec sees them constrained.</li>
-<li>Model time <code>t</code> is days since the first observation. Seasonality and ascertainment are anchored to the calendar once, at build time.</li>
-<li>Observations are given on the regular <code>step_days</code> grid, with <code>missing</code> where there is no observation. The filter predicts through a missing slot without correcting, so a reporting gap does not compress time.</li>
+<li>Model time <code>t</code> is days since the first observation.
+  Seasonality and ascertainment are anchored to the calendar once, at build time.</li>
+<li>Observations are given on the regular <code>step_days</code> grid, with <code>missing</code> where there is no observation.
+  The filter predicts through a missing slot without correcting, so a reporting gap does not compress time.</li>
 <li>A rate function receives <code>(latent, hyperparams, t)</code>; a noise or mean parameter is a <code>Real</code> or a function of the same three arguments.</li>
 </ul>
 <h2 id="source-layout">Source layout<a class="headerlink" href="#source-layout" title="Permanent link">&para;</a></h2>

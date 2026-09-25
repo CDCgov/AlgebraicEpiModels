@@ -8,14 +8,25 @@ using AlgebraicEpiMech
 using AlgebraicPetri
 using AlgebraicPetri.TypedPetri: typed_product
 using Catlab
+using CairoMakie
 using LabelledArrays
 using OrdinaryDiffEqTsit5
-using Plots
 using SymbolicIndexingInterface: SymbolCache
 
 function solve_net(pn, u0, p, tspan)
     f = ODEFunction(vectorfield_flat(pn); sys = SymbolCache(collect(keys(u0))))
     return solve(ODEProblem(f, u0, tspan, p), Tsit5())
+end
+
+function solution_figure(sol, names; title, ylabel = "Population")
+    names = collect(names)
+    fig = Figure(size = (820, 440))
+    ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel, title)
+    for name in names
+        lines!(ax, sol.t, sol[name]; label = string(name), linewidth = 2)
+    end
+    Legend(fig[1, 2], ax; framevisible = false, nbanks = length(names) > 6 ? 2 : 1)
+    return fig
 end
 ```
 
@@ -93,7 +104,7 @@ p = LVector(;
     (t => 0.25 for t in flatten_symbols.(tnames(age_sir_pn)) if startswith(string(t), "obs_inflow"))...,
 )
 sol = solve_net(age_sir_pn, u0, p, (0.0, 40.0))
-plot(sol; xlabel = "Time (days)", ylabel = "Population", title = "Age-structured SIR", legend = :outertopright)
+solution_figure(sol, keys(u0); title = "Age-structured SIR")
 ```
 ![](stratified_models-12.png)
 
@@ -126,8 +137,8 @@ u03 = LVector(; (
         for g in groups for c in (:S, :E, :I, :R)
 )...)
 sol3 = solve_net(age3_seir_pn, u03, p3, (0.0, 365.0))
-plot(sol3; idxs = [Symbol("I_$g") for g in groups], xlabel = "Time (days)", ylabel = "Infectious",
-    title = "Age-structured SEIR, 3 groups")
+solution_figure(sol3, [Symbol("I_$g") for g in groups];
+    ylabel = "Infectious", title = "Age-structured SEIR, 3 groups")
 ```
 ![](stratified_models-14.png)
 
@@ -182,8 +193,8 @@ u04.S_childxurban -= 10.0
 u04.I_childxurban = 10.0
 
 sol4 = solve_net(age_geo_sir, u04, p4, (0.0, 60.0))
-plot(sol4; idxs = [Symbol("I_$(name(a, g))") for (a, g) in strata], xlabel = "Time (days)", ylabel = "Infectious",
-    title = "Age × geography SIR, seeded in urban children")
+solution_figure(sol4, [Symbol("I_$(name(a, g))") for (a, g) in strata];
+    ylabel = "Infectious", title = "Age × geography SIR, seeded in urban children")
 ```
 ![](stratified_models-20.png)
 

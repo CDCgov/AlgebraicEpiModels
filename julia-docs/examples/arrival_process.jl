@@ -14,10 +14,10 @@
 using ConfigurableEpi
 using AlgebraicEpiMech
 using Catlab: dom
+using CairoMakie
 using LinearAlgebra, Distributions
 using LowLevelParticleFilters: AdvancedParticleFilter, simulate, reset!, correct!, predict!,
     particles, expweights, state
-using Plots
 import Random
 Random.seed!(1)
 nothing #hide
@@ -128,13 +128,22 @@ end
 
 #-
 
-counts = plot(1:T, onestep; label = "one-step-ahead mean", lw = 2, ylabel = "reports", title = "Data and one-step-ahead fit")
-scatter!(counts, 1:T, first.(y_data); label = "observed", color = :black, ms = 2)
-learning = plot(1:T, rate_mean; ribbon = (rate_mean .- rate_lo, rate_hi .- rate_mean), label = "posterior (95%)",
-    lw = 2, color = :purple, fillalpha = 0.2, ylabel = "arrivals / day", title = "Learned arrival rate (Liu-West)")
-hline!(learning, [true_arrival_rate]; label = "truth", lw = 2, ls = :dash, color = :black)
-hline!(learning, [prior_mean]; label = "prior mean", ls = :dot, color = :grey)
-plot(counts, learning; layout = (2, 1), size = (760, 640), xlabel = "day", legend = :topright)
+fig = Figure(size = (760, 640))
+counts = Axis(fig[1, 1]; ylabel = "reports", title = "Data and one-step-ahead fit")
+lines!(counts, 1:T, onestep; label = "one-step-ahead mean", linewidth = 2)
+scatter!(counts, 1:T, first.(y_data); label = "observed", color = :black, markersize = 6)
+axislegend(counts; position = :rt)
+
+learning = Axis(fig[2, 1]; xlabel = "day", ylabel = "arrivals / day", title = "Learned arrival rate (Liu-West)")
+band!(learning, 1:T, rate_lo, rate_hi; color = (:purple, 0.2))
+lines!(learning, 1:T, rate_mean; label = "posterior (95%)", linewidth = 2, color = :purple)
+hlines!(learning, [true_arrival_rate]; label = "truth", linewidth = 2, linestyle = :dash, color = :black)
+hlines!(learning, [prior_mean]; label = "prior mean", linestyle = :dot, color = :grey)
+axislegend(learning; position = :rt)
+
+linkxaxes!(counts, learning)
+hidexdecorations!(counts; grid = false)
+fig
 
 # The rate is identified only by the arrivals the data contain, and 120 days hold a handful. The
 # posterior moves up from the prior and its interval widens to take in the truth, but it stays
