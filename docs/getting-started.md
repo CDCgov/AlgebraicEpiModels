@@ -23,7 +23,11 @@ julia --project=ConfigurableEpi -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 
 ## A first model
 
-Build an SIR model, look at its structure and solve it as an ODE:
+We build a typed net that represents the SIR model on a homogeneous population with standard types for transitions using `create_model`.
+The net that represents the SIR model is the domain the typed Petri net, which is accessible using `dom`.
+That net defines a vectorfield which is constructed using `vectorfield_flat`.
+This vector field comes with an expectation that input vectors will follow an naming scheme.
+We solve it as an ODE, using the `SciML` package `OrdinaryDiffEqTsit5`:
 
 ```julia
 using AlgebraicEpiMech, AlgebraicPetri, Catlab, LabelledArrays, OrdinaryDiffEqTsit5
@@ -36,7 +40,10 @@ p = LVector(transmission_S_I = 0.5 / 1000, I_to_R = 0.25)
 sol = solve(ODEProblem(vectorfield_flat(pn), u0, (0.0, 120.0), p), Tsit5())
 ```
 
-[Compartmental models](examples/compartmental_models.md) continues from here, and [Stratified models](examples/stratified_models.md) and [Multistrain models and immune history](examples/multistrain_immune_history.md) show composition.
+## Next steps
+
+[Compartmental models](examples/compartmental_models.md) continues from here towards more complex compartmental models such as SEIR or multiple E/I compartments.
+[Stratified models](examples/stratified_models.md) and [Multistrain models and immune history](examples/multistrain_immune_history.md) show how to build other epidemiological models as nets and how the typing of the petri net allows valid compostions via algebraic pullback.
 
 ## A first fit
 
