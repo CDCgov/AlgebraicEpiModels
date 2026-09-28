@@ -11,7 +11,7 @@ An `EpidemiologicalTyping` fixes the type system every model is mapped into; `ty
 - `OnePopulationTyping()`: every compartment has one population type, so every compartment is stratified the same way.
 - `UninfectedInfectedTyping()`: uninfected and infected compartments have different types and can be stratified differently.
 
-Competing strains and immune history need the more complex typing structure; a rule of thumb could be that if you were writing the dynamics of the epidemilogical model mathematically and different \*variables\_ need different *indices* then in this representation they need different species types.
+Competing strains and immune history need the more complex typing structure; a rule of thumb could be that if you were writing the dynamics of the epidemiological model mathematically and different *variables* need different *indices* then in this representation they need different species types.
 
 Transitions are typed by role: for example, transmission, disease progression, reversion (waning back to susceptible), and observation.
 Other types can be added at the typing step.

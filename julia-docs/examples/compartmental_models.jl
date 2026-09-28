@@ -161,7 +161,7 @@ delay chain to a built net by pushout. There are two observation flavors:
 - `AtCompartment(:X)` samples a compartment: a catalytic transition `X → X + O_X_1` fires at a
   rate times the occupancy of `X` and leaves `X` unchanged. This is a **prevalence**-type signal such as test
   positivity.
-- `AtEvent(:transition)` records a transition's flow instead. This is an **incidence**-type signals such as
+- `AtEvent(:transition)` records a transition's flow instead. This is an **incidence**-type signal such as
   emergency-department arrivals.
 
 The chain `O_X_1 → O_X_2 → …` is an Erlang delay; the last stage accumulates. Because the chain is

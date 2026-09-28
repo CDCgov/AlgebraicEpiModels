@@ -28,9 +28,9 @@ Drawing Petri nets in the examples needs the Graphviz `dot` executable on the `P
 ## When to regenerate
 
 - **Docstrings changed:** run `just docs-api` and commit `docs/api/`.
-  CI regenerates the API pages on pull requests and fails if the committed copy differs.
+  CI only builds the site from the committed Markdown, so it does not catch stale API pages.
 - **Package behaviour or an example changed:** run `just docs-examples` (or just the affected example) and commit `docs/examples/`.
-  CI executes every example on pull requests but does not compare output, because floating-point results and figure bytes differ between platforms.
+  CI does not run the examples either, so an example broken by a package change only shows up when it is regenerated.
 
 ## Adding an example
 

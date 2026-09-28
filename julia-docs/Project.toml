@@ -21,7 +21,7 @@ SymbolicIndexingInterface = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
 [sources]
 AlgebraicEpiMech = {path = "../AlgebraicEpiMech"}
 ConfigurableEpi = {path = "../ConfigurableEpi"}
-DocumenterMarkdown = {rev = "master", url = "https://github.com/SamuelBrand1/DocumenterMarkdown.jl"}
+DocumenterMarkdown = {rev = "30440869fb422a74ce289363a77ab84a07bed4b6", url = "https://github.com/SamuelBrand1/DocumenterMarkdown.jl"}
 
 [compat]
 Documenter = "1"

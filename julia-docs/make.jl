@@ -19,9 +19,14 @@ makedocs(;
     warnonly = true,
 )
 
+# Method anchors contain spaces, so DocumenterMarkdown escapes those links instead of emitting them.
+const ESCAPED_LINK = r"\\\[`([^`]+)`\\\]\(([^)]+)\)"
+unescape_link(s) = (m = match(ESCAPED_LINK, s); "[`$(m[1])`]($(replace(m[2], " " => "%20")))")
+
 # Short-form `(@ref)` links to symbols outside the reference cannot be resolved by the site.
 for file in readdir(API_DIR; join = true)
     endswith(file, ".md") || continue
     text = replace(read(file, String), r"\[`([^`]+)`\]\(@ref\)" => s"`\1`")
+    text = replace(text, ESCAPED_LINK => unescape_link)
     write(file, rstrip(text) * "\n")
 end

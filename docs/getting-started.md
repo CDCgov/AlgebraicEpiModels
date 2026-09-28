@@ -120,9 +120,9 @@ The pushout therefore sees the final age, location, or strain structure and adds
 ## A first model
 
 We build a typed net that represents the SIR model on a homogeneous population with standard types for transitions using `create_model`.
-The net that represents the SIR model is the domain the typed Petri net, which is accessible using `dom`.
-That net defines a vectorfield which is constructed using `vectorfield_flat`.
-This vector field comes with an expectation that input vectors will follow an naming scheme.
+The net that represents the SIR model is the domain of the typed Petri net, which is accessible using `dom`.
+That net defines a vector field which is constructed using `vectorfield_flat`.
+This vector field comes with an expectation that input vectors will follow a naming scheme.
 We solve it as an ODE, using the `SciML` package `OrdinaryDiffEqTsit5`:
 
 ```julia
@@ -139,7 +139,7 @@ sol = solve(ODEProblem(vectorfield_flat(pn), u0, (0.0, 120.0), p), Tsit5())
 ## Next steps
 
 [Compartmental models](examples/compartmental_models.md) continues from here towards more complex compartmental models such as SEIR or multiple E/I compartments.
-[Stratified models](examples/stratified_models.md) and [Multistrain models and immune history](examples/multistrain_immune_history.md) show how to build other epidemiological models as nets and how the typing of the petri net allows valid compostions via algebraic pullback.
+[Stratified models](examples/stratified_models.md) and [Multistrain models and immune history](examples/multistrain_immune_history.md) show how to build other epidemiological models as nets and how the typing of the Petri net allows valid compositions via algebraic pullback.
 
 ## A first fit
 
