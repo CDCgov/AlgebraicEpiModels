@@ -50,12 +50,12 @@ A pullback does the analogous job for structured objects: it pairs species and t
 
 Consider two typed Petri nets:
 
-\[ \phi_{\mathrm{SIR}} : P_{\mathrm{SIR}} \longrightarrow P_{\mathrm{type}}, \]
+\[ \phi\_{\mathrm{SIR}} : P\_{\mathrm{SIR}} \longrightarrow P\_{\mathrm{type}}, \]
 
 Which types a petri net that defines the SIR compartmental model, for example, each compartment species is typed to a "Population"-type, transmission is typed as a "transmission"-type transition and recovery is typed as a "disease progression"-type transition.
 Then consider
 
-\[ \phi_{\mathrm{age}} : P_{\mathrm{age}} \longrightarrow P_{\mathrm{type}}, \]
+\[ \phi\_{\mathrm{age}} : P\_{\mathrm{age}} \longrightarrow P\_{\mathrm{type}}, \]
 
 Which types a petri net that defines a demographic-mixing model of age groups, such as "<1" year old, "1-2" year old etc. The demographic model species can also all be typed to the same "Population"-type, mixing between groups typed to a "transmission"-type transition.
 Aging can be typed to a new "demography"-type transition.
@@ -77,9 +77,9 @@ flowchart TB
     PULLBACK ==>|"produces"| MODEL
 ```
 
-The pullback produces the new Petri net \(P_{\mathrm{model}}\), as the domain of the induced morphism
+The pullback produces the new Petri net \(P\_{\mathrm{model}}\), as the domain of the induced morphism
 
-\[ \phi_{\mathrm{model}} : P_{\mathrm{model}} \longrightarrow P_{\mathrm{type}}, \]
+\[ \phi\_{\mathrm{model}} : P\_{\mathrm{model}} \longrightarrow P\_{\mathrm{type}}, \]
 
 which is the age-stratified SIR model we want.
 In practical terms, pulling back an SIR net and a two-group age net produces compartments such as `S_child`, `I_child`, `R_child`, `S_adult`, and so on.

@@ -4,8 +4,10 @@ ConfigurableEpi does configurable inference and forecasting for compartmental mo
 For ConfigurableEpi, a model is a vectorfield for some dynamical model combined with a set of stochastic latent drivers and a link between observable components and data.
 The inference "engine" is defined as a combination of two choices:
 
-- A filtering approach. This defines how the distribution over the latent state of the model updates conditional on the new data arriving in the stream and the current static hyperparameter estimate.
-- A static hyperparameter estimation approach. This defines how a filtering pass, or filtering passes, are used to infer hyperparameters.
+- A filtering approach.
+  This defines how the distribution over the latent state of the model updates conditional on the new data arriving in the stream and the current static hyperparameter estimate.
+- A static hyperparameter estimation approach.
+  This defines how a filtering pass, or filtering passes, are used to infer hyperparameters.
 
 ## Connection to AlgebraicEpiMech
 

@@ -37,9 +37,9 @@ sir_typed = create_model(typing, SIR())
 to_graphviz(sir_typed)
 
 md"""
-How should we interpret the diagrams? 
+How should we interpret the diagrams?
 
-Both diagrams are petri nets with, 
+Both diagrams are petri nets with,
 
 - Circles are species, which are numbers of individuals.
 - Boxes are transitions and have one rate parameter each.
@@ -65,7 +65,7 @@ Transition names are unique and descriptive: a single-input transition is `input
 parameter assignment unambiguous.
 
 `vectorfield_flat` turns the net into an in-place ODE right-hand side `f!(du, u, p, t)` over
-labelled state and parameter vectors. 
+labelled state and parameter vectors.
 
 We can use the `Tsit5` solver from the `SciML` package `OrdinaryDiffEqTsit5` to integrate the ODEs generated from the Petri net.
 NB: Naming the state in the `ODEFunction` lets the solution be indexed and plotted by compartment.
