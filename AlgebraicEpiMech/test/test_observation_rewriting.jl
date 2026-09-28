@@ -166,9 +166,9 @@ end
         rates = matching(obs, :transmission, 0.002),
         state = Dict(
             s => (
-                    startswith(string(s), "S_U") ? 500.0 :
+                startswith(string(s), "S_U") ? 500.0 :
                     startswith(string(s), "I_") ? 50.0 : 0.0
-                ) for s in names(obs)
+            ) for s in names(obs)
         ),
     )
     observed = sum(du[a] for a in accs)

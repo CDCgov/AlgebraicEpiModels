@@ -63,10 +63,10 @@ function forecast_sample_rows(
     end
     frames = [
         forecast_sample_rows(
-                view(samples, :, :, s), target_dates;
-                geo_value = String(geo_values[s]), disease = String(diseases[s]), variable = String(variables[s]),
-                resolution, metadata,
-            ) for s in 1:n_signals
+            view(samples, :, :, s), target_dates;
+            geo_value = String(geo_values[s]), disease = String(diseases[s]), variable = String(variables[s]),
+            resolution, metadata,
+        ) for s in 1:n_signals
     ]
     return reduce(append!, frames)
 end

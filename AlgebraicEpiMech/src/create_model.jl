@@ -28,8 +28,12 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
 - `model::EpiMechModel`: The model specification (uses dispatch for different types)
 
 # Keyword Arguments
-Keyword arguments are forwarded to `create_model_uwd`. Model-specific keywords include:
-- `include_reflexives::Bool=true` (for `ContactStratification`): Controls whether per-stratum
+- `population_transitions=nothing`: Extra transition types for [`type_system`](@ref), as a single
+  pair such as `:strata => (:Population => :Population)` or a collection of pairs. `nothing` gives
+  the standard type system. Models that will be composed with `typed_product` must be created
+  with the same extra transitions so that they share a codomain.
+- `include_reflexives::Bool=true` (for `ContactStratification`, forwarded to `create_model_uwd`):
+  Controls whether per-stratum
   reflexive boxes (disease, reversion, and waning) are added. Required for `typed_product`
   composition; disable for standalone use to avoid zero-effect transitions.
 
@@ -87,10 +91,11 @@ See also: [`create_model_uwd`](@ref), [`generate_transition_names`](@ref), [`typ
 function create_model(
         typing::EpidemiologicalTyping,
         model::EpiMechModel;
+        population_transitions = nothing,
         include_reflexives::Bool = true
     )
     # Materialize the typing strategy as the Petri-net codomain for the typed petri net.
-    codomain = type_system(typing)
+    codomain = _type_system(typing, population_transitions)
 
     # Create the UWD for the model (dispatch on include_reflexives via positional arg)
     uwd = _create_model_uwd(typing, model, include_reflexives)
@@ -103,6 +108,11 @@ function create_model(
 
     return typed_model
 end
+
+_type_system(typing, ::Nothing) = type_system(typing)
+# A bare Pair is iterable, so splatting it would split it into its two halves.
+_type_system(typing, transition::Pair) = type_system(typing, transition)
+_type_system(typing, transitions) = type_system(typing, transitions...)
 
 # Intermediate layer: converts include_reflexives kwarg to positional for dispatch
 _create_model_uwd(typing, model, ::Bool) = create_model_uwd(typing, model)

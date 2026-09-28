@@ -170,11 +170,11 @@ function _chain_labels(net, key_idx, n_stages, prefix, source)
     species = [_relabel_head(key, _stage_head(prefix, source, i)) for i in 1:n_stages]
     delays = [
         _relabel_head(
-                key,
-                Symbol(
-                    prefix, "_", source, "_", i, "_to_", prefix, "_", source, "_", i + 1
-                ),
-            ) for i in 1:(n_stages - 1)
+            key,
+            Symbol(
+                prefix, "_", source, "_", i, "_to_", prefix, "_", source, "_", i + 1
+            ),
+        ) for i in 1:(n_stages - 1)
     ]
     return species, delays
 end
