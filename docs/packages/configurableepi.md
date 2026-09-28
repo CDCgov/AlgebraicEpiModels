@@ -1,12 +1,20 @@
 # ConfigurableEpi
 
-ConfigurableEpi does configurable compartmental forecasting on [AlgebraicEpiMech](algebraicepimech.md) Petri nets.
-A model is a Petri net with a rate function, a set of stochastic latent drivers and an observation model.
-An inference engine fits it to a count series and forecasts ahead.
+ConfigurableEpi does configurable inference and forecasting for compartmental models over data streams.
+For ConfigurableEpi, a model is a vectorfield for some dynamical model combined with a set of stochastic latent drivers and a link between observable components and data.
+The inference "engine" is defined as a combination of two choices:
+
+- A filtering approach. This defines how the distribution over the latent state of the model updates conditional on the new data arriving in the stream and the current static hyperparameter estimate.
+- A static hyperparameter estimation approach. This defines how a filtering pass, or filtering passes, are used to infer hyperparameters.
+
+## Connection to AlgebraicEpiMech
+
+At the moment, ConfigurableEpi is designed to work with AlgebraicEpiMech insofar as a petri net representation of the dynamics is the entry point to constructing a valid model.
+In principle, other petri net or vectorfield functions could be used as an entry point, however, AlgebraicEpiMech comes with an enforced low level naming convention for rate parameters which simplifies model construction.
 
 ## Engines
 
-Three engines are supported, each a pairing of a state filter with a method for the static hyperparameters:
+Three engines are currently supported:
 
   | Filter             | Hyperparameters | Engine                                                                                                  |
   | ------------------ | --------------- | ------------------------------------------------------------------------------------------------------- |
@@ -14,7 +22,7 @@ Three engines are supported, each a pairing of a state filter with a method for 
   | `PF(n_particles)`  | `LiuWest()`     | Bootstrap particle filter; hyperparameters learned online in the particle cloud by the Liu-West kernel. |
   | `EnKF(n_ensemble)` | `EKP(...)`      | Augmented ensemble Kalman filter; hyperparameters by outer ensemble Kalman inversion.                   |
 
-Other pairings are rejected.
+Other pairings are currently rejected.
 Only the particle filter handles jump drivers such as `ArrivalProcess`.
 
 ## The model contract

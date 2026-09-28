@@ -1,7 +1,8 @@
 # AlgebraicEpiMech
 
-AlgebraicEpiMech builds compartmental epidemic models as typed Petri nets, following the algebraic framework of [Libkind et al. (2023), _An algebraic framework for structured epidemic modelling_](https://royalsocietypublishing.org/doi/10.1098/rsta.2021.0309).
+AlgebraicEpiMech builds a representation of the dynamics of compartmental epidemic models as typed Petri nets, following the algebraic framework of [Libkind et al. (2023), _An algebraic framework for structured epidemic modelling_](https://royalsocietypublishing.org/doi/10.1098/rsta.2021.0309).
 Species are compartments, transitions are flows, and each model is typed over a small type system so that models built separately can be composed.
+In this paradigm, the "type" of a petri net species/transition are conceptually close to choosing join keys to combine dataframes but come with guaranteed structure preservation.
 
 ## Typing
 
@@ -9,9 +10,10 @@ An `EpidemiologicalTyping` fixes the type system every model is mapped into; `ty
 
 - `OnePopulationTyping()`: every compartment has one population type, so every compartment is stratified the same way.
 - `UninfectedInfectedTyping()`: uninfected and infected compartments have different types and can be stratified differently.
-  Competing strains and immune history need this.
 
-Transitions are typed by role: transmission, disease progression, reversion (waning back to susceptible), and observation.
+Competing strains and immune history need the more complex typing structure; a rule of thumb could be that if you were writing the dynamics of the epidemilogical model mathematically and different *variables_ need different _indices_ then in this representation they need different species types.
+
+Transitions are typed by role: for example, transmission, disease progression, reversion (waning back to susceptible), and observation. Other types can be added at the typing step.
 
 ## Templates
 
@@ -53,7 +55,7 @@ Attach observation after composition, so that each stratum gets its own chain.
 ## Vector fields
 
 `vectorfield_flat(pn)` returns an in-place mass-action ODE right-hand side `f!(du, u, p, t)` that indexes state and parameters by flattened name, so `LVector`s and `NamedTuple`s work directly.
-ConfigurableEpi builds on the same nets with `build_petri_vf`, which lets transition rates depend on latent processes, hyperparameters and time.
+This exploits that all the information required for vectorfield can be extracted from the domain petri net of the typed petri-net structure; this is the key insight into why algebraic operations on petri nets automatically create vector fields.
 
 ## Examples
 
