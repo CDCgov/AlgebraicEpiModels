@@ -214,3 +214,37 @@ end
     # They should be equal in structure
     @test codomain_from_typed_model == direct_type_system
 end
+
+@testitem "create_model forwards extra transitions to type_system" setup = [BasicModelSetup] begin
+    strata = :strata => (:Individual => :Individual)
+    birth = :birth => (:Individual => (:Individual, :Individual))
+
+    typed_model = create_model(one_pop_typing, SIR(); population_transitions = strata)
+    @test codom(typed_model) == type_system(one_pop_typing, strata)
+    @test :strata in tnames(codom(typed_model))
+    @test dom(typed_model) == dom(create_model(one_pop_typing, SIR()))
+
+    two_extra = create_model(one_pop_typing, SIR(); population_transitions = [strata, birth])
+    @test codom(two_extra) == type_system(one_pop_typing, strata, birth)
+
+    @test codom(create_model(one_pop_typing, SIR(); population_transitions = nothing)) ==
+        type_system(one_pop_typing)
+end
+
+@testitem "models over an extended type system compose" setup = [BasicModelSetup] begin
+    strata = :strata => (:Individual => :Individual)
+
+    sir = create_model(one_pop_typing, SIR(); population_transitions = strata)
+    age = create_model(
+        one_pop_typing, AgeStratification([:child, :adult]); population_transitions = strata
+    )
+    extended = dom(typed_product(sir, age))
+
+    standard = dom(
+        typed_product(
+            create_model(one_pop_typing, SIR()),
+            create_model(one_pop_typing, AgeStratification([:child, :adult])),
+        )
+    )
+    @test (ns(extended), nt(extended)) == (ns(standard), nt(standard))
+end

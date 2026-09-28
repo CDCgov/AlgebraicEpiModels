@@ -108,10 +108,10 @@ function add_stages!(
     # Create junctions for each stage
     junctions = [
         add_junction!(
-                uwd,
-                pop_type,
-                variable = variable_name(variable_symbol, stage, number_of_stages)
-            )
+            uwd,
+            pop_type,
+            variable = variable_name(variable_symbol, stage, number_of_stages)
+        )
             for stage in 1:number_of_stages
     ]
     # Add progression between stages

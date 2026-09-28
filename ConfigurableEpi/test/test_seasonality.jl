@@ -348,8 +348,8 @@ _year_grid(n = 52 * 97) = (365.25 * i / n for i in 0:(n - 1))
         @test half_bound ≈ 1 + 0.5 * (full_bound - 1)
         dense_max = maximum(
             maximum(
-                    build_periodic_curve(knots)(u) for u in range(0, 1; length = 5001)
-                ) for knots in values(_CLIM)
+                build_periodic_curve(knots)(u) for u in range(0, 1; length = 5001)
+            ) for knots in values(_CLIM)
         )
         @test full_bound >= dense_max
         @test full_bound > maximum(maximum, values(_CLIM))
