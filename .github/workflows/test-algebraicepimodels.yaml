@@ -16,6 +16,7 @@ on:
       - .github/workflows/test-algebraicepimodels.yaml
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
@@ -39,12 +40,17 @@ jobs:
 
         Pkg.activate(mktempdir())
         Pkg.add(url = ENV["GITHUB_WORKSPACE"], subdir = "AlgebraicEpiModels")
+        Pkg.develop([
+            PackageSpec(path = joinpath(ENV["GITHUB_WORKSPACE"], "AlgebraicEpiMech")),
+            PackageSpec(path = joinpath(ENV["GITHUB_WORKSPACE"], "ConfigurableEpi")),
+        ])
 
         using AlgebraicEpiModels
 
         wrapper = AlgebraicEpiModels
         mech = wrapper.AlgebraicEpiMech
         configurable = wrapper.ConfigurableEpi
+        wrapper_exports = Set(names(wrapper))
         mech_exports = Set(names(mech))
         configurable_exports = Set(names(configurable))
 
@@ -54,7 +60,7 @@ jobs:
         @assert isempty(conflicts) "Conflicting exports: $(sort!(collect(conflicts)))"
 
         for name in union(mech_exports, configurable_exports)
-            @assert isdefined(wrapper, name) "Missing re-export: $name"
+            @assert name in wrapper_exports "Missing re-export: $name"
             source = name in mech_exports ? mech : configurable
             @assert getproperty(wrapper, name) === getproperty(source, name)
         end
