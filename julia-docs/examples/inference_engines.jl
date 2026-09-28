@@ -1,18 +1,22 @@
-# # Inference engines
-#
-# `ConfigurableEpi` fits a model to a count series and forecasts ahead through one contract:
-# describe the model once as an `EpiModel`, build an engine with
-# `build_inference(filter, hyper, model; ...)`, and drive it with `fit_forecast!`. Three pairings of
-# a state filter and a method for the static hyperparameters are available:
-#
-# | Filter | Hyperparameters | Engine |
-# | --- | --- | --- |
-# | `UKF()` | `Optimise()` | unscented Kalman filter; hyperparameters maximise the marginal log-posterior |
-# | `PF(n_particles)` | `LiuWest()` | bootstrap particle filter; hyperparameters learned online in the particle cloud |
-# | `EnKF(n_ensemble)` | `EKP(...)` | ensemble Kalman filter; hyperparameters by outer ensemble Kalman inversion |
-#
-# This example simulates weekly counts from a seasonal SEIRS model, fits the three engines to the
-# same data and compares their forecasts.
+using Markdown #hide
+
+md"""
+# Inference engines
+
+`ConfigurableEpi` fits a model to a count series and forecasts ahead through one contract:
+describe the model once as an `EpiModel`, build an engine with
+`build_inference(filter, hyper, model; ...)`, and drive it with `fit_forecast!`. Three pairings of
+a state filter and a method for the static hyperparameters are available:
+
+| Filter | Hyperparameters | Engine |
+| --- | --- | --- |
+| `UKF()` | `Optimise()` | unscented Kalman filter; hyperparameters maximise the marginal log-posterior |
+| `PF(n_particles)` | `LiuWest()` | bootstrap particle filter; hyperparameters learned online in the particle cloud |
+| `EnKF(n_ensemble)` | `EKP(...)` | ensemble Kalman filter; hyperparameters by outer ensemble Kalman inversion |
+
+This example simulates weekly counts from a seasonal SEIRS model, fits the three engines to the
+same data and compares their forecasts.
+"""
 
 using ConfigurableEpi
 using AlgebraicEpiMech
@@ -25,10 +29,12 @@ Logging.disable_logging(Logging.Info) #hide
 Random.seed!(11)
 nothing #hide
 
-# ## The model
-#
-# An SEIRS model observed through a two-stage chain on the incidence of infection
-# (`AtEvent(:transmission)`), with a latent AR(1) modifier `Rt` on transmission.
+md"""
+## The model
+
+An SEIRS model observed through a two-stage chain on the incidence of infection
+(`AtEvent(:transmission)`), with a latent AR(1) modifier `Rt` on transmission.
+"""
 
 N = 1.0e5
 pn = attach_observation(dom(create_model(OnePopulationTyping(), SEIRS())), AtEvent(:transmission); n_stages = 2)
@@ -46,9 +52,11 @@ layout = StateLayout(pn, drivers; signal_names = (:cases,))
 stochastic = build_stochastic_update(layout, drivers)
 ode_names(layout)
 
-# Reports are a negative-binomial draw around 10% of new infections. `R0` is the hyperparameter to
-# learn: `hyperparams` holds its starting value (and the fixed values of the rest), and `priors`
-# its prior.
+md"""
+Reports are a negative-binomial draw around 10% of new infections. `R0` is the hyperparameter to
+learn: `hyperparams` holds its starting value (and the fixed values of the rest), and `priors`
+its prior.
+"""
 
 observation = (SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); mean_modifier = 0.1, name = :cases),)
 seed = (S = N - 100.0, E = 50.0, I = 50.0, R = 0.0, O_transmission_1 = 0.0, O_transmission_2 = 0.0)
@@ -62,11 +70,13 @@ model = EpiModel(;
 )
 nothing #hide
 
-# ## Simulated data
-#
-# Fourteen weeks are simulated with a true `R0` of 1.8, using the particle-filter building blocks at
-# a weekly step (daily RK4 substeps). The engines see the first ten weeks, up to just after the
-# peak; the last four are held out to check the forecasts of the decline.
+md"""
+## Simulated data
+
+Fourteen weeks are simulated with a true `R0` of 1.8, using the particle-filter building blocks at
+a weekly step (daily RK4 substeps). The engines see the first ten weeks, up to just after the
+peak; the last four are held out to check the forecasts of the decline.
+"""
 
 truth = merge(model.hyperparams, (R0 = 1.8,))
 step = build_full_dynamics(vf!, stochastic, layout; dt = 7.0, supersample = 7, obs_jitter = 0.0)
@@ -81,12 +91,14 @@ fit_weeks, n_ahead = 10, 4
 observed = cases[1:fit_weeks]
 nothing #hide
 
-# ## Fitting and forecasting
-#
-# Each engine is built from the same model and the same cadence: weekly steps (`dt = 7`) with
-# seven RK4 substeps. `fit_forecast!(engine, observations, forecast_number)` assimilates the
-# series (`missing` marks a gap) and forecasts `n_ahead` steps; `forecast_number` counts forecast
-# origins and drives re-optimisation in a rolling backtest.
+md"""
+## Fitting and forecasting
+
+Each engine is built from the same model and the same cadence: weekly steps (`dt = 7`) with
+seven RK4 substeps. `fit_forecast!(engine, observations, forecast_number)` assimilates the
+series (`missing` marks a gap) and forecasts `n_ahead` steps; `forecast_number` counts forecast
+origins and drives re-optimisation in a rolling backtest.
+"""
 
 cadence = (; dt = 7.0, supersample = 7, n_ahead, rng = Random.Xoshiro(2))
 engines = [
@@ -97,11 +109,13 @@ engines = [
 results = [name => fit_forecast!(engine, observed, 1) for (name, engine) in engines]
 nothing #hide
 
-# Each result carries `fitted_means` over the series, forecast `quantiles` as a
-# `[horizon, quantile]` matrix at `DEFAULT_QS`, and a `summary` table of estimates and
-# diagnostics. Each engine reports `R0` (true value 1.8, prior mean 1.5) in its own terms: the
-# optimiser a posterior mode, the particle filter quantiles of its cloud, and EKP the ensemble
-# estimate with quantiles.
+md"""
+Each result carries `fitted_means` over the series, forecast `quantiles` as a
+`[horizon, quantile]` matrix at `DEFAULT_QS`, and a `summary` table of estimates and
+diagnostics. Each engine reports `R0` (true value 1.8, prior mean 1.5) in its own terms: the
+optimiser a posterior mode, the particle filter quantiles of its cloud, and EKP the ensemble
+estimate with quantiles.
+"""
 
 vcat([insertcols(filter(:parameter => ==("R0"), r.summary), 1, :engine => name) for (name, r) in results]...)
 
@@ -117,8 +131,10 @@ axes = map(enumerate(results)) do (row, (name, r))
     lines!(ax, horizon, q[:, qi(0.5)]; linewidth = 2, color = :purple, label = "forecast (95%)")
     lines!(ax, 1:fit_weeks, r.fitted_means; linewidth = 2, color = :steelblue, label = "fitted mean")
     scatter!(ax, 1:fit_weeks, observed; color = :black, markersize = 7, label = "observed")
-    scatter!(ax, horizon, cases[horizon]; color = :white, strokecolor = :black, strokewidth = 1.5,
-        markersize = 8, label = "held out")
+    scatter!(
+        ax, horizon, cases[horizon]; color = :white, strokecolor = :black, strokewidth = 1.5,
+        markersize = 8, label = "held out"
+    )
     axislegend(ax; position = :lt)
     ax
 end
@@ -126,24 +142,26 @@ linkxaxes!(axes...)
 foreach(ax -> hidexdecorations!(ax; grid = false), axes[1:(end - 1)])
 fig
 
-# ## From a run config
-#
-# The same engines can be chosen and tuned from a TOML run config, whose `[filter.<name>]` and
-# `[hyper.<name>]` tables select the pairing:
-#
-# ```toml
-# n_ahead = 4
-# step_days = 7
-# supersample = 7
-# burnin_observations = 12
-#
-# [filter.pf]
-# n_particles = 2000
-#
-# [hyper.liu_west]
-# discount = 0.97
-# ```
-#
-# `build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` then reads the
-# pairing and cadence from the file. See [ConfigurableEpi](../packages/configurableepi.md) for the
-# full run config.
+md"""
+## From a run config
+
+The same engines can be chosen and tuned from a TOML run config, whose `[filter.<name>]` and
+`[hyper.<name>]` tables select the pairing:
+
+```toml
+n_ahead = 4
+step_days = 7
+supersample = 7
+burnin_observations = 12
+
+[filter.pf]
+n_particles = 2000
+
+[hyper.liu_west]
+discount = 0.97
+```
+
+`build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` then reads the
+pairing and cadence from the file. See [ConfigurableEpi](../packages/configurableepi.md) for the
+full run config.
+"""

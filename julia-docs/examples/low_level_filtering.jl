@@ -1,13 +1,17 @@
-# # Low-level filtering
-#
-# [`build_inference`](../api/configurableepi.md#Inference) wraps a model in
-# a ready-made engine (see [Inference engines](inference_engines.md)). Underneath, `ConfigurableEpi`
-# builds each piece of a state-space model separately, and those pieces can be wired into
-# [LowLevelParticleFilters.jl](https://github.com/baggepinnen/LowLevelParticleFilters.jl) filters
-# directly. That gives access to per-step filtered states, smoothing and custom filters. This
-# example simulates data from a seasonal SEIRS model with a latent transmission modifier, then
-# recovers the latent path with an unscented Kalman filter and smoother and with a bootstrap
-# particle filter.
+using Markdown #hide
+
+md"""
+# Low-level filtering
+
+[`build_inference`](../api/configurableepi.md#Inference) wraps a model in
+a ready-made engine (see [Inference engines](inference_engines.md)). Underneath, `ConfigurableEpi`
+builds each piece of a state-space model separately, and those pieces can be wired into
+[LowLevelParticleFilters.jl](https://github.com/baggepinnen/LowLevelParticleFilters.jl) filters
+directly. That gives access to per-step filtered states, smoothing and custom filters. This
+example simulates data from a seasonal SEIRS model with a latent transmission modifier, then
+recovers the latent path with an unscented Kalman filter and smoother and with a bootstrap
+particle filter.
+"""
 
 using ConfigurableEpi
 using AlgebraicEpiMech
@@ -20,12 +24,14 @@ import Random
 Random.seed!(2026)
 nothing #hide
 
-# ## The model
-#
-# An SEIRS model with the infectious compartment sampled into a two-stage observation chain. The
-# rate function receives the constrained latent drivers, the hyperparameters and model time in
-# days; here transmission is a baseline $R_0$ times a seasonal cosine times a latent modifier
-# `Rt` that mean-reverts to 1.
+md"""
+## The model
+
+An SEIRS model with the infectious compartment sampled into a two-stage observation chain. The
+rate function receives the constrained latent drivers, the hyperparameters and model time in
+days; here transmission is a baseline $R_0$ times a seasonal cosine times a latent modifier
+`Rt` that mean-reverts to 1.
+"""
 
 N = 10_000.0
 hyperparams = (gamma = 1.0, R0_baseline = 2.0, seasonal_amp = 0.15, N = N)
@@ -40,10 +46,12 @@ rate_defaults = (E_to_I = 0.5, I_to_R = 1.0, R_to_S = 1.0 / 180, obs_inflow_I = 
 petri_vf! = build_petri_vf(pn, rates; defaults = rate_defaults)
 nothing #hide
 
-# `Rt` is an AR(1) latent (an Ornstein–Uhlenbeck process sampled each step) in the log chart of
-# its `init` prior. The `StateLayout` places compartments, observation accumulators and latents in
-# one state vector, and `build_stochastic_update` turns the driver specs into the process-noise
-# update.
+md"""
+`Rt` is an AR(1) latent (an Ornstein–Uhlenbeck process sampled each step) in the log chart of
+its `init` prior. The `StateLayout` places compartments, observation accumulators and latents in
+one state vector, and `build_stochastic_update` turns the driver specs into the process-noise
+update.
+"""
 
 latent_specs = (
     AR1ParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.3), mu = 1.0, tau = 9.5, sigma = 0.34),
@@ -53,18 +61,22 @@ stochastic = build_stochastic_update(layout, latent_specs)
 obs_model = (SignalObservationSpec(1, NegBinomialNoise(phi = 100.0); mean_modifier = 1.0, name = :reports),)
 (ode_states = ode_names(layout), latents = layout.latent_names, dimension = layout.total_dim)
 
-# The observation uses the reset-accumulator pattern: at each step the last observation state is
-# reset to zero and integrates that step's flow, which is read off directly as the expected count.
+md"""
+The observation uses the reset-accumulator pattern: at each step the last observation state is
+reset to zero and integrates that step's flow, which is read off directly as the expected count.
+"""
 
 init = (S = N - 20.0, E = 10.0, I = 10.0, R = 0.0, O_I_1 = 0.0, O_I_2 = 0.0)
 x0 = vcat([init[n] for n in ode_names(layout)], collect(stochastic.to_unconstrained((Rt = 1.0,))))
 nothing #hide
 
-# ## Unscented Kalman filter and smoother
-#
-# `build_full_dynamics` gives one filter step (RK4 over `supersample` substeps of the day), and
-# `build_measurement_model` the observation map. Process noise enters only the latents and the
-# accumulators, which `build_R1` sizes.
+md"""
+## Unscented Kalman filter and smoother
+
+`build_full_dynamics` gives one filter step (RK4 over `supersample` substeps of the day), and
+`build_measurement_model` the observation map. Process noise enters only the latents and the
+accumulators, which `build_R1` sizes.
+"""
 
 dynamics = build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 4, obs_jitter = 1.0)
 measure, n_obs, n_noise = build_measurement_model(layout, obs_model, stochastic)
@@ -79,7 +91,9 @@ ukf = UnscentedKalmanFilter{false, false, true, true}(
 )
 nothing #hide
 
-# Simulate 40 days from the model itself, then filter and smooth.
+md"""
+Simulate 40 days from the model itself, then filter and smooth.
+"""
 
 T = 40
 x_true, _, y_true = simulate(ukf, fill(Float64[], T), hyperparams)
@@ -89,8 +103,10 @@ sol = forward_trajectory(ukf, fill(Float64[], T), y_data)
 sm = smooth(sol)
 round(sol.ll; digits = 2)
 
-# The latent lives in log space, so its 95% bands are pushed through `exp`. The one-step-ahead
-# predicted mean is the observation minus the innovation.
+md"""
+The latent lives in log space, so its 95% bands are pushed through `exp`. The one-step-ahead
+predicted mean is the observation minus the innovation.
+"""
 
 Rt(x) = stochastic.extract(x).Rt
 li = layout.latent_range[1]
@@ -125,12 +141,14 @@ linkxaxes!(counts, filtered, smoothed)
 foreach(ax -> hidexdecorations!(ax; grid = false), (counts, filtered))
 fig
 
-# ## Bootstrap particle filter
-#
-# The same pieces adapt to a bootstrap particle filter. Unlike the UKF's Gaussian innovations, the
-# particle filter weights particles by the exact negative-binomial likelihood
-# (`build_measurement_logpdf`) and simulates true count draws (`build_pf_measurement`). The
-# accumulator jitter is a UKF device, so it is off here.
+md"""
+## Bootstrap particle filter
+
+The same pieces adapt to a bootstrap particle filter. Unlike the UKF's Gaussian innovations, the
+particle filter weights particles by the exact negative-binomial likelihood
+(`build_measurement_logpdf`) and simulates true count draws (`build_pf_measurement`). The
+accumulator jitter is a UKF device, so it is off here.
+"""
 
 pf_dynamics = build_pf_dynamics(
     build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 4, obs_jitter = 0.0), layout,
@@ -152,9 +170,11 @@ y_counts = [y[1:1] for y in y_pf]
 sol_pf = forward_trajectory(pf, fill(Float64[], T_pf), y_counts)
 round(sol_pf.ll; digits = 2)
 
-# Summaries come from the weighted particle cloud: the weighted mean and 95% interval of `Rt`, and
-# the effective sample size $1 / \sum_i w_i^2$, which shows how often the cloud degenerates and is
-# resampled.
+md"""
+Summaries come from the weighted particle cloud: the weighted mean and 95% interval of `Rt`, and
+the effective sample size $1 / \sum_i w_i^2$, which shows how often the cloud degenerates and is
+resampled.
+"""
 
 function wquantile(vals, w, q)
     idx = sortperm(vals)

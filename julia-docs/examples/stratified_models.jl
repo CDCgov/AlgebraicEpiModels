@@ -1,10 +1,14 @@
-# # Stratified models
-#
-# Stratification by age, place or risk group is not written by hand: a disease model and a
-# stratification model are built separately over the same typing and combined with
-# `typed_product`, the pullback over the type system. Every compartment is replicated per stratum,
-# disease progression happens within each stratum, and transmission gets one transition per
-# (infectee, infector) pair of strata: a full contact matrix.
+using Markdown #hide
+
+md"""
+# Stratified models
+
+Stratification by age, place or risk group is not written by hand: a disease model and a
+stratification model are built separately over the same typing and combined with
+`typed_product`, the pullback over the type system. Every compartment is replicated per stratum,
+disease progression happens within each stratum, and transmission gets one transition per
+(infectee, infector) pair of strata: a full contact matrix.
+"""
 
 using AlgebraicEpiMech
 using AlgebraicPetri
@@ -32,9 +36,11 @@ function solution_figure(sol, names; title, ylabel = "Population")
 end
 nothing #hide
 
-# ## Age-structured SIR
-#
-# The disease model and a two-group age stratification, both typed over `OnePopulationTyping`.
+md"""
+## Age-structured SIR
+
+The disease model and a two-group age stratification, both typed over `OnePopulationTyping`.
+"""
 
 typing = OnePopulationTyping()
 sir = create_model(typing, SIR())
@@ -42,26 +48,34 @@ age = AgeStratification([:child, :adult])
 age_model = create_model(typing, age)
 tnames(dom(age_model))
 
-# The stratification's transmission transitions are named `infectee_infector`. It also carries
-# reflexive transitions (`:child`, `:adult`) for the non-transmission types, so that
-# `typed_product` keeps recovery (and progression, waning and observation) within each group.
+md"""
+The stratification's transmission transitions are named `infectee_infector`. It also carries
+reflexive transitions (`:child`, `:adult`) for the non-transmission types, so that
+`typed_product` keeps recovery (and progression, waning and observation) within each group.
+"""
 
 to_graphviz(dom(age_model))
 
-# The product has three compartments per age group, four transmission transitions and one
-# recovery per group.
+md"""
+The product has three compartments per age group, four transmission transitions and one
+recovery per group.
+"""
 
 age_sir = typed_product(sir, age_model)
 to_graphviz(age_sir)
 
-# Observation is attached after composition. `attach_observation` is a pushout, not a factor of
-# the product, so it has to come last; each age group then gets its own delay chain.
+md"""
+Observation is attached after composition. `attach_observation` is a pushout, not a factor of
+the product, so it has to come last; each age group then gets its own delay chain.
+"""
 
 age_sir_pn = attach_observation(dom(age_sir), AtCompartment(:I); n_stages = 2)
 (species = flatten_symbols.(snames(age_sir_pn)), transitions = flatten_symbols.(tnames(age_sir_pn)))
 
-# Species and transition names are tuples such as `(:S, :child)`; `vectorfield_flat` flattens them
-# with underscores, which gives the names used in the state and parameter vectors below.
+md"""
+Species and transition names are tuples such as `(:S, :child)`; `vectorfield_flat` flattens them
+with underscores, which gives the names used in the state and parameter vectors below.
+"""
 
 N_child, N_adult = 500.0, 500.0
 u0 = LVector(
@@ -82,10 +96,12 @@ p = LVector(;
 sol = solve_net(age_sir_pn, u0, p, (0.0, 40.0))
 solution_figure(sol, keys(u0); title = "Age-structured SIR")
 
-# ## Setting a contact matrix programmatically
-#
-# The transition names follow a fixed pattern, so parameters for larger models can be generated
-# from a contact matrix instead of written out. Here is an SEIR model with three age groups.
+md"""
+## Setting a contact matrix programmatically
+
+The transition names follow a fixed pattern, so parameters for larger models can be generated
+from a contact matrix instead of written out. Here is an SEIR model with three age groups.
+"""
 
 groups = [:child, :adult, :elderly]
 population = Dict(:child => 300.0, :adult => 500.0, :elderly => 200.0)
@@ -105,31 +121,41 @@ transmission = [
 progression = [Symbol("$(t)_$(g)") => rate for (t, rate) in (("E_to_I", 0.25), ("I_to_R", 0.2)) for g in groups]
 p3 = LVector(; transmission..., progression...)
 
-u03 = LVector(; (
-    Symbol("$(c)_$(g)") => (c == :S ? population[g] - 5.0 : c == :I ? 5.0 : 0.0)
-        for g in groups for c in (:S, :E, :I, :R)
-)...)
+u03 = LVector(;
+    (
+        Symbol("$(c)_$(g)") => (c == :S ? population[g] - 5.0 : c == :I ? 5.0 : 0.0)
+            for g in groups for c in (:S, :E, :I, :R)
+    )...
+)
 sol3 = solve_net(age3_seir_pn, u03, p3, (0.0, 365.0))
-solution_figure(sol3, [Symbol("I_$g") for g in groups];
-    ylabel = "Infectious", title = "Age-structured SEIR, 3 groups")
+solution_figure(
+    sol3, [Symbol("I_$g") for g in groups];
+    ylabel = "Infectious", title = "Age-structured SEIR, 3 groups"
+)
 
-# ## Stacking stratifications
-#
-# Contact stratifications compose with `*` (or `compose_stratifications`). Two age groups times
-# two locations gives four product strata and a 4×4 contact matrix.
+md"""
+## Stacking stratifications
+
+Contact stratifications compose with `*` (or `compose_stratifications`). Two age groups times
+two locations gives four product strata and a 4×4 contact matrix.
+"""
 
 geo = GeographicStratification([:urban, :rural])
 age_geo = age * geo
 (strata = age_geo.stratum_names, label = age_geo.label)
 
-# Building the model from the product stratification is equivalent to composing sequentially.
+md"""
+Building the model from the product stratification is equivalent to composing sequentially.
+"""
 
 age_geo_sir = dom(typed_product(sir, create_model(typing, age_geo)))
 sequential = dom(typed_product(typed_product(sir, age_model), create_model(typing, geo)))
 (species = ns(age_geo_sir), transitions = nt(age_geo_sir), same_size_as_sequential = (ns(sequential), nt(sequential)) == (ns(age_geo_sir), nt(age_geo_sir)))
 
-# A separable contact structure (an age factor times a location factor) fills in all 16
-# transmission rates.
+md"""
+A separable contact structure (an age factor times a location factor) fills in all 16
+transmission rates.
+"""
 
 strata = [(a, g) for a in age.stratum_names for g in geo.stratum_names]
 pop = Dict((:child, :urban) => 300.0, (:child, :rural) => 200.0, (:adult, :urban) => 400.0, (:adult, :rural) => 300.0)
@@ -145,23 +171,31 @@ p4 = LVector(;
     )...,
     (Symbol("I_to_R_$(name(a, g))") => 0.2 for (a, g) in strata)...,
 )
-u04 = LVector(; (
-    Symbol("$(c)_$(name(a, g))") => (c == :S ? pop[(a, g)] : 0.0) for (a, g) in strata for c in (:S, :I, :R)
-)...)
+u04 = LVector(;
+    (
+        Symbol("$(c)_$(name(a, g))") => (c == :S ? pop[(a, g)] : 0.0) for (a, g) in strata for c in (:S, :I, :R)
+    )...
+)
 u04.S_childxurban -= 10.0
 u04.I_childxurban = 10.0
 
 sol4 = solve_net(age_geo_sir, u04, p4, (0.0, 60.0))
-solution_figure(sol4, [Symbol("I_$(name(a, g))") for (a, g) in strata];
-    ylabel = "Infectious", title = "Age × geography SIR, seeded in urban children")
+solution_figure(
+    sol4, [Symbol("I_$(name(a, g))") for (a, g) in strata];
+    ylabel = "Infectious", title = "Age × geography SIR, seeded in urban children"
+)
 
-# Final attack rate per stratum:
+md"""
+Final attack rate per stratum:
+"""
 
 Dict(name(a, g) => round(sol4[Symbol("R_$(name(a, g))")][end] / pop[(a, g)]; digits = 3) for (a, g) in strata)
 
-# A third factor multiplies again: age × geography × risk has eight strata and 64 transmission
-# rates, so richer stratifications call for structured (for example separable) parameterisations
-# rather than free contact matrices.
+md"""
+A third factor multiplies again: age × geography × risk has eight strata and 64 transmission
+rates, so richer stratifications call for structured (for example separable) parameterisations
+rather than free contact matrices.
+"""
 
 risk = ContactStratification([:low_risk, :high_risk], :risk)
 length((age * geo * risk).stratum_names)

@@ -1,13 +1,17 @@
-# # Multistrain models and immune history
-#
-# Strain structure is another factor in a `typed_product`. How strains interact is decided by the
-# typing that the disease model and the strain model share:
-#
-# | Strain model | Typing | Strains |
-# | --- | --- | --- |
-# | `NoCrossImmunity` | `OnePopulationTyping` | circulate independently (e.g. influenza subtypes) |
-# | `CompleteCrossImmunity` | `UninfectedInfectedTyping` | compete for one susceptible pool (e.g. SARS-CoV-2 variants) |
-# | `ImmuneHistory` | `UninfectedInfectedTyping` | partial escape, tracked by each person's infection history |
+using Markdown #hide
+
+md"""
+# Multistrain models and immune history
+
+Strain structure is another factor in a `typed_product`. How strains interact is decided by the
+typing that the disease model and the strain model share:
+
+| Strain model | Typing | Strains |
+| --- | --- | --- |
+| `NoCrossImmunity` | `OnePopulationTyping` | circulate independently (e.g. influenza subtypes) |
+| `CompleteCrossImmunity` | `UninfectedInfectedTyping` | compete for one susceptible pool (e.g. SARS-CoV-2 variants) |
+| `ImmuneHistory` | `UninfectedInfectedTyping` | partial escape, tracked by each person's infection history |
+"""
 
 using AlgebraicEpiMech
 using AlgebraicPetri
@@ -33,10 +37,12 @@ function plot_solution!(ax, sol, names)
 end
 nothing #hide
 
-# ## Independent strains
-#
-# With one population type every compartment is replicated per strain and nothing couples the
-# copies.
+md"""
+## Independent strains
+
+With one population type every compartment is replicated per strain and nothing couples the
+copies.
+"""
 
 typing = OnePopulationTyping()
 independent = dom(typed_product(create_model(typing, SIR()), create_model(typing, NoCrossImmunity([:h1n1, :h3n2]))))
@@ -57,11 +63,13 @@ ax = Axis(fig[1, 1]; xlabel = "Time (days)", ylabel = "Infectious", title = "Ind
 plot_solution!(ax, sol, [:I_h1n1, :I_h3n2])
 fig
 
-# ## Competing strains
-#
-# `UninfectedInfectedTyping` gives uninfected and infected compartments different types, so the
-# strain model can leave `S` unstratified. All strains then draw on one shared susceptible pool, and
-# recovery from either strain protects against both.
+md"""
+## Competing strains
+
+`UninfectedInfectedTyping` gives uninfected and infected compartments different types, so the
+strain model can leave `S` unstratified. All strains then draw on one shared susceptible pool, and
+recovery from either strain protects against both.
+"""
 
 ui_typing = UninfectedInfectedTyping(uninfected_type = :Susceptible, infected_type = :Infectious)
 competing = dom(typed_product(create_model(ui_typing, SIR()), create_model(ui_typing, CompleteCrossImmunity([:wild_type, :variant]))))
@@ -71,7 +79,9 @@ competing = dom(typed_product(create_model(ui_typing, SIR()), create_model(ui_ty
 
 to_graphviz(competing)
 
-# The variant is more transmissible but starts behind.
+md"""
+The variant is more transmissible but starts behind.
+"""
 
 u0_c = LVector(S_susceptible = N - 10.0, I_wild_type = 8.0, I_variant = 2.0, R_wild_type = 0.0, R_variant = 0.0)
 p_c = LVector(transmission_S_I_wild_type = 0.5 / N, I_to_R_wild_type = 0.25, transmission_S_I_variant = 0.8 / N, I_to_R_variant = 0.3)
@@ -85,18 +95,20 @@ linkxaxes!(ax_infected, ax_susceptible)
 hidexdecorations!(ax_infected; grid = false)
 fig
 
-# ## Immune history
-#
-# `ImmuneHistory` is a stratification over `UninfectedInfectedTyping` that tracks which strains each
-# susceptible is immune to. After composition, susceptibles are indexed by an immune class `h` and
-# the infected compartments by `(h, i)`: prior history and infecting strain. Two behaviours follow
-# from the product rather than being coded:
-#
-# 1. **Escape**: a class immune to the strain set `h` has transmission transitions only for strains
-#    outside `h`.
-# 2. **History update on reversion**: the only move between classes is reversion `R → S`, which sends
-#    `(h, i)` to `h ∪ {i}` with `FullHistory()` ($2^n$ classes) or to `{i}` with
-#    `LatestInfection()` ($n + 1$ classes). Immunity is gained on rejoining `S`, not on leaving it.
+md"""
+## Immune history
+
+`ImmuneHistory` is a stratification over `UninfectedInfectedTyping` that tracks which strains each
+susceptible is immune to. After composition, susceptibles are indexed by an immune class `h` and
+the infected compartments by `(h, i)`: prior history and infecting strain. Two behaviours follow
+from the product rather than being coded:
+
+1. **Escape**: a class immune to the strain set `h` has transmission transitions only for strains
+   outside `h`.
+2. **History update on reversion**: the only move between classes is reversion `R → S`, which sends
+   `(h, i)` to `h ∪ {i}` with `FullHistory()` ($2^n$ classes) or to `{i}` with
+   `LatestInfection()` ($n + 1$ classes). Immunity is gained on rejoining `S`, not on leaving it.
+"""
 
 ui = UninfectedInfectedTyping()
 seirs = create_model(ui, SEIRS())
@@ -107,22 +119,26 @@ latest = dom(typed_product(seirs, create_model(ui, ImmuneHistory([:current, :inv
 
 to_graphviz(latest)
 
-# Read the escape off the graph: `S_U_current` (immune to the incumbent) is infected by the invader
-# into `E_invader_from_current`, and has no transition for infection by `current`. Recovery leads to
-# `R_invader_from_current`, and reversion folds the strain into the history, here overwriting it to
-# `S_U_invader`.
-#
-# With `FullHistory()` (the default) immunity accumulates instead, so the same recovered
-# compartment reverts to `S_U_current_invader`, immune to both.
+md"""
+Read the escape off the graph: `S_U_current` (immune to the incumbent) is infected by the invader
+into `E_invader_from_current`, and has no transition for infection by `current`. Recovery leads to
+`R_invader_from_current`, and reversion folds the strain into the history, here overwriting it to
+`S_U_invader`.
+
+With `FullHistory()` (the default) immunity accumulates instead, so the same recovered
+compartment reverts to `S_U_current_invader`, immune to both.
+"""
 
 full = dom(typed_product(seirs, create_model(ui, ImmuneHistory([:current, :invader]))))
 (species = ns(full), transitions = nt(full))
 
-# ### Escape in a mostly immune population
-#
-# Seed a population that is almost entirely immune to the incumbent, with a small invader
-# introduction and no incumbent circulating. Under complete cross-immunity nothing could grow; here
-# the invader escapes into `S_U_current`. Rates are set by transition role.
+md"""
+### Escape in a mostly immune population
+
+Seed a population that is almost entirely immune to the incumbent, with a small invader
+introduction and no incumbent circulating. Under complete cross-immunity nothing could grow; here
+the invader escapes into `S_U_current`. Rates are set by transition role.
+"""
 
 species = flatten_symbols.(snames(latest))
 transitions = flatten_symbols.(tnames(latest))
@@ -132,7 +148,7 @@ u0_h.S_U_current = N - 20.0
 u0_h.S_U_naive = 15.0
 u0_h.I_invader_from_naive = 5.0
 
-β = Dict(:current => 0.30, :invader => 0.45)
+β = Dict(:current => 0.3, :invader => 0.45)
 function rate(t)
     s = string(t)
     occursin("infect_current", s) && return β[:current] / N
@@ -154,7 +170,9 @@ lines!(ax, sol_h.t, sol_h[:S_U_invader]; label = "S immune to invader", linewidt
 axislegend(ax; position = :rt)
 fig
 
-# The invader wave drains `S_U_current`, and recovereds move on to `S_U_invader`: escape arises from
-# the composition, with no seeded pulse. Swapping `SEIRS()` for any other template, for example
-# `SEIRS(number_I_stages = 3)`, composes with the same immune-history factor, and observation can be
-# attached to the composed net with `attach_observation`.
+md"""
+The invader wave drains `S_U_current`, and recovereds move on to `S_U_invader`: escape arises from
+the composition, with no seeded pulse. Swapping `SEIRS()` for any other template, for example
+`SEIRS(number_I_stages = 3)`, composes with the same immune-history factor, and observation can be
+attached to the composed net with `attach_observation`.
+"""

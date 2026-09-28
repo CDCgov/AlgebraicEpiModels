@@ -19,6 +19,6 @@ for name in names
     foreach(f -> occursin(stale, f) && rm(joinpath(OUT, f)), readdir(OUT))
     Literate.markdown(
         joinpath(SRC, "$name.jl"), OUT; flavor = Literate.CommonMarkFlavor(), execute = true, credit = false,
-        image_formats = IMAGE_FORMATS,
+        image_formats = IMAGE_FORMATS, mdstrings = true,
     )
 end
