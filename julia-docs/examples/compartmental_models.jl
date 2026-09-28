@@ -5,8 +5,10 @@ md"""
 
 This example builds compartmental models with `AlgebraicEpiMech` and solves them as ODEs. A model
 is a Petri net typed over an epidemiological *type system*: species are compartments, transitions
-are the flows between them, and the typing is what lets models be composed later (see
-[Stratified models](stratified_models.md)). Drawing the nets with `to_graphviz` needs the
+are the flows between them. In this example, we won't focus on model composition, but the typing
+is what lets models be composed later (see [Stratified models](stratified_models.md)).
+
+Drawing the nets with `to_graphviz` needs the
 [Graphviz](https://graphviz.org/download/) `dot` executable on the `PATH`.
 """
 
@@ -21,10 +23,13 @@ using SymbolicIndexingInterface: SymbolCache
 md"""
 ## A simple SIR model
 
-`create_model` pairs a typing with a model template and returns a typed Petri net, a map
-$P \to P_{\text{type}}$ from the model into the type system. For one model on its own the typing
-is redundant, but it is what makes composition with other models over the same typing
-well-defined.
+`create_model` pairs a typing with a model template and returns a typed Petri net, a morphism
+$P \to P_{\text{type}}$ from the model into the type system.
+From this morphism, we can recover the **domain** of the typed Petri net, which represents the actual model itself.
+As mentioned elsewhere, we can think of the "types" as like a structure preserving "join key" in loose
+analogy to a database join key.
+For one model on its own the typing is redundant, but it is what makes composition with other models over
+the same typing well-defined.
 """
 
 typing = OnePopulationTyping()
@@ -32,7 +37,19 @@ sir_typed = create_model(typing, SIR())
 to_graphviz(sir_typed)
 
 md"""
-The domain of the typed net is the model itself.
+How should we interpret the diagrams? 
+
+Both diagrams are petri nets with, 
+
+- Circles are species, which are numbers of individuals.
+- Boxes are transitions and have one rate parameter each.
+
+Solid arrow number labels are stoichiometric coefficients. We can then use these diagrams to read
+the mass-action kinetics of the model: each transition fires at its rate times the product of its inputs,
+and moves individuals from inputs to outputs. Transmission, for example, consumes one `S` and one `I`
+and produces two `I`, so it fires at `transmission_S_I * S * I` and changes `S` by -1 and `I` by +1.
+
+Note that the domain of the typed net is a petri-net describing the model itself, the codomain is the type system.
 """
 
 sir_pn = dom(sir_typed)
@@ -43,19 +60,15 @@ sir_pn = dom(sir_typed)
 to_graphviz(sir_pn)
 
 md"""
-Circles are species (the ODE state) and boxes are transitions (one rate parameter each). Arrow
-labels are stoichiometric coefficients. Read as mass-action kinetics, each transition fires at its
-rate times the product of its inputs, and moves individuals from inputs to outputs. Transmission,
-for example, consumes one `S` and one `I` and produces two `I`, so it fires at
-`transmission_S_I * S * I` and changes `S` by -1 and `I` by +1.
-
 Transition names are unique and descriptive: a single-input transition is `input_to_output`
 (`I_to_R`), and a multi-input transition is `box_input1_input2` (`transmission_S_I`). That makes
 parameter assignment unambiguous.
 
 `vectorfield_flat` turns the net into an in-place ODE right-hand side `f!(du, u, p, t)` over
-labelled state and parameter vectors. Naming the state in the `ODEFunction` lets the solution be
-indexed and plotted by compartment.
+labelled state and parameter vectors. 
+
+We can use the `Tsit5` solver from the `SciML` package `OrdinaryDiffEqTsit5` to integrate the ODEs generated from the Petri net.
+NB: Naming the state in the `ODEFunction` lets the solution be indexed and plotted by compartment.
 """
 
 function solve_net(pn, u0, p, tspan)
@@ -83,7 +96,9 @@ sol = solve_net(sir_pn, u0, p, tspan)
 solution_figure(sol, keys(u0); title = "SIR")
 
 md"""
-## SEIR
+## Other Compartmental Models
+
+### SEIR Model
 """
 
 seir_typed = create_model(typing, SEIR())
@@ -98,7 +113,7 @@ sol_seir = solve_net(seir_pn, u0_seir, p_seir, tspan)
 solution_figure(sol_seir, keys(u0_seir); title = "SEIR")
 
 md"""
-## Multi-stage compartments
+### Multi-stage compartments
 
 Splitting a compartment into sequential stages gives phase-type (for equal rates, Erlang)
 dwell times instead of exponential ones. Here the infectious period has four stages, each with
@@ -141,13 +156,13 @@ md"""
 ## Observation delay chains
 
 Surveillance sees a delayed version of the epidemic. `attach_observation` adds an observation
-delay chain to a built net by pushout:
+delay chain to a built net by pushout. There are two observation flavors:
 
 - `AtCompartment(:X)` samples a compartment: a catalytic transition `X → X + O_X_1` fires at a
-  rate times the occupancy of `X` and leaves `X` unchanged (prevalence-type signals such as test
-  positivity).
-- `AtEvent(:transition)` records a transition's flow instead (incidence-type signals such as
-  emergency-department visits).
+  rate times the occupancy of `X` and leaves `X` unchanged. This is a **prevalence**-type signal such as test
+  positivity.
+- `AtEvent(:transition)` records a transition's flow instead. This is an **incidence**-type signals such as
+  emergency-department arrivals.
 
 The chain `O_X_1 → O_X_2 → …` is an Erlang delay; the last stage accumulates. Because the chain is
 part of the net, attaching it to a stratified model gives each stratum its own chain.
