@@ -1,0 +1,60 @@
+name: AlgebraicEpiModels smoke test
+
+on:
+  pull_request:
+    paths:
+      - AlgebraicEpiModels/**
+      - AlgebraicEpiMech/**
+      - ConfigurableEpi/**
+      - .github/workflows/test-algebraicepimodels.yaml
+  push:
+    branches: [master, main]
+    paths:
+      - AlgebraicEpiModels/**
+      - AlgebraicEpiMech/**
+      - ConfigurableEpi/**
+      - .github/workflows/test-algebraicepimodels.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Julia 1.13
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v7
+    - uses: julia-actions/setup-julia@v3
+      with:
+        version: '1.13'
+    - uses: julia-actions/cache@v3
+    - name: Install and load the wrapper package
+      env:
+        JULIA_PKG_PRECOMPILE_AUTO: '0'
+      shell: julia --color=yes {0}
+      run: |
+        using Pkg
+
+        Pkg.activate(mktempdir())
+        Pkg.add(url = ENV["GITHUB_WORKSPACE"], subdir = "AlgebraicEpiModels")
+
+        using AlgebraicEpiModels
+
+        wrapper = AlgebraicEpiModels
+        mech = wrapper.AlgebraicEpiMech
+        configurable = wrapper.ConfigurableEpi
+        mech_exports = Set(names(mech))
+        configurable_exports = Set(names(configurable))
+
+        conflicts = filter(intersect(mech_exports, configurable_exports)) do name
+            getproperty(mech, name) !== getproperty(configurable, name)
+        end
+        @assert isempty(conflicts) "Conflicting exports: $(sort!(collect(conflicts)))"
+
+        for name in union(mech_exports, configurable_exports)
+            @assert isdefined(wrapper, name) "Missing re-export: $name"
+            source = name in mech_exports ? mech : configurable
+            @assert getproperty(wrapper, name) === getproperty(source, name)
+        end
