@@ -1,11 +1,16 @@
+
 # Low-level filtering
 
-[`build_inference`](../api/configurableepi.md#Inference) wraps a model in a ready-made engine (see [Inference engines](inference_engines.md)).
-Underneath, `ConfigurableEpi` builds each piece of a state-space model separately, and those pieces can be wired into [LowLevelParticleFilters.jl](https://github.com/baggepinnen/LowLevelParticleFilters.jl) filters directly.
-That gives access to per-step filtered states, smoothing and custom filters.
-This example simulates data from a seasonal SEIRS model with a latent transmission modifier, then recovers the latent path with an unscented Kalman filter and smoother and with a bootstrap particle filter.
+[`build_inference`](../api/configurableepi.md#Inference) wraps a model in
+a ready-made engine (see [Inference engines](inference_engines.md)). Underneath, `ConfigurableEpi`
+builds each piece of a state-space model separately, and those pieces can be wired into
+[LowLevelParticleFilters.jl](https://github.com/baggepinnen/LowLevelParticleFilters.jl) filters
+directly. That gives access to per-step filtered states, smoothing and custom filters. This
+example simulates data from a seasonal SEIRS model with a latent transmission modifier, then
+recovers the latent path with an unscented Kalman filter and smoother and with a bootstrap
+particle filter.
 
-```julia
+````julia
 using ConfigurableEpi
 using AlgebraicEpiMech
 using Catlab: dom
@@ -15,14 +20,16 @@ using LowLevelParticleFilters: UnscentedKalmanFilter, AdvancedParticleFilter, si
     forward_trajectory, smooth, TrivialParams
 import Random
 Random.seed!(2026)
-```
+````
 
 ## The model
 
-An SEIRS model with the infectious compartment sampled into a two-stage observation chain.
-The rate function receives the constrained latent drivers, the hyperparameters and model time in days; here transmission is a baseline $R_0$ times a seasonal cosine times a latent modifier `Rt` that mean-reverts to 1.
+An SEIRS model with the infectious compartment sampled into a two-stage observation chain. The
+rate function receives the constrained latent drivers, the hyperparameters and model time in
+days; here transmission is a baseline $R_0$ times a seasonal cosine times a latent modifier
+`Rt` that mean-reverts to 1.
 
-```julia
+````julia
 N = 10_000.0
 hyperparams = (gamma = 1.0, R0_baseline = 2.0, seasonal_amp = 0.15, N = N)
 
@@ -34,12 +41,14 @@ function rates(latent, hyper, t)
 end
 rate_defaults = (E_to_I = 0.5, I_to_R = 1.0, R_to_S = 1.0 / 180, obs_inflow_I = 1.0, O_I_1_to_O_I_2 = 0.5)
 petri_vf! = build_petri_vf(pn, rates; defaults = rate_defaults)
-```
+````
 
-`Rt` is an AR(1) latent (an Ornstein–Uhlenbeck process sampled each step) in the log chart of its `init` prior.
-The `StateLayout` places compartments, observation accumulators and latents in one state vector, and `build_stochastic_update` turns the driver specs into the process-noise update.
+`Rt` is an AR(1) latent (an Ornstein–Uhlenbeck process sampled each step) in the log chart of
+its `init` prior. The `StateLayout` places compartments, observation accumulators and latents in
+one state vector, and `build_stochastic_update` turns the driver specs into the process-noise
+update.
 
-```julia
+````julia
 latent_specs = (
     AR1ParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.3), mu = 1.0, tau = 9.5, sigma = 0.34),
 )
@@ -47,25 +56,27 @@ layout = StateLayout(pn, latent_specs; signal_names = (:reports,))
 stochastic = build_stochastic_update(layout, latent_specs)
 obs_model = (SignalObservationSpec(1, NegBinomialNoise(phi = 100.0); mean_modifier = 1.0, name = :reports),)
 (ode_states = ode_names(layout), latents = layout.latent_names, dimension = layout.total_dim)
-```
+````
 
-```
+````
 (ode_states = (:S, :I, :E, :R, :O_I_1, :O_I_2), latents = (:Rt,), dimension = 7)
-```
+````
 
-The observation uses the reset-accumulator pattern: at each step the last observation state is reset to zero and integrates that step's flow, which is read off directly as the expected count.
+The observation uses the reset-accumulator pattern: at each step the last observation state is
+reset to zero and integrates that step's flow, which is read off directly as the expected count.
 
-```julia
+````julia
 init = (S = N - 20.0, E = 10.0, I = 10.0, R = 0.0, O_I_1 = 0.0, O_I_2 = 0.0)
 x0 = vcat([init[n] for n in ode_names(layout)], collect(stochastic.to_unconstrained((Rt = 1.0,))))
-```
+````
 
 ## Unscented Kalman filter and smoother
 
-`build_full_dynamics` gives one filter step (RK4 over `supersample` substeps of the day), and `build_measurement_model` the observation map.
-Process noise enters only the latents and the accumulators, which `build_R1` sizes.
+`build_full_dynamics` gives one filter step (RK4 over `supersample` substeps of the day), and
+`build_measurement_model` the observation map. Process noise enters only the latents and the
+accumulators, which `build_R1` sizes.
 
-```julia
+````julia
 dynamics = build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 4, obs_jitter = 1.0)
 measure, n_obs, n_noise = build_measurement_model(layout, obs_model, stochastic)
 R1 = Matrix(build_R1(layout))
@@ -77,11 +88,11 @@ ukf = UnscentedKalmanFilter{false, false, true, true}(
     p = hyperparams, ny = n_obs, nu = 0, weight_params = TrivialParams(),
     cholesky! = R -> cholesky!(Positive, Matrix(R)),
 )
-```
+````
 
 Simulate 40 days from the model itself, then filter and smooth.
 
-```julia
+````julia
 T = 40
 x_true, _, y_true = simulate(ukf, fill(Float64[], T), hyperparams)
 y_data = [[round(max(y[1], 0.0))] for y in y_true]
@@ -89,16 +100,16 @@ y_data = [[round(max(y[1], 0.0))] for y in y_true]
 sol = forward_trajectory(ukf, fill(Float64[], T), y_data)
 sm = smooth(sol)
 round(sol.ll; digits = 2)
-```
+````
 
-```
+````
 -171.88
-```
+````
 
-The latent lives in log space, so its 95% bands are pushed through `exp`.
-The one-step-ahead predicted mean is the observation minus the innovation.
+The latent lives in log space, so its 95% bands are pushed through `exp`. The one-step-ahead
+predicted mean is the observation minus the innovation.
 
-```julia
+````julia
 Rt(x) = stochastic.extract(x).Rt
 li = layout.latent_range[1]
 band(means, covs) = (
@@ -131,16 +142,17 @@ axislegend(smoothed; position = :rt)
 linkxaxes!(counts, filtered, smoothed)
 foreach(ax -> hidexdecorations!(ax; grid = false), (counts, filtered))
 fig
-```
-![](low_level_filtering-14.png)
+````
+![](low_level_filtering-15.png)
 
 ## Bootstrap particle filter
 
-The same pieces adapt to a bootstrap particle filter.
-Unlike the UKF's Gaussian innovations, the particle filter weights particles by the exact negative-binomial likelihood (`build_measurement_logpdf`) and simulates true count draws (`build_pf_measurement`).
-The accumulator jitter is a UKF device, so it is off here.
+The same pieces adapt to a bootstrap particle filter. Unlike the UKF's Gaussian innovations, the
+particle filter weights particles by the exact negative-binomial likelihood
+(`build_measurement_logpdf`) and simulates true count draws (`build_pf_measurement`). The
+accumulator jitter is a UKF device, so it is off here.
 
-```julia
+````julia
 pf_dynamics = build_pf_dynamics(
     build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 4, obs_jitter = 0.0), layout,
 )
@@ -160,15 +172,17 @@ x_pf, _, y_pf = simulate(pf, fill(Float64[], T_pf), hyperparams)
 y_counts = [y[1:1] for y in y_pf]
 sol_pf = forward_trajectory(pf, fill(Float64[], T_pf), y_counts)
 round(sol_pf.ll; digits = 2)
-```
+````
 
-```
+````
 -171.08
-```
+````
 
-Summaries come from the weighted particle cloud: the weighted mean and 95% interval of `Rt`, and the effective sample size $1 / \sum_i w_i^2$, which shows how often the cloud degenerates and is resampled.
+Summaries come from the weighted particle cloud: the weighted mean and 95% interval of `Rt`, and
+the effective sample size $1 / \sum_i w_i^2$, which shows how often the cloud degenerates and is
+resampled.
 
-```julia
+````julia
 function wquantile(vals, w, q)
     idx = sortperm(vals)
     cw = cumsum(w[idx]) ./ sum(w)
@@ -197,5 +211,6 @@ axislegend(ess_panel; position = :rt)
 linkxaxes!(rt_panel, ess_panel)
 hidexdecorations!(rt_panel; grid = false)
 fig
-```
-![](low_level_filtering-18.png)
+````
+![](low_level_filtering-19.png)
+

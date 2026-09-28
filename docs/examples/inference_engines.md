@@ -1,17 +1,21 @@
+
 # Inference engines
 
-`ConfigurableEpi` fits a model to a count series and forecasts ahead through one contract: describe the model once as an `EpiModel`, build an engine with `build_inference(filter, hyper, model; ...)`, and drive it with `fit_forecast!`.
-Three pairings of a state filter and a method for the static hyperparameters are available:
+`ConfigurableEpi` fits a model to a count series and forecasts ahead through one contract:
+describe the model once as an `EpiModel`, build an engine with
+`build_inference(filter, hyper, model; ...)`, and drive it with `fit_forecast!`. Three pairings of
+a state filter and a method for the static hyperparameters are available:
 
-  | Filter             | Hyperparameters | Engine                                                                          |
-  | ------------------ | --------------- | ------------------------------------------------------------------------------- |
-  | `UKF()`            | `Optimise()`    | unscented Kalman filter; hyperparameters maximise the marginal log-posterior    |
-  | `PF(n_particles)`  | `LiuWest()`     | bootstrap particle filter; hyperparameters learned online in the particle cloud |
-  | `EnKF(n_ensemble)` | `EKP(...)`      | ensemble Kalman filter; hyperparameters by outer ensemble Kalman inversion      |
+| Filter | Hyperparameters | Engine |
+| --- | --- | --- |
+| `UKF()` | `Optimise()` | unscented Kalman filter; hyperparameters maximise the marginal log-posterior |
+| `PF(n_particles)` | `LiuWest()` | bootstrap particle filter; hyperparameters learned online in the particle cloud |
+| `EnKF(n_ensemble)` | `EKP(...)` | ensemble Kalman filter; hyperparameters by outer ensemble Kalman inversion |
 
-This example simulates weekly counts from a seasonal SEIRS model, fits the three engines to the same data and compares their forecasts.
+This example simulates weekly counts from a seasonal SEIRS model, fits the three engines to the
+same data and compares their forecasts.
 
-```julia
+````julia
 using ConfigurableEpi
 using AlgebraicEpiMech
 using Catlab: dom
@@ -20,13 +24,14 @@ using DataFrames, LinearAlgebra, Distributions
 using LowLevelParticleFilters: AdvancedParticleFilter, simulate
 import Logging, Random
 Random.seed!(11)
-```
+````
 
 ## The model
 
-An SEIRS model observed through a two-stage chain on the incidence of infection (`AtEvent(:transmission)`), with a latent AR(1) modifier `Rt` on transmission.
+An SEIRS model observed through a two-stage chain on the incidence of infection
+(`AtEvent(:transmission)`), with a latent AR(1) modifier `Rt` on transmission.
 
-```julia
+````julia
 N = 1.0e5
 pn = attach_observation(dom(create_model(OnePopulationTyping(), SEIRS())), AtEvent(:transmission); n_stages = 2)
 function rates(latent, hyper, t)
@@ -42,16 +47,17 @@ drivers = (AR1ParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.1), mu = 1.0, 
 layout = StateLayout(pn, drivers; signal_names = (:cases,))
 stochastic = build_stochastic_update(layout, drivers)
 ode_names(layout)
-```
+````
 
-```
+````
 (:S, :I, :E, :R, :O_transmission_1, :O_transmission_2)
-```
+````
 
-Reports are a negative-binomial draw around 10% of new infections.
-`R0` is the hyperparameter to learn: `hyperparams` holds its starting value (and the fixed values of the rest), and `priors` its prior.
+Reports are a negative-binomial draw around 10% of new infections. `R0` is the hyperparameter to
+learn: `hyperparams` holds its starting value (and the fixed values of the rest), and `priors`
+its prior.
 
-```julia
+````julia
 observation = (SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); mean_modifier = 0.1, name = :cases),)
 seed = (S = N - 100.0, E = 50.0, I = 50.0, R = 0.0, O_transmission_1 = 0.0, O_transmission_2 = 0.0)
 x0 = vcat([seed[n] for n in ode_names(layout)], collect(stochastic.to_unconstrained((Rt = 1.0,))))
@@ -62,14 +68,15 @@ model = EpiModel(;
     priors = (R0 = positive_gaussian(:R0, 1.5, 0.5),),
     initial_state = x0,
 )
-```
+````
 
 ## Simulated data
 
-Fourteen weeks are simulated with a true `R0` of 1.8, using the particle-filter building blocks at a weekly step (daily RK4 substeps).
-The engines see the first ten weeks, up to just after the peak; the last four are held out to check the forecasts of the decline.
+Fourteen weeks are simulated with a true `R0` of 1.8, using the particle-filter building blocks at
+a weekly step (daily RK4 substeps). The engines see the first ten weeks, up to just after the
+peak; the last four are held out to check the forecasts of the decline.
 
-```julia
+````julia
 truth = merge(model.hyperparams, (R0 = 1.8,))
 step = build_full_dynamics(vf!, stochastic, layout; dt = 7.0, supersample = 7, obs_jitter = 0.0)
 simulator = AdvancedParticleFilter(
@@ -81,14 +88,16 @@ _, _, y = simulate(simulator, fill(Float64[], 14), truth)
 cases = first.(y)
 fit_weeks, n_ahead = 10, 4
 observed = cases[1:fit_weeks]
-```
+````
 
 ## Fitting and forecasting
 
-Each engine is built from the same model and the same cadence: weekly steps (`dt = 7`) with seven RK4 substeps.
-`fit_forecast!(engine, observations, forecast_number)` assimilates the series (`missing` marks a gap) and forecasts `n_ahead` steps; `forecast_number` counts forecast origins and drives re-optimisation in a rolling backtest.
+Each engine is built from the same model and the same cadence: weekly steps (`dt = 7`) with
+seven RK4 substeps. `fit_forecast!(engine, observations, forecast_number)` assimilates the
+series (`missing` marks a gap) and forecasts `n_ahead` steps; `forecast_number` counts forecast
+origins and drives re-optimisation in a rolling backtest.
 
-```julia
+````julia
 cadence = (; dt = 7.0, supersample = 7, n_ahead, rng = Random.Xoshiro(2))
 engines = [
     "UKF + Optimise" => build_inference(UKF(), Optimise(maxiters_burnin = 100), model; cadence...),
@@ -96,16 +105,19 @@ engines = [
     "EnKF + EKP" => build_inference(EnKF(n_ensemble = 60), EKP(n_ensemble = 20, iterations = 4, burnin_iterations = 8), model; cadence...),
 ]
 results = [name => fit_forecast!(engine, observed, 1) for (name, engine) in engines]
-```
+````
 
-Each result carries `fitted_means` over the series, forecast `quantiles` as a `[horizon, quantile]` matrix at `DEFAULT_QS`, and a `summary` table of estimates and diagnostics.
-Each engine reports `R0` (true value 1.8, prior mean 1.5) in its own terms: the optimiser a posterior mode, the particle filter quantiles of its cloud, and EKP the ensemble estimate with quantiles.
+Each result carries `fitted_means` over the series, forecast `quantiles` as a
+`[horizon, quantile]` matrix at `DEFAULT_QS`, and a `summary` table of estimates and
+diagnostics. Each engine reports `R0` (true value 1.8, prior mean 1.5) in its own terms: the
+optimiser a posterior mode, the particle filter quantiles of its cloud, and EKP the ensemble
+estimate with quantiles.
 
-```julia
+````julia
 vcat([insertcols(filter(:parameter => ==("R0"), r.summary), 1, :engine => name) for (name, r) in results]...)
-```
+````
 
-```
+````
 10×4 DataFrame
  Row │ engine          parameter  statistic  value
      │ String          String     String     Float64
@@ -120,9 +132,9 @@ vcat([insertcols(filter(:parameter => ==("R0"), r.summary), 1, :engine => name) 
    8 │ EnKF + EKP      R0         ekp_q05    1.4495
    9 │ EnKF + EKP      R0         ekp_q50    1.73216
   10 │ EnKF + EKP      R0         ekp_q95    2.32056
-```
+````
 
-```julia
+````julia
 qi(q) = findfirst(==(q), DEFAULT_QS)
 horizon = (fit_weeks + 1):(fit_weeks + n_ahead)
 fig = Figure(size = (760, 900))
@@ -141,12 +153,13 @@ end
 linkxaxes!(axes...)
 foreach(ax -> hidexdecorations!(ax; grid = false), axes[1:(end - 1)])
 fig
-```
-![](inference_engines-13.png)
+````
+![](inference_engines-14.png)
 
 ## From a run config
 
-The same engines can be chosen and tuned from a TOML run config, whose `[filter.<name>]` and `[hyper.<name>]` tables select the pairing:
+The same engines can be chosen and tuned from a TOML run config, whose `[filter.<name>]` and
+`[hyper.<name>]` tables select the pairing:
 
 ```toml
 n_ahead = 4
@@ -161,5 +174,7 @@ n_particles = 2000
 discount = 0.97
 ```
 
-`build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` then reads the pairing and cadence from the file.
-See [ConfigurableEpi](../packages/configurableepi.md) for the full run config.
+`build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` then reads the
+pairing and cadence from the file. See [ConfigurableEpi](../packages/configurableepi.md) for the
+full run config.
+

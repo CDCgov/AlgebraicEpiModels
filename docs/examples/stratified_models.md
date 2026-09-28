@@ -1,9 +1,13 @@
+
 # Stratified models
 
-Stratification by age, place or risk group is not written by hand: a disease model and a stratification model are built separately over the same typing and combined with `typed_product`, the pullback over the type system.
-Every compartment is replicated per stratum, disease progression happens within each stratum, and transmission gets one transition per (infectee, infector) pair of strata: a full contact matrix.
+Stratification by age, place or risk group is not written by hand: a disease model and a
+stratification model are built separately over the same typing and combined with
+`typed_product`, the pullback over the type system. Every compartment is replicated per stratum,
+disease progression happens within each stratum, and transmission gets one transition per
+(infectee, infector) pair of strata: a full contact matrix.
 
-```julia
+````julia
 using AlgebraicEpiMech
 using AlgebraicPetri
 using AlgebraicPetri.TypedPetri: typed_product
@@ -28,21 +32,21 @@ function solution_figure(sol, names; title, ylabel = "Population")
     Legend(fig[1, 2], ax; framevisible = false, nbanks = length(names) > 6 ? 2 : 1)
     return fig
 end
-```
+````
 
 ## Age-structured SIR
 
 The disease model and a two-group age stratification, both typed over `OnePopulationTyping`.
 
-```julia
+````julia
 typing = OnePopulationTyping()
 sir = create_model(typing, SIR())
 age = AgeStratification([:child, :adult])
 age_model = create_model(typing, age)
 tnames(dom(age_model))
-```
+````
 
-```
+````
 10-element Vector{Symbol}:
  :child_child
  :child_adult
@@ -54,39 +58,42 @@ tnames(dom(age_model))
  :adult
  :adult
  :adult
-```
+````
 
-The stratification's transmission transitions are named `infectee_infector`.
-It also carries reflexive transitions (`:child`, `:adult`) for the non-transmission types, so that `typed_product` keeps recovery (and progression, waning and observation) within each group.
+The stratification's transmission transitions are named `infectee_infector`. It also carries
+reflexive transitions (`:child`, `:adult`) for the non-transmission types, so that
+`typed_product` keeps recovery (and progression, waning and observation) within each group.
 
-```julia
+````julia
 to_graphviz(dom(age_model))
-```
-![](stratified_models-6.svg)
+````
+![](stratified_models-7.svg)
 
-The product has three compartments per age group, four transmission transitions and one recovery per group.
+The product has three compartments per age group, four transmission transitions and one
+recovery per group.
 
-```julia
+````julia
 age_sir = typed_product(sir, age_model)
 to_graphviz(age_sir)
-```
-![](stratified_models-8.svg)
+````
+![](stratified_models-9.svg)
 
-Observation is attached after composition.
-`attach_observation` is a pushout, not a factor of the product, so it has to come last; each age group then gets its own delay chain.
+Observation is attached after composition. `attach_observation` is a pushout, not a factor of
+the product, so it has to come last; each age group then gets its own delay chain.
 
-```julia
+````julia
 age_sir_pn = attach_observation(dom(age_sir), AtCompartment(:I); n_stages = 2)
 (species = flatten_symbols.(snames(age_sir_pn)), transitions = flatten_symbols.(tnames(age_sir_pn)))
-```
+````
 
-```
+````
 (species = [:S_child, :S_adult, :I_child, :I_adult, :R_child, :R_adult, :O_I_1_child, :O_I_2_child, :O_I_1_adult, :O_I_2_adult], transitions = [:transmission_S_I_child_child, :transmission_S_I_child_adult, :transmission_S_I_adult_child, :transmission_S_I_adult_adult, :I_to_R_child, :I_to_R_adult, :O_I_1_to_O_I_2_child, :obs_inflow_I_child_child, :O_I_1_to_O_I_2_adult, :obs_inflow_I_adult_adult])
-```
+````
 
-Species and transition names are tuples such as `(:S, :child)`; `vectorfield_flat` flattens them with underscores, which gives the names used in the state and parameter vectors below.
+Species and transition names are tuples such as `(:S, :child)`; `vectorfield_flat` flattens them
+with underscores, which gives the names used in the state and parameter vectors below.
 
-```julia
+````julia
 N_child, N_adult = 500.0, 500.0
 u0 = LVector(
     S_child = N_child - 5.0, I_child = 5.0, R_child = 0.0,
@@ -105,15 +112,15 @@ p = LVector(;
 )
 sol = solve_net(age_sir_pn, u0, p, (0.0, 40.0))
 solution_figure(sol, keys(u0); title = "Age-structured SIR")
-```
-![](stratified_models-12.png)
+````
+![](stratified_models-13.png)
 
 ## Setting a contact matrix programmatically
 
-The transition names follow a fixed pattern, so parameters for larger models can be generated from a contact matrix instead of written out.
-Here is an SEIR model with three age groups.
+The transition names follow a fixed pattern, so parameters for larger models can be generated
+from a contact matrix instead of written out. Here is an SEIR model with three age groups.
 
-```julia
+````julia
 groups = [:child, :adult, :elderly]
 population = Dict(:child => 300.0, :adult => 500.0, :elderly => 200.0)
 contact = [
@@ -139,39 +146,40 @@ u03 = LVector(; (
 sol3 = solve_net(age3_seir_pn, u03, p3, (0.0, 365.0))
 solution_figure(sol3, [Symbol("I_$g") for g in groups];
     ylabel = "Infectious", title = "Age-structured SEIR, 3 groups")
-```
-![](stratified_models-14.png)
+````
+![](stratified_models-15.png)
 
 ## Stacking stratifications
 
-Contact stratifications compose with `*` (or `compose_stratifications`).
-Two age groups times two locations gives four product strata and a 4×4 contact matrix.
+Contact stratifications compose with `*` (or `compose_stratifications`). Two age groups times
+two locations gives four product strata and a 4×4 contact matrix.
 
-```julia
+````julia
 geo = GeographicStratification([:urban, :rural])
 age_geo = age * geo
 (strata = age_geo.stratum_names, label = age_geo.label)
-```
+````
 
-```
+````
 (strata = [:childxurban, :childxrural, :adultxurban, :adultxrural], label = :age_x_geography)
-```
+````
 
 Building the model from the product stratification is equivalent to composing sequentially.
 
-```julia
+````julia
 age_geo_sir = dom(typed_product(sir, create_model(typing, age_geo)))
 sequential = dom(typed_product(typed_product(sir, age_model), create_model(typing, geo)))
 (species = ns(age_geo_sir), transitions = nt(age_geo_sir), same_size_as_sequential = (ns(sequential), nt(sequential)) == (ns(age_geo_sir), nt(age_geo_sir)))
-```
+````
 
-```
+````
 (species = 12, transitions = 20, same_size_as_sequential = true)
-```
+````
 
-A separable contact structure (an age factor times a location factor) fills in all 16 transmission rates.
+A separable contact structure (an age factor times a location factor) fills in all 16
+transmission rates.
 
-```julia
+````julia
 strata = [(a, g) for a in age.stratum_names for g in geo.stratum_names]
 pop = Dict((:child, :urban) => 300.0, (:child, :rural) => 200.0, (:adult, :urban) => 400.0, (:adult, :rural) => 300.0)
 N4 = sum(values(pop))
@@ -195,30 +203,33 @@ u04.I_childxurban = 10.0
 sol4 = solve_net(age_geo_sir, u04, p4, (0.0, 60.0))
 solution_figure(sol4, [Symbol("I_$(name(a, g))") for (a, g) in strata];
     ylabel = "Infectious", title = "Age × geography SIR, seeded in urban children")
-```
-![](stratified_models-20.png)
+````
+![](stratified_models-21.png)
 
 Final attack rate per stratum:
 
-```julia
+````julia
 Dict(name(a, g) => round(sol4[Symbol("R_$(name(a, g))")][end] / pop[(a, g)]; digits = 3) for (a, g) in strata)
-```
+````
 
-```
+````
 Dict{String, Float64} with 4 entries:
   "adultxurban" => 0.75
   "adultxrural" => 0.48
   "childxrural" => 0.644
   "childxurban" => 0.891
-```
+````
 
-A third factor multiplies again: age × geography × risk has eight strata and 64 transmission rates, so richer stratifications call for structured (for example separable) parameterisations rather than free contact matrices.
+A third factor multiplies again: age × geography × risk has eight strata and 64 transmission
+rates, so richer stratifications call for structured (for example separable) parameterisations
+rather than free contact matrices.
 
-```julia
+````julia
 risk = ContactStratification([:low_risk, :high_risk], :risk)
 length((age * geo * risk).stratum_names)
-```
+````
 
-```
+````
 8
-```
+````
+
