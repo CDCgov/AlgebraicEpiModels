@@ -1,12 +1,31 @@
 # AlgebraicEpiModels
 
-TBD
+Julia packages for building compartmental epidemic models by algebraic composition ([Libkind et al. 2023](https://royalsocietypublishing.org/doi/10.1098/rsta.2021.0309)) and fitting them to surveillance data.
+
+  | Package                               | What it does                                                                                                                                                                        |
+  | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | [AlgebraicEpiMech](AlgebraicEpiMech/) | Builds models as typed Petri nets and composes them: stratification and strain structure by pullback, observation delay chains by pushout. Any composed net is an ODE vector field. |
+  | [ConfigurableEpi](ConfigurableEpi/)   | Turns a net into a stochastic state-space model with latent drivers and an observation model, fits it to a count series with filtering methods, and forecasts.                      |
+
+Documentation: <https://cdcgov.github.io/AlgebraicEpiModels>
 
 ## Getting started
 
-## How it works
+The packages need Julia 1.11 or later and are not yet registered.
+Add them from GitHub, AlgebraicEpiMech first:
+
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "AlgebraicEpiMech")
+Pkg.add(url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "ConfigurableEpi")
+```
+
+See [Getting started](docs/getting-started.md) for a first model and fit, and the [examples](docs/examples/) for more.
 
 ## Contributing
+
+Common tasks are recipes in the [`justfile`](justfile), e.g. `just test AlgebraicEpiMech` and `just docs-build`.
+The documentation site is built from `docs/`; see [Maintaining the docs](docs/development/docs.md) for how the API and example pages are generated.
 
 ## Admins
 

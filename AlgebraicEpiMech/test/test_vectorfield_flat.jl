@@ -10,10 +10,6 @@ end
 
     result = flatten_symbols(((:x, :y), :z))
     @test result == :x_y_z
-end
-
-@testitem "flatten_symbols - nested tuple flattening" begin
-    using AlgebraicEpiMech
 
     result = flatten_symbols((((:a, :b), :c), :d))
     @test result == :a_b_c_d
