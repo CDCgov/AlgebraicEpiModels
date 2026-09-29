@@ -1,0 +1,19 @@
+name = "AlgebraicEpiModels"
+uuid = "b621e4e5-594b-4e55-ae0f-5d115ed6976b"
+version = "0.1.0"
+authors = ["Samuel Brand <48288458+SamuelBrand1@users.noreply.github.com>"]
+
+[deps]
+AlgebraicEpiMech = "a6e39d6b-8b2d-49f3-aca0-f4154643f040"
+ConfigurableEpi = "805b86f7-2d53-4db0-a930-efd5b25deb53"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[sources]
+AlgebraicEpiMech = {url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "AlgebraicEpiMech"}
+ConfigurableEpi = {url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "ConfigurableEpi"}
+
+[compat]
+AlgebraicEpiMech = "0.1"
+ConfigurableEpi = "0.1"
+Reexport = "1.2"
+julia = "1.11"

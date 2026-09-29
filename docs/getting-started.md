@@ -11,6 +11,16 @@ Pkg.add(url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "Algebrai
 Pkg.add(url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "ConfigurableEpi")
 ```
 
+On Julia 1.13 or later, you can instead install only the convenience wrapper:
+
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/CDCgov/AlgebraicEpiModels", subdir = "AlgebraicEpiModels")
+```
+
+This installs both underlying packages and re-exports their public APIs.
+Installing only the wrapper relies on recursive package sources, which are a Julia 1.13+ feature.
+
 Drawing Petri nets with `to_graphviz` needs the [Graphviz](https://graphviz.org/download/) `dot` executable on the `PATH`.
 
 To work on the packages themselves, clone the repository and instantiate the package you are working on; each package's test environment is a workspace project:
