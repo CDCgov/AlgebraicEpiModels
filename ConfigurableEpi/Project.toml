@@ -1,7 +1,7 @@
 name = "ConfigurableEpi"
 uuid = "805b86f7-2d53-4db0-a930-efd5b25deb53"
 authors = ["Samuel Brand <usi1@cdc.gov>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [workspace]
 projects = ["test"]
@@ -35,7 +35,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 AlgebraicEpiMech = {path = "../AlgebraicEpiMech"}
 
 [compat]
-AlgebraicEpiMech = "0.1"
+AlgebraicEpiMech = "0.2"
 Configurations = "0.17.6"
 DBInterface = "2.7.0"
 DataInterpolations = "9.0.3"

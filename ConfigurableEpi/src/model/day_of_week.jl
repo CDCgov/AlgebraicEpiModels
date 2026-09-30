@@ -129,32 +129,38 @@ const _NO_DOW_EFFECTS = (weights = ntuple(_ -> 1.0, 7), extra_var = ntuple(_ -> 
     estimate_day_of_week_effects(dates, counts; phi, window_days = 182, exclude_recent_days = 14,
                                  min_weeks = 4) -> (; weights, extra_var, fallback, n_used)
 
-Multiplicative weekday decomposition of a gap-free daily series against a leave-one-out centred
-weekly baseline: weights `w_d = 7 q_d / (6 + q_d)` from the ratio of sums `q_d = Σy / Σb`,
-normalised to mean 1, and per-weekday extra variance `s_d²` after removing the Poisson/NB
-sampling variance of the counts and of the baseline. Falls back to no effect (with a warning)
-when any weekday has fewer than `min_weeks` usable days.
+Multiplicative weekday decomposition of a daily series against a leave-one-out centred weekly
+baseline: weights `w_d = 7 q_d / (6 + q_d)` from the ratio of sums `q_d = Σy / Σb`, normalised
+to mean 1, and per-weekday extra variance `s_d²` after removing the Poisson/NB sampling variance
+of the counts and of the baseline. `dates` is the complete daily grid; a day with no report is a
+`missing` count, and only centres whose whole leave-one-out week is observed are used. Falls back
+to no effect (with a warning) when any weekday has fewer than `min_weeks` usable days.
 """
 function estimate_day_of_week_effects(
-        dates::AbstractVector{Date}, counts::AbstractVector{<:Real};
+        dates::AbstractVector{Date}, counts::AbstractVector{<:Union{Missing, Real}};
         phi::Real, window_days::Integer = 182, exclude_recent_days::Integer = 14, min_weeks::Integer = 4,
     )
     length(dates) == length(counts) || throw(ArgumentError("dates and counts differ in length"))
-    all(diff(dates) .== Day(1)) || throw(ArgumentError("day-of-week estimation needs a gap-free, ascending daily series"))
+    all(diff(dates) .== Day(1)) || throw(
+        ArgumentError("day-of-week estimation needs a gap-free, ascending daily grid; fill absent days with `missing`")
+    )
     last_kept = length(counts) - exclude_recent_days
     first_kept = max(1, last_kept - window_days + 1)
     if last_kept - first_kept + 1 < 7 * min_weeks + 6
         @warn "day-of-week: too little history for the estimator; using no effect" n = length(counts) exclude_recent_days
         return _NO_DOW_EFFECTS
     end
-    y = Float64.(counts[first_kept:last_kept])
+    window = counts[first_kept:last_kept]
+    present = .!ismissing.(window)
+    y = Float64[coalesce(c, NaN) for c in window]   # NaN never enters a sum: unobserved centres are skipped
     days = dates[first_kept:last_kept]
     n = length(y)
     centres = 4:(n - 3)
 
     sum_y, sum_b, used = zeros(7), zeros(7), zeros(Int, 7)
-    baseline = fill(NaN, n)
+    baseline = fill(NaN, n)   # NaN at a skipped centre, which the `> 0` guards below exclude
     for i in centres
+        all(@view present[(i - 3):(i + 3)]) || continue
         baseline[i] = (sum(@view y[(i - 3):(i + 3)]) - y[i]) / 6
         d = dayofweek(days[i])
         sum_y[d] += y[i]
@@ -200,17 +206,24 @@ end
 """
     prepare_day_of_week_history(dates, counts, report_date) -> (; dates, counts)
 
-Check one daily as-of series ends on `report_date - 1` and is gap-free, and drop its final
-observation (the model's history contract).
+Check one daily as-of series ends on `report_date - 1` and is a gap-free daily grid (a day with
+no report is a `missing` count), and drop its final slot (the model's history contract).
 """
-function prepare_day_of_week_history(dates::AbstractVector{Date}, counts::AbstractVector{<:Real}, report_date::Date)
+function prepare_day_of_week_history(
+        dates::AbstractVector{Date}, counts::AbstractVector{<:Union{Missing, Real}}, report_date::Date,
+    )
     length(dates) == length(counts) || throw(ArgumentError("dates and counts differ in length"))
     isempty(dates) && throw(ArgumentError("day-of-week history is empty for $report_date"))
     expected_last = report_date - Day(1)
     last(dates) == expected_last ||
         throw(ArgumentError("day-of-week as-of series for $report_date must end on $expected_last; got $(last(dates))"))
     dates == collect(first(dates):Day(1):expected_last) ||
-        throw(ArgumentError("day-of-week as-of series for $report_date is not gap-free through $expected_last"))
+        throw(
+        ArgumentError(
+            "day-of-week as-of series for $report_date is not gap-free through $expected_last; " *
+                "fill absent days with `missing`"
+        )
+    )
     length(dates) >= 2 || throw(ArgumentError("day-of-week history needs at least two observations for $report_date"))
     return (dates = dates[1:(end - 1)], counts = counts[1:(end - 1)])
 end
@@ -255,10 +268,18 @@ function _estimate_day_of_week(::PluginDayOfWeekConfig, ::Nothing, start_date; p
     @warn "day-of-week: no history in the model context; the plugin uses no effect"
     return _NO_DOW_EFFECTS
 end
-_estimate_day_of_week(cfg::PluginDayOfWeekConfig, history, start_date; phi) = estimate_day_of_week_effects(
-    start_date .+ Day.(round.(Int, history.times)), history.counts;
-    phi, window_days = cfg.window_days, exclude_recent_days = cfg.exclude_recent_days,
-)
+function _estimate_day_of_week(cfg::PluginDayOfWeekConfig, history, start_date; phi)
+    # The model-context history holds observed days only (it also seeds the initial state); the
+    # estimator reads the complete daily grid with `missing` at the days that have no report.
+    dates = start_date .+ Day.(round.(Int, history.times))
+    issorted(dates) && allunique(dates) || throw(ArgumentError("day-of-week history times must be strictly increasing"))
+    grid = collect(first(dates):Day(1):last(dates))
+    counts = Vector{Union{Missing, Float64}}(missing, length(grid))
+    counts[Dates.value.(dates .- first(dates)) .+ 1] .= Float64.(history.counts)
+    return estimate_day_of_week_effects(
+        grid, counts; phi, window_days = cfg.window_days, exclude_recent_days = cfg.exclude_recent_days,
+    )
+end
 
 const _DOW_MULTIPLIER_NAMES = Tuple(Symbol("dow_multiplier_", day) for day in DOW_DAY_ABBREVIATIONS)
 

@@ -1,6 +1,6 @@
 name = "AlgebraicEpiMech"
 uuid = "a6e39d6b-8b2d-49f3-aca0-f4154643f040"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Samuel Brand <usi1@cdc.gov>"]
 
 [workspace]

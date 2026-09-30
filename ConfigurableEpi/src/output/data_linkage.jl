@@ -140,3 +140,40 @@ function build_observations(
     link = DataLink(build_observation_schema(obs_specs; time_column), value_column, pivot_column)
     return build_observations(df, link; T)
 end
+
+"""
+    reindex_to_grid(df, step_days; date_col = :date, start = nothing, stop = nothing,
+                    value_cols = (:counts,)) -> DataFrame
+
+One row per grid date `start:Day(step_days):stop` (the first and last dates of `df` by default): the regular `step_days` grid the engines read
+([`fit_forecast!`](@ref) takes one entry per slot). A row of `df` keeps its `value_cols` at its
+slot; a grid date `df` lacks gets `missing` in every value column, the predict-only slot the filter
+advances through without correcting. A reporting gap is therefore stepped through slot by slot
+instead of being closed up into one step, which is what keeps model time on the calendar. `df`
+must be strictly increasing in `date_col` with every date on the grid; other columns are dropped.
+"""
+function reindex_to_grid(
+        df::DataFrame, step_days::Integer; date_col::Symbol = :date,
+        start = nothing, stop = nothing, value_cols = (:counts,),
+    )
+    step_days >= 1 || throw(ArgumentError("step_days must be a positive whole number of days; got $step_days"))
+    _require_columns(df, (date_col, value_cols...))
+    dates = df[!, date_col]
+    isempty(dates) && throw(ArgumentError("cannot reindex an empty frame onto a grid"))
+    issorted(dates) && allunique(dates) || throw(ArgumentError("$date_col must be strictly increasing"))
+    start, stop = something(start, first(dates)), something(stop, last(dates))
+    grid = collect(start:Day(step_days):stop)
+    isempty(grid) && throw(ArgumentError("empty grid: start $start is after stop $stop"))
+    slot = Dict(d => k for (k, d) in enumerate(grid))
+    rows = [get(slot, d, 0) for d in dates]
+    off = dates[rows .== 0]
+    isempty(off) || throw(ArgumentError("dates off the $step_days-day grid $start:$stop: $off"))
+    out = DataFrame(date_col => grid)
+    for col in value_cols
+        values = df[!, col]
+        column = Vector{Union{Missing, nonmissingtype(eltype(values))}}(missing, length(grid))
+        column[rows] .= values
+        out[!, col] = column
+    end
+    return out
+end

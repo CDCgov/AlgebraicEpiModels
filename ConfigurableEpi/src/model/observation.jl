@@ -38,10 +38,8 @@ end
 
 """
     SignalObservationSpec(signal_idx, noise; mean_modifier = nothing, baseline = nothing, name)
-    AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
-    AggregatedSignalSpec(noise; ...)                       # the sum of every signal
 
-One observation: a signal's reset accumulator, or the sum over several. Its mean is
+One observation from a signal's reset accumulator. Its mean is
 `raw * mean_modifier + baseline`, where each of the two is `nothing`, a `Real` or a function
 `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](@ref), say).
 """
@@ -60,6 +58,14 @@ struct SignalObservationSpec{N <: ObservationNoiseSpec, M, B}
     end
 end
 
+"""
+    AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
+    AggregatedSignalSpec(noise; ...) # the sum of every signal
+
+One observation formed by summing several signal reset accumulators. Its mean is
+`raw * mean_modifier + baseline`, with the same modifier and baseline conventions as
+[`SignalObservationSpec`](@ref).
+"""
 struct AggregatedSignalSpec{N <: ObservationNoiseSpec, M, B}
     signal_indices::Vector{Int}
     noise_spec::N

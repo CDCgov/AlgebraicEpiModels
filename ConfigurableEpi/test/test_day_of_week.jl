@@ -1,6 +1,7 @@
 using Test
 using ConfigurableEpi
 using Dates: Date, Day, dayofweek
+import Dates
 using Distributions: NegativeBinomial, LogNormal
 using ForwardDiff
 using LinearAlgebra: I
@@ -172,6 +173,24 @@ end
         @test est.fallback
         dates, counts = _dow_series(100)
         @test_throws ArgumentError estimate_day_of_week_effects(dates[[1:50; 52:100]], counts[[1:50; 52:100]]; phi = 140.0)
+        # A day with no report is a `missing` count on the complete grid: the estimator drops the
+        # centres whose leave-one-out week touches it and still recovers the weights.
+        dates, counts = _dow_series(182; growth = 0.02)
+        full = estimate_day_of_week_effects(dates, counts; phi = 140.0)
+        holes = [30, 31, 32, 90, 140]
+        gapped = Vector{Union{Missing, Float64}}(counts)
+        gapped[holes] .= missing
+        est = estimate_day_of_week_effects(dates, gapped; phi = 140.0)
+        @test !est.fallback
+        @test all(isapprox.(est.weights, _DOW_W; atol = 1.0e-2))
+        @test 0 < full.n_used - est.n_used <= 7 * length(holes)   # each hole removes at most a week of centres
+        # The gap-free path is unchanged by the missing-aware estimator.
+        @test estimate_day_of_week_effects(dates, Vector{Union{Missing, Float64}}(counts); phi = 140.0) == full
+        # Enough holes on one weekday starve it and trigger the fallback.
+        starved = Vector{Union{Missing, Float64}}(counts)
+        starved[dayofweek.(dates) .== 7] .= missing
+        est = @test_logs (:warn,) match_mode = :any estimate_day_of_week_effects(dates, starved; phi = 140.0)
+        @test est.fallback
         # A weekday with no counts would get weight 0, a zero observation mean on that weekday.
         counts[dayofweek.(dates) .== 7] .= 0.0
         est = @test_logs (:warn,) match_mode = :any estimate_day_of_week_effects(dates, counts; phi = 140.0, exclude_recent_days = 0)
@@ -190,6 +209,17 @@ end
         @test_throws ArgumentError prepare_day_of_week_history(
             dates[[1:20; 22:end]], counts[[1:20; 22:end]], report_date,
         )
+        # The complete grid with a `missing` count is the accepted form of that gap.
+        gapped = Vector{Union{Missing, Float64}}(counts)
+        gapped[21] = missing
+        prepared = prepare_day_of_week_history(dates, gapped, report_date)
+        @test prepared.dates == dates[1:(end - 1)]
+        @test isequal(prepared.counts, gapped[1:(end - 1)])
+        # The plugin rebuilds that grid from the sparse model-context history it is handed.
+        history = (times = Float64[Dates.value(d - _DOW_START) for d in dates[[1:20; 22:end]]], counts = counts[[1:20; 22:end]])
+        cfg = PluginDayOfWeekConfig(window_days = 35, exclude_recent_days = 0)
+        est = ConfigurableEpi._estimate_day_of_week(cfg, history, _DOW_START; phi = 140.0)
+        @test est == estimate_day_of_week_effects(dates, gapped; phi = 140.0, window_days = 35, exclude_recent_days = 0)
     end
 
     @testset "dispersion is phi when the extra variance is zero" begin
