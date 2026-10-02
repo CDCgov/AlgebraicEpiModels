@@ -188,10 +188,13 @@ function fit_forecast!(
         current = e.hyperparams
         checkpoint, mode, steps = _prepare_window_checkpoint!(e.checkpoint, () -> build(current), current, ys, loss_range)
         outer_threads = _outer_ekp_threads_enabled(hyper.threads)
+
         function score(theta)
-            hp = merge(model.hyperparams, NamedTuple{names}(Tuple(theta)))
-            kf = checkpoint === nothing ? build(hp) : _candidate_from_checkpoint(checkpoint, nothing, Float64, hp)
-            return checkpoint === nothing ? marginal_loglik(kf, ys, hp) : _filter_loglik!(kf, ys, hp, loss_range)
+            candidate_hp = merge(model.hyperparams, NamedTuple{names}(Tuple(theta)))
+            candidate_kf = checkpoint === nothing ? build(candidate_hp) :
+                _candidate_from_checkpoint(checkpoint, nothing, Float64, candidate_hp)
+            return checkpoint === nothing ? marginal_loglik(candidate_kf, ys, candidate_hp) :
+                _filter_loglik!(candidate_kf, ys, candidate_hp, loss_range)
         end
         # Resuming from the previous final ENSEMBLE carries the spread too, which is what lets
         # `iterations` be a fraction of `burnin_iterations`; a cold start gets the burn-in budget.

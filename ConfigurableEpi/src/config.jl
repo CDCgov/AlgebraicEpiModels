@@ -20,6 +20,11 @@ One parameter's prior as written in TOML; `constraint` is `positive`, `unit_inte
     constraint::String = "positive"
 end
 
+"""
+    build_prior(name, spec::PriorSpec) -> ParameterDistribution
+
+Build one scalar EKP prior from its TOML-backed specification.
+"""
 function build_prior(name, spec::PriorSpec)
     ctor = get(_PRIOR_CONSTRUCTORS, spec.constraint) do
         throw(

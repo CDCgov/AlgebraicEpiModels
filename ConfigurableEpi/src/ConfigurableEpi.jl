@@ -100,7 +100,7 @@ export DEFAULT_QS, forecast_ensemble, forecast_states, forecast_quantiles, appen
     append_latent_audit!, asof_series, backtest_forecast_rows
 export FORECAST_SAMPLE_COLUMNS, forecast_sample_rows, write_forecast_samples
 export ObservationSchema, n_observations, observation_names, build_observation_schema, DataLink,
-    pivot_to_wide, require_complete_grid, build_observations
+    pivot_to_wide, require_complete_grid, build_observations, reindex_to_grid
 
 "Compartmental constructors selectable by name (all carry S, E and I)."
 const COMPARTMENTAL_MODELS = Dict(:SEIRS => SEIRS, :SEIR => SEIR, :SEIS => SEIS, :SEI => SEI)

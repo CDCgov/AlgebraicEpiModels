@@ -1,7 +1,7 @@
 using ConfigurableEpi, Test
 using DataFramesMeta
 using StaticArrays: SVector
-using Dates: Date
+using Dates: Date, Day
 
 @testset "Data Linkage" begin
     @testset "ObservationSchema" begin
@@ -229,5 +229,44 @@ using Dates: Date
         @test length(y) == 2
         @test y[1] ≈ SVector(100.0, 150.0)  # loc_a, loc_b at t=1
         @test y[2] ≈ SVector(110.0, 160.0)  # loc_a, loc_b at t=2
+    end
+
+    # A reporting gap must become predict-only slots on the `step_days` grid, never a shorter
+    # series: `fit_forecast!` takes one entry per slot and `missing` where nothing was reported.
+    @testset "reindex_to_grid fills absent grid dates with missing" begin
+        d0 = Date("2024-09-20")
+        df = DataFrame(date = d0 .+ Day.([0, 1, 5, 6]), counts = [1.0, 2.0, 6.0, 7.0], extra = 1:4)
+        grid = reindex_to_grid(df, 1)
+        @test grid.date == collect(d0:Day(1):(d0 + Day(6)))
+        @test names(grid) == ["date", "counts"]   # other columns are dropped
+        @test isequal(grid.counts, [1.0, 2.0, missing, missing, missing, 6.0, 7.0])
+        @test eltype(grid.counts) == Union{Missing, Float64}
+        # A gap-free frame comes back unchanged.
+        full = DataFrame(date = d0 .+ Day.(0:3), counts = [1.0, 2.0, 3.0, 4.0])
+        @test isequal(reindex_to_grid(full, 1).counts, full.counts)
+        # `start`/`stop` extend the grid with missing slots (a trailing gap before a report date).
+        ext = reindex_to_grid(df, 1; start = d0 - Day(1), stop = d0 + Day(8))
+        @test nrow(ext) == 10 && ismissing(ext.counts[1]) && all(ismissing, ext.counts[9:10])
+        # Weekly grid and several value columns.
+        weekly = DataFrame(
+            date = d0 .+ Day.([0, 7, 21]), counts = [1.0, 2.0, 4.0], raw_counts = [1, 2, 4],
+            reporting_fraction = [1.0, 1.0, 0.5],
+        )
+        wk = reindex_to_grid(weekly, 7; value_cols = (:counts, :raw_counts, :reporting_fraction))
+        @test wk.date == d0 .+ Day.([0, 7, 14, 21])
+        @test isequal(wk.raw_counts, [1, 2, missing, 4]) && isequal(wk.reporting_fraction, [1.0, 1.0, missing, 0.5])
+        # Joint (multi-signal) rows keep their vector values.
+        joint = DataFrame(date = d0 .+ Day.([0, 14]), counts = [[1.0, 2.0], [3.0, 4.0]])
+        jg = reindex_to_grid(joint, 7)
+        @test eltype(jg.counts) == Union{Missing, Vector{Float64}}
+        @test isequal(jg.counts, [[1.0, 2.0], missing, [3.0, 4.0]])
+        # Errors: off-grid date, duplicate, unsorted, inverted range, bad step, empty input.
+        @test_throws ArgumentError reindex_to_grid(DataFrame(date = d0 .+ Day.([0, 3]), counts = [1.0, 2.0]), 7)
+        @test_throws ArgumentError reindex_to_grid(DataFrame(date = [d0, d0], counts = [1.0, 2.0]), 1)
+        @test_throws ArgumentError reindex_to_grid(DataFrame(date = [d0 + Day(1), d0], counts = [1.0, 2.0]), 1)
+        @test_throws ArgumentError reindex_to_grid(df, 1; start = d0 + Day(9))
+        @test_throws ArgumentError reindex_to_grid(df, 0)
+        @test_throws ArgumentError reindex_to_grid(DataFrame(date = Date[], counts = Float64[]), 1)
+        @test_throws ArgumentError reindex_to_grid(DataFrame(date = [d0], value = [1.0]), 1)
     end
 end

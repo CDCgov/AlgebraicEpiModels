@@ -429,3 +429,11 @@ end
         )
     end
 end
+
+@testset "EKP candidate scoring closure captures nothing boxed" begin
+    method = only(methods(fit_forecast!, (ConfigurableEpi.EnKFEKPEngine, Vector{Float64}, Int)))
+    body = only(methods(Base.bodyfunction(method)))   # the keyword method's body, where the closure is built
+    statements = string.(Base.uncompressed_ir(body).code)
+    boxed = filter(s -> occursin("Core.Box", s), statements)
+    @test isempty(boxed)
+end

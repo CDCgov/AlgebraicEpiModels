@@ -62,9 +62,19 @@ end
 ParameterPriorBundle(priors::ParameterDistribution...) =
     ParameterPriorBundle(NamedTuple{map(prior_name, priors)}(priors))
 
+"""
+    constrained_values(bundle, unconstrained) -> NamedTuple
+
+Transform an unconstrained optimiser vector to named values on their model scales.
+"""
 constrained_values(b::ParameterPriorBundle, unconstrained::AbstractVector) =
     NamedTuple{b.names}(Tuple(transform_unconstrained_to_constrained(b.prior, collect(unconstrained))))
 
+"""
+    unconstrained_values(bundle, constrained) -> Vector
+
+Transform named model-scale parameter values to the optimiser's unconstrained coordinates.
+"""
 function unconstrained_values(b::ParameterPriorBundle, constrained::NamedTuple)
     u = transform_constrained_to_unconstrained(b.prior, [constrained[n] for n in b.names])
     all(isfinite, u) || throw(
@@ -73,6 +83,11 @@ function unconstrained_values(b::ParameterPriorBundle, constrained::NamedTuple)
     return u
 end
 
+"""
+    prior_logpdf(bundle, unconstrained) -> Real
+
+Evaluate the combined prior density in the optimiser's unconstrained coordinates.
+"""
 function prior_logpdf(b::ParameterPriorBundle, unconstrained::AbstractVector)
     lp = logpdf(b.prior, collect(unconstrained))
     return lp isa Real ? lp : sum(lp)
