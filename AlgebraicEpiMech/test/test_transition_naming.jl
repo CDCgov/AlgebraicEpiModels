@@ -1,17 +1,4 @@
-# Unit tests for transition naming from UWD structure
-# Tests that create_model generates unique transition names for ODE rate assignment
-
-@testsnippet TransitionNamingSetup begin
-    using AlgebraicPetri
-    using Catlab
-    using AlgebraicEpiMech
-
-    # Create typing for testing
-    one_pop_typing = OnePopulationTyping(population_type = :Individual)
-end
-
-# Test simple SIR model transition naming
-@testitem "SIR model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SIR model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 
@@ -28,8 +15,7 @@ end
     @test :I_to_R in tnames
 end
 
-# Test multi-stage SI model transition naming
-@testitem "Multi-stage SI model has unique transmission names" setup = [TransitionNamingSetup] begin
+@testitem "Multi-stage SI model has unique transmission names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SI(number_I_stages = 3))
     pn = dom(typed_model)
 
@@ -51,8 +37,7 @@ end
     @test :I2_to_I3 in tnames
 end
 
-# Test SEIR model transition naming
-@testitem "SEIR model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SEIR model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SEIR())
     pn = dom(typed_model)
 
@@ -70,8 +55,7 @@ end
     @test :I_to_R in tnames
 end
 
-# Test multi-stage SEIR model transition naming
-@testitem "Multi-stage SEIR model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "Multi-stage SEIR model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(
         one_pop_typing,
         SEIR(number_E_stages = 2, number_I_stages = 3)
@@ -104,8 +88,7 @@ end
     @test :I3_to_R in tnames
 end
 
-# Test SEI model transition naming
-@testitem "SEI model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SEI model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SEI())
     pn = dom(typed_model)
 
@@ -122,8 +105,7 @@ end
     @test :E_to_I in tnames
 end
 
-# Test SIS model transition naming
-@testitem "SIS model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SIS model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SIS())
     pn = dom(typed_model)
 
@@ -140,8 +122,7 @@ end
     @test :I_to_S in tnames
 end
 
-# Test SEIS model transition naming
-@testitem "SEIS model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SEIS model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SEIS())
     pn = dom(typed_model)
 
@@ -159,8 +140,7 @@ end
     @test :I_to_S in tnames
 end
 
-# Test SEIRS model transition naming
-@testitem "SEIRS model has unique transition names" setup = [TransitionNamingSetup] begin
+@testitem "SEIRS model has unique transition names" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SEIRS())
     pn = dom(typed_model)
 
@@ -179,10 +159,7 @@ end
     @test :R_to_S in tnames
 end
 
-# Test that transition names enable unambiguous ODE rate assignment
-@testitem "Multi-stage model enables unique rate parameter assignment" setup = [TransitionNamingSetup] begin
-    using LabelledArrays
-
+@testitem "Multi-stage model enables unique rate parameter assignment" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SI(number_I_stages = 3))
     pn = dom(typed_model)
 
@@ -203,8 +180,7 @@ end
     @test length(param_dict) == 5
 end
 
-# Test that multi-input transitions follow the naming pattern
-@testitem "Multi-input transitions follow box_name_input1_input2 pattern" setup = [TransitionNamingSetup] begin
+@testitem "Multi-input transitions follow box_name_input1_input2 pattern" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 
@@ -226,8 +202,7 @@ end
     @test AlgebraicPetri.tname(pn, transmission_idx) == :transmission_S_I
 end
 
-# Test that single-input transitions follow input_to_output pattern
-@testitem "Single-input transitions follow input_to_output pattern" setup = [TransitionNamingSetup] begin
+@testitem "Single-input transitions follow input_to_output pattern" setup = [ModelSetup] begin
     typed_model = create_model(one_pop_typing, SIR())
     pn = dom(typed_model)
 

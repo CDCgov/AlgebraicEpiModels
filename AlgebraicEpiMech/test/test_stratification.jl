@@ -1,6 +1,4 @@
 @testitem "Stratification composition" begin
-    using AlgebraicEpiMech
-
     @testset "ContactStratification composition via compose_stratifications" begin
         age = ContactStratification([:child, :adult], :age)
         geo = ContactStratification([:urban, :rural], :geography)
@@ -97,11 +95,7 @@
     end
 end
 
-@testitem "ContactStratification model integration" begin
-    using AlgebraicEpiMech
-    using AlgebraicPetri, AlgebraicPetri.TypedPetri
-    using Catlab
-
+@testitem "ContactStratification model integration" setup = [ModelSetup] begin
     @testset "Composed stratification creates valid model" begin
         typing = OnePopulationTyping()
 

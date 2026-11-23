@@ -1,22 +1,4 @@
-# Unit tests for create_model with ContactStratification and its convenience constructors
-# This generalizes create_age_stratification.jl to work with all stratification types
-
-@testsnippet ContactStratificationModelSetup begin
-    using AlgebraicPetri
-    using AlgebraicPetri.TypedPetri
-    using Catlab
-    using AlgebraicEpiMech
-
-    # Create typing instances for testing
-    one_pop_typing = OnePopulationTyping(population_type = :Individual)
-    ui_typing = UninfectedInfectedTyping(
-        uninfected_type = :Susceptible,
-        infected_type = :Infectious
-    )
-end
-
-# Test that create_model returns typed Petri net for ContactStratification
-@testitem "create_model(ContactStratification) returns ACSetTransformation" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model(ContactStratification) returns ACSetTransformation" setup = [ModelSetup] begin
     @testset "AgeStratification" begin
         age_strat = AgeStratification([:child, :adult])
         typed_model = create_model(one_pop_typing, age_strat)
@@ -36,7 +18,7 @@ end
     end
 end
 
-@testitem "create_model(ContactStratification) typed model has dom as LabelledPetriNet" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model(ContactStratification) typed model has dom as LabelledPetriNet" setup = [ModelSetup] begin
     strats = [
         AgeStratification([:child, :adult]),
         GeographicStratification([:urban, :rural]),
@@ -50,7 +32,7 @@ end
     end
 end
 
-@testitem "create_model(ContactStratification) type system accessible via codom" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model(ContactStratification) type system accessible via codom" setup = [ModelSetup] begin
     strats = [
         AgeStratification([:child, :adult]),
         GeographicStratification([:urban, :rural]),
@@ -64,8 +46,7 @@ end
     end
 end
 
-# Test with OnePopulationTyping - generalized for any ContactStratification
-@testitem "create_model with 2 strata OnePopulationTyping" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model with 2 strata OnePopulationTyping" setup = [ModelSetup] begin
     @testset "AgeStratification([:child, :adult])" begin
         strat = AgeStratification([:child, :adult])
         typed_model = create_model(one_pop_typing, strat)
@@ -116,7 +97,7 @@ end
     end
 end
 
-@testitem "create_model with 3 strata OnePopulationTyping" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model with 3 strata OnePopulationTyping" setup = [ModelSetup] begin
     strats_and_names = [
         (AgeStratification([:child, :adult, :elderly]), [:child, :adult, :elderly]),
         (
@@ -146,8 +127,7 @@ end
     end
 end
 
-# Test with UninfectedInfectedTyping
-@testitem "create_model(ContactStratification) with UninfectedInfectedTyping" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model(ContactStratification) with UninfectedInfectedTyping" setup = [ModelSetup] begin
     @testset "AgeStratification" begin
         age_strat = AgeStratification([:child, :adult])
         typed_model = create_model(ui_typing, age_strat)
@@ -183,8 +163,7 @@ end
     end
 end
 
-# Test generate_transition_names
-@testitem "generate_transition_names creates correct names" setup = [ContactStratificationModelSetup] begin
+@testitem "generate_transition_names creates correct names" setup = [ModelSetup] begin
     @testset "AgeStratification" begin
         strat = AgeStratification([:young, :old])
         uwd = create_model_uwd(one_pop_typing, strat)
@@ -216,8 +195,7 @@ end
     end
 end
 
-# Test single stratum edge case
-@testitem "create_model with single stratum" setup = [ContactStratificationModelSetup] begin
+@testitem "create_model with single stratum" setup = [ModelSetup] begin
     strats = [
         AgeStratification([:population]),
         GeographicStratification([:region]),
@@ -236,8 +214,7 @@ end
     end
 end
 
-# Test composition with compartmental models
-@testitem "typed_product of SIR and ContactStratification" setup = [ContactStratificationModelSetup] begin
+@testitem "typed_product of SIR and ContactStratification" setup = [ModelSetup] begin
     sir = create_model(one_pop_typing, SIR())
 
     strats = [

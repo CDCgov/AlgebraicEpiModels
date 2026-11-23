@@ -166,9 +166,9 @@ end
         rates = matching(obs, :transmission, 0.002),
         state = Dict(
             s => (
-                startswith(string(s), "S_U") ? 500.0 :
+                    startswith(string(s), "S_U") ? 500.0 :
                     startswith(string(s), "I_") ? 50.0 : 0.0
-            ) for s in names(obs)
+                ) for s in names(obs)
         ),
     )
     observed = sum(du[a] for a in accs)
@@ -191,6 +191,33 @@ end
     )
     @test :O_transmission_1_a in names(both)               # incidence chain
     @test :P_I_1_a in names(both)               # prevalence chain, distinct prefix
+end
+
+@testitem "two event chains under distinct prefixes coexist and parse by prefix" setup = [RewriteSetup] begin
+    # One event observed twice, e.g. an incidence chain and a wastewater shedding chain.
+    base = dom(create_model(OnePopulationTyping(), SEIR()))
+    both = attach_observation(
+        attach_observation(base, AtEvent(:transmission); n_stages = 2),
+        AtEvent(:transmission); n_stages = 3, prefix = :W,
+    )
+    @test nt(both) == nt(base) + 1 + 2          # delay transitions only: no shadow of the event
+    @test ns(both) == ns(base) + 2 + 3
+    event = only(t for t in 1:nt(both) if startswith(string(flat(tname(both, t))), "transmission"))
+    outs = [flat(sname(both, s)) for s in AlgebraicPetri.outputs(both, event)]
+    @test :O_transmission_1 in outs
+    @test :W_transmission_1 in outs
+
+    du = derivs(
+        both;
+        rates = merge(matching(both, :transmission, 0.002), matching(both, :E_to_I, 0.4)),
+        state = Dict(:S => 900.0, :E => 40.0, :I => 60.0),
+    )
+    @test du[:O_transmission_1] ≈ -du[:S]
+    @test du[:W_transmission_1] ≈ -du[:S]
+
+    @test only(observation_layout(both).chains).obs_names == (:O_transmission_1, :O_transmission_2)
+    @test only(observation_layout(both; prefix = :W).chains).obs_names ==
+        (:W_transmission_1, :W_transmission_2, :W_transmission_3)
 end
 
 @testitem "reusing an observation namespace requires the same chain shape" setup = [RewriteSetup] begin
@@ -275,8 +302,6 @@ end
     # The observed net is the base net plus, per matched route, exactly one output arc into the
     # infectee location's chain head; base parts keep their order and positions; re-application
     # is a no-op. Together with the rate identities above this is the whole contract.
-    using Catlab: nparts, subpart
-
     base = geo_seirs([:a, :b, :c])
     obs = attach_observation(base, AtEvent(:transmission); n_stages = 2)
     routes = [

@@ -3,7 +3,6 @@
     using AlgebraicPetri.TypedPetri: typed_product
     using Catlab
     using LabelledArrays
-    using AlgebraicEpiMech
 
     typing = UninfectedInfectedTyping()
 

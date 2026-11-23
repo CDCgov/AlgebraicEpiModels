@@ -1,45 +1,14 @@
-@testitem "flatten_symbols - basic tuple flattening" begin
-    using AlgebraicEpiMech
-
-    result = flatten_symbols((:x, :y, :z))
-    @test result == :x_y_z
-end
-
-@testitem "flatten_symbols - nested tuple flattening" begin
-    using AlgebraicEpiMech
-
-    result = flatten_symbols(((:x, :y), :z))
-    @test result == :x_y_z
-
-    result = flatten_symbols((((:a, :b), :c), :d))
-    @test result == :a_b_c_d
-end
-
-@testitem "flatten_symbols - nested tuple flattening other direction" begin
-    using AlgebraicEpiMech
-
-    result = flatten_symbols((:a, (:b, (:c, :d))))
-    @test result == :a_b_c_d
-end
-
-@testitem "flatten_symbols - single symbol" begin
-    using AlgebraicEpiMech
-
-    result = flatten_symbols(:single)
-    @test result == :single
-end
-
-@testitem "flatten_symbols - singleton tuple" begin
-    using AlgebraicEpiMech
-
+@testitem "flatten_symbols joins nested tuples in either direction" begin
+    @test flatten_symbols(:single) == :single
     @test flatten_symbols((:single,)) == :single
     @test flatten_symbols((((:single,),),)) == :single
+    @test flatten_symbols((:x, :y, :z)) == :x_y_z
+    @test flatten_symbols(((:x, :y), :z)) == :x_y_z
+    @test flatten_symbols((((:a, :b), :c), :d)) == :a_b_c_d
+    @test flatten_symbols((:a, (:b, (:c, :d)))) == :a_b_c_d
 end
 
-@testitem "vectorfield_flat rejects flattened-name collisions" begin
-    using AlgebraicPetri
-    using AlgebraicEpiMech
-
+@testitem "vectorfield_flat rejects flattened-name collisions" setup = [ModelSetup] begin
     TupleNamedPetriNet = AlgebraicPetri.LabelledPetriNetUntyped{Tuple{Symbol, Symbol}}
 
     species_collision = TupleNamedPetriNet()
@@ -56,10 +25,7 @@ end
     @test_throws ArgumentError vectorfield_flat(transition_collision)
 end
 
-@testitem "vectorfield_flat - function signature and type" begin
-    using AlgebraicPetri, LabelledArrays
-    using AlgebraicEpiMech
-
+@testitem "vectorfield_flat - function signature and type" setup = [ModelSetup] begin
     # Create a simple Petri net
     pn = LabelledPetriNet([:S, :I], :infection => ((:S, :I) => (:I, :I)))
 
@@ -80,16 +46,11 @@ end
     @test du[:I] == 1.0  # Should return 1.0 change in I for these inputs
 end
 
-@testitem "vectorfield_flat matches the dense reference bit for bit" begin
+@testitem "vectorfield_flat matches the dense reference bit for bit" setup = [ModelSetup] begin
     # The sparse, name-resolved-once implementation must reproduce the dense reference
     # (`dense_vectorfield_flat`, defined below) exactly — same factor and summation order, so `==` rather
     # than `≈` — on both the production argument shapes (LVector state, NamedTuple rates whose
     # keys are NOT in net order) and the by-name dictionary path the test snippets use.
-    using AlgebraicPetri, LabelledArrays, Catlab
-    using AlgebraicPetri: snames, tnames
-    using AlgebraicPetri.TypedPetri: typed_product
-    using AlgebraicEpiMech
-
     # The dense, resolve-everything-per-call form `vectorfield_flat` replaced (kept here, not in
     # src, as the executable specification): the new implementation must match it bit for bit.
     function dense_vectorfield_flat(pn)

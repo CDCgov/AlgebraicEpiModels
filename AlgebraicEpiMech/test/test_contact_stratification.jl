@@ -1,9 +1,4 @@
-# Unit tests for ContactStratification and its convenience constructors
-# This generalizes the old AgeStratification tests to work with any ContactStratification
-
 @testsnippet ContactStratificationSetup begin
-    using AlgebraicEpiMech
-
     # Various ContactStratification instances
     age_single = AgeStratification([:adult])
     age_two = AgeStratification([:child, :adult])
