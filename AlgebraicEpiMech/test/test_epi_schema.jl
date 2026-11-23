@@ -1,6 +1,4 @@
 @testitem "epidemiological typing constructors" begin
-    using AlgebraicEpiMech
-
     one_population = OnePopulationTyping()
     @test one_population isa EpidemiologicalTyping
     @test one_population.population_type == :Population
@@ -21,11 +19,7 @@
     @test custom_uninfected_infected.infected_type == :Infectious
 end
 
-@testitem "type_system materializes OnePopulationTyping" begin
-    using AlgebraicPetri
-    using AlgebraicPetri.TypedPetri
-    using AlgebraicEpiMech
-
+@testitem "type_system materializes OnePopulationTyping" setup = [ModelSetup] begin
     typing = OnePopulationTyping(population_type = :Individual)
     codomain = type_system(typing)
 
@@ -40,11 +34,7 @@ end
     @test :birth in tnames(system_with_birth)
 end
 
-@testitem "type_system materializes UninfectedInfectedTyping" begin
-    using AlgebraicPetri
-    using AlgebraicPetri.TypedPetri
-    using AlgebraicEpiMech
-
+@testitem "type_system materializes UninfectedInfectedTyping" setup = [ModelSetup] begin
     typing = UninfectedInfectedTyping(
         uninfected_type = :Susceptible,
         infected_type = :Infectious,
@@ -63,8 +53,6 @@ end
 end
 
 @testitem "type_system rejects unimplemented typings" begin
-    using AlgebraicEpiMech
-
     struct MockTyping <: EpidemiologicalTyping end
 
     error = try

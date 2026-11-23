@@ -1,7 +1,6 @@
 @testsnippet MechanismSetup begin
     using AlgebraicPetri
     using Catlab
-    using AlgebraicEpiMech
 
     # Helper function to create a basic UWD for testing mechanisms
     function create_test_uwd(typing, num_ports::Int)

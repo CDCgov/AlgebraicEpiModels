@@ -1,20 +1,4 @@
-# Unit tests for create_multistrain_model.jl
-# Tests the create_model function that produces typed Petri nets for multistrain models
-
-@testsnippet MultistrainSetup begin
-    using AlgebraicPetri
-    using AlgebraicPetri.TypedPetri
-    using Catlab
-    using AlgebraicEpiMech
-
-    # Create typing instances for testing
-    one_pop_typing = OnePopulationTyping(population_type = :Individual)
-    uninfected_infected_typing = UninfectedInfectedTyping(
-        uninfected_type = :Susceptible, infected_type = :Infectious
-    )
-end
-
-@testitem "create_model - basic NoCrossImmunity" setup = [MultistrainSetup] begin
+@testitem "create_model - basic NoCrossImmunity" setup = [ModelSetup] begin
     model = NoCrossImmunity([:h1n1, :h3n2])
     typed_model = create_model(one_pop_typing, model)
 
@@ -32,26 +16,24 @@ end
 end
 
 @testitem "multistrain constructors reject duplicate strain names" begin
-    using AlgebraicEpiMech
-
     @test_throws ArgumentError NoCrossImmunity([:a, :a])
     @test_throws ArgumentError CompleteCrossImmunity([:a, :a])
 end
 
-@testitem "multistrain models require their documented typing" setup = [MultistrainSetup] begin
+@testitem "multistrain models require their documented typing" setup = [ModelSetup] begin
     no_cross = NoCrossImmunity([:a, :b])
     complete = CompleteCrossImmunity([:a, :b])
 
     @test applicable(create_model_uwd, one_pop_typing, no_cross)
-    @test !applicable(create_model_uwd, uninfected_infected_typing, no_cross)
-    @test applicable(create_model_uwd, uninfected_infected_typing, complete)
+    @test !applicable(create_model_uwd, ui_typing, no_cross)
+    @test applicable(create_model_uwd, ui_typing, complete)
     @test !applicable(create_model_uwd, one_pop_typing, complete)
 
-    @test_throws MethodError create_model(uninfected_infected_typing, no_cross)
+    @test_throws MethodError create_model(ui_typing, no_cross)
     @test_throws MethodError create_model(one_pop_typing, complete)
 end
 
-@testitem "create_model - verify state structure" setup = [MultistrainSetup] begin
+@testitem "create_model - verify state structure" setup = [ModelSetup] begin
     model = NoCrossImmunity([:wild, :variant])
     typed_model = create_model(one_pop_typing, model)
 
@@ -64,7 +46,7 @@ end
     @test length(state_names) == 2
 end
 
-@testitem "create_model - auto-generated strain names" setup = [MultistrainSetup] begin
+@testitem "create_model - auto-generated strain names" setup = [ModelSetup] begin
     model = NoCrossImmunity(3)
     typed_model = create_model(one_pop_typing, model)
 
@@ -78,7 +60,7 @@ end
     @test length(state_names) == 3
 end
 
-@testitem "generate_transition_names - returns strain names" setup = [MultistrainSetup] begin
+@testitem "generate_transition_names - returns strain names" setup = [ModelSetup] begin
     model = NoCrossImmunity([:flu_a, :flu_b])
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -91,7 +73,7 @@ end
     @test length(names) == 6
 end
 
-@testitem "create_model - composition with compartmental model" setup = [MultistrainSetup] begin
+@testitem "create_model - composition with compartmental model" setup = [ModelSetup] begin
     # Create both a compartmental and multistrain model
     sir_model = create_model(one_pop_typing, SIR())
     strain_model = create_model(
@@ -123,9 +105,9 @@ end
 
 # Tests for CompleteCrossImmunity multistrain models
 
-@testitem "create_model - basic CompleteCrossImmunity" setup = [MultistrainSetup] begin
+@testitem "create_model - basic CompleteCrossImmunity" setup = [ModelSetup] begin
     model = CompleteCrossImmunity([:wild_type, :variant])
-    typed_model = create_model(uninfected_infected_typing, model)
+    typed_model = create_model(ui_typing, model)
 
     # Should return an ACSetTransformation
     @test typed_model isa ACSetTransformation
@@ -140,9 +122,9 @@ end
     @test :variant in transition_names
 end
 
-@testitem "create_model - CompleteCrossImmunity state structure" setup = [MultistrainSetup] begin
+@testitem "create_model - CompleteCrossImmunity state structure" setup = [ModelSetup] begin
     model = CompleteCrossImmunity([:strain_a, :strain_b])
-    typed_model = create_model(uninfected_infected_typing, model)
+    typed_model = create_model(ui_typing, model)
 
     pn = dom(typed_model)
 
@@ -154,9 +136,9 @@ end
     @test length(state_names) == 3
 end
 
-@testitem "create_model - CompleteCrossImmunity auto-generated names" setup = [MultistrainSetup] begin
+@testitem "create_model - CompleteCrossImmunity auto-generated names" setup = [ModelSetup] begin
     model = CompleteCrossImmunity(3)
-    typed_model = create_model(uninfected_infected_typing, model)
+    typed_model = create_model(ui_typing, model)
 
     pn = dom(typed_model)
 
@@ -169,9 +151,9 @@ end
     @test length(state_names) == 4  # 1 susceptible + 3 strains
 end
 
-@testitem "generate_transition_names - CompleteCrossImmunity" setup = [MultistrainSetup] begin
+@testitem "generate_transition_names - CompleteCrossImmunity" setup = [ModelSetup] begin
     model = CompleteCrossImmunity([:h1n1, :h3n2])
-    uwd = create_model_uwd(uninfected_infected_typing, model)
+    uwd = create_model_uwd(ui_typing, model)
 
     # Generate transition names
     names = generate_transition_names(uwd, model)
@@ -182,11 +164,11 @@ end
     @test length(names) == 6
 end
 
-@testitem "create_model - CompleteCrossImmunity composition with SIR" setup = [MultistrainSetup] begin
+@testitem "create_model - CompleteCrossImmunity composition with SIR" setup = [ModelSetup] begin
     # Create both a compartmental and multistrain model
-    sir_model = create_model(uninfected_infected_typing, SIR())
+    sir_model = create_model(ui_typing, SIR())
     strain_model = create_model(
-        uninfected_infected_typing,
+        ui_typing,
         CompleteCrossImmunity([:alpha, :beta])
     )
 

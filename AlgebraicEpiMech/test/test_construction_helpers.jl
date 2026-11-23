@@ -1,7 +1,6 @@
 @testsnippet HelperSetup begin
     using AlgebraicPetri
     using Catlab
-    using AlgebraicEpiMech
     import AlgebraicEpiMech as aem
 
     # Test typings

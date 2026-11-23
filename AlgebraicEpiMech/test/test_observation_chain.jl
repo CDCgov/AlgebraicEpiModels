@@ -1,26 +1,4 @@
-# `observation_layout` — the READ side of observation chains.
-#
-# Given a net that already carries chains, recover which species belong to which chain and in what
-# order. The construction side it used to accompany (`WithObservation`, `ObservationChainSpec`)
-# has been removed: observation is attached to a COMPOSED net by pushout, so these nets are built
-# with `attach_observation`.
-#
-# The tests that used to live here guarding the operadic path — "obs_inflow preserved through
-# typed_product with NoCrossImmunity / CompleteCrossImmunity / ImmuneHistory", and the two
-# behavioural accumulator-fills checks — are gone rather than ported. The property they asserted
-# (that a factor's reflexive `:observation` box survives the pullback) no longer exists, and the
-# behaviour they checked is covered directly by `test_observation_rewriting.jl`.
-
-@testsnippet ObservationLayoutSetup begin
-    using AlgebraicPetri
-    using AlgebraicPetri.TypedPetri: typed_product
-    using Catlab
-    using AlgebraicEpiMech
-
-    one_pop_typing = OnePopulationTyping(population_type = :Individual)
-end
-
-@testitem "observation_layout returns ordered chain metadata" setup = [ObservationLayoutSetup] begin
+@testitem "observation_layout returns ordered chain metadata" setup = [ModelSetup] begin
     pn = attach_observation(
         dom(create_model(one_pop_typing, SEIR())),
         AtCompartment(:I); n_stages = 2,
@@ -39,8 +17,6 @@ end
 end
 
 @testitem "observation layout constructors derive cumulative names" begin
-    using AlgebraicEpiMech
-
     chain = ObservationChainLayout(:I, (:O_I_1, :O_I_2))
     layout = ObservationLayout(chain.obs_names, (chain,))
 
@@ -50,7 +26,7 @@ end
     @test_throws ArgumentError ObservationLayout((), ((source_name = :I,),))
 end
 
-@testitem "observation_layout recognises custom prefixes" setup = [ObservationLayoutSetup] begin
+@testitem "observation_layout recognises custom prefixes" setup = [ModelSetup] begin
     pn = attach_observation(
         dom(create_model(one_pop_typing, SEIR())),
         AtCompartment(:I); n_stages = 2, prefix = :reported_case,
@@ -64,7 +40,7 @@ end
     @test isempty(observation_layout(pn).chains)
 end
 
-@testitem "observation_layout separates chains on different sources" setup = [ObservationLayoutSetup] begin
+@testitem "observation_layout separates chains on different sources" setup = [ModelSetup] begin
     # Two chains, attached one after another. Each is named for the source it samples, which is
     # what keeps them apart — a chain naming scheme that dropped the source would collapse both
     # onto one label.
@@ -87,7 +63,7 @@ end
     @test chains[:R].obs_names == (:O_R_1,)
 end
 
-@testitem "observation_layout resolves stratified chains per stratum" setup = [ObservationLayoutSetup] begin
+@testitem "observation_layout resolves stratified chains per stratum" setup = [ModelSetup] begin
     # Composition FIRST, observation after — so the stratification factor carries no observation
     # structure at all and each location's chain is created by the rewrite.
     composed = dom(

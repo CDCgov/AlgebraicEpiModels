@@ -1,31 +1,11 @@
-# Unit tests for create_model_uwd.jl
-# Tests the exported create_model_uwd methods for all compartmental model types
-
-@testsnippet ModelUWDSetup begin
-    using AlgebraicPetri
-    using Catlab
-    using AlgebraicEpiMech
-
-    # Create typing instances for testing
-    one_pop_typing = OnePopulationTyping(population_type = :Individual)
-    ui_typing = UninfectedInfectedTyping(
-        uninfected_type = :Susceptible,
-        infected_type = :Infectious
-    )
-    uninfected_infected_typing = UninfectedInfectedTyping(
-        uninfected_type = :Susceptible,
-        infected_type = :Infectious
-    )
-end
-
-@testitem "create_model_uwd leaves the outer boundary unspecified" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd leaves the outer boundary unspecified" setup = [ModelSetup] begin
     models_and_typings = [
         (one_pop_typing, SI()),
         (one_pop_typing, SEIR()),
         (one_pop_typing, NoCrossImmunity(2)),
-        (uninfected_infected_typing, CompleteCrossImmunity(2)),
+        (ui_typing, CompleteCrossImmunity(2)),
         (one_pop_typing, AgeStratification([:child, :adult])),
-        (uninfected_infected_typing, ImmuneHistory([:strain_1, :strain_2])),
+        (ui_typing, ImmuneHistory([:strain_1, :strain_2])),
     ]
 
     for (typing, model) in models_and_typings
@@ -34,8 +14,7 @@ end
     end
 end
 
-# Tests for SI model UWD construction
-@testitem "create_model_uwd(SI) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SI) creates correct structure" setup = [ModelSetup] begin
     model = SI()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -49,7 +28,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SI) with multi-stage I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SI) with multi-stage I" setup = [ModelSetup] begin
     model = SI(number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -60,7 +39,7 @@ end
     @test length(boxes(uwd)) == 5
 end
 
-@testitem "create_model_uwd(SI) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SI) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SI()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -70,8 +49,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SEI model UWD construction
-@testitem "create_model_uwd(SEI) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEI) creates correct structure" setup = [ModelSetup] begin
     model = SEI()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -84,7 +62,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SEI) with multi-stage E and I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEI) with multi-stage E and I" setup = [ModelSetup] begin
     model = SEI(number_E_stages = 2, number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -95,7 +73,7 @@ end
     @test length(boxes(uwd)) == 7
 end
 
-@testitem "create_model_uwd(SEI) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEI) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SEI()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -105,8 +83,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SIR model UWD construction
-@testitem "create_model_uwd(SIR) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIR) creates correct structure" setup = [ModelSetup] begin
     model = SIR()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -119,7 +96,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SIR) with multi-stage I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIR) with multi-stage I" setup = [ModelSetup] begin
     model = SIR(number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -130,7 +107,7 @@ end
     @test length(boxes(uwd)) == 6
 end
 
-@testitem "create_model_uwd(SIR) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIR) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SIR()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -140,8 +117,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SEIR model UWD construction
-@testitem "create_model_uwd(SEIR) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIR) creates correct structure" setup = [ModelSetup] begin
     model = SEIR()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -154,7 +130,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SEIR) with multi-stage E and I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIR) with multi-stage E and I" setup = [ModelSetup] begin
     model = SEIR(number_E_stages = 2, number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -165,7 +141,7 @@ end
     @test length(boxes(uwd)) == 8
 end
 
-@testitem "create_model_uwd(SEIR) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIR) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SEIR()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -175,8 +151,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SIS model UWD construction
-@testitem "create_model_uwd(SIS) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIS) creates correct structure" setup = [ModelSetup] begin
     model = SIS()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -189,7 +164,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SIS) with multi-stage I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIS) with multi-stage I" setup = [ModelSetup] begin
     model = SIS(number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -200,7 +175,7 @@ end
     @test length(boxes(uwd)) == 6
 end
 
-@testitem "create_model_uwd(SIS) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SIS) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SIS()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -210,8 +185,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SEIS model UWD construction
-@testitem "create_model_uwd(SEIS) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIS) creates correct structure" setup = [ModelSetup] begin
     model = SEIS()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -224,7 +198,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SEIS) with multi-stage E and I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIS) with multi-stage E and I" setup = [ModelSetup] begin
     model = SEIS(number_E_stages = 2, number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -235,7 +209,7 @@ end
     @test length(boxes(uwd)) == 8
 end
 
-@testitem "create_model_uwd(SEIS) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIS) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SEIS()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -245,8 +219,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Tests for SEIRS model UWD construction
-@testitem "create_model_uwd(SEIRS) creates correct structure" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIRS) creates correct structure" setup = [ModelSetup] begin
     model = SEIRS()
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -259,7 +232,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(SEIRS) with multi-stage E and I" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIRS) with multi-stage E and I" setup = [ModelSetup] begin
     model = SEIRS(number_E_stages = 2, number_I_stages = 3)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -270,7 +243,7 @@ end
     @test length(boxes(uwd)) == 9
 end
 
-@testitem "create_model_uwd(SEIRS) works with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(SEIRS) works with UninfectedInfectedTyping" setup = [ModelSetup] begin
     model = SEIRS()
     uwd = create_model_uwd(ui_typing, model)
 
@@ -280,8 +253,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-# Test error handling for unimplemented combinations
-@testitem "create_model_uwd throws error for unimplemented combinations" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd throws error for unimplemented combinations" setup = [ModelSetup] begin
     # Create a custom typing type that has no implementations
     struct CustomSchema <: EpidemiologicalTyping end
     custom_schema = CustomSchema()
@@ -291,8 +263,7 @@ end
     @test_throws ErrorException create_model_uwd(custom_schema, SEIR())
 end
 
-# Tests for NoCrossImmunity multistrain model UWD construction
-@testitem "create_model_uwd(NoCrossImmunity) with auto-generated strain names" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(NoCrossImmunity) with auto-generated strain names" setup = [ModelSetup] begin
     model = NoCrossImmunity(2)
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -309,7 +280,7 @@ end
     @test count(==(:reversion), box_names) == 2
 end
 
-@testitem "create_model_uwd(NoCrossImmunity) with custom strain names" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(NoCrossImmunity) with custom strain names" setup = [ModelSetup] begin
     model = NoCrossImmunity([:h1n1, :h3n2, :seasonal])
     uwd = create_model_uwd(one_pop_typing, model)
 
@@ -326,10 +297,9 @@ end
     @test :seasonal in junction_vars
 end
 
-# Tests for CompleteCrossImmunity multistrain model UWD construction
-@testitem "create_model_uwd(CompleteCrossImmunity) with auto-generated strain names" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(CompleteCrossImmunity) with auto-generated strain names" setup = [ModelSetup] begin
     model = CompleteCrossImmunity(2)
-    uwd = create_model_uwd(uninfected_infected_typing, model)
+    uwd = create_model_uwd(ui_typing, model)
 
     # Should have 3 junctions: 1 shared susceptible + 2 strain-specific infected
     @test length(junctions(uwd)) == 3
@@ -350,9 +320,9 @@ end
     @test count(==(:reversion), box_names) == 2
 end
 
-@testitem "create_model_uwd(CompleteCrossImmunity) with custom strain names" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(CompleteCrossImmunity) with custom strain names" setup = [ModelSetup] begin
     model = CompleteCrossImmunity([:wild_type, :variant])
-    uwd = create_model_uwd(uninfected_infected_typing, model)
+    uwd = create_model_uwd(ui_typing, model)
 
     # Should have 3 junctions: 1 shared susceptible + 2 strain-specific infected
     @test length(junctions(uwd)) == 3
@@ -367,8 +337,7 @@ end
     @test :variant in junction_vars
 end
 
-# Tests for AgeStratification UWD construction
-@testitem "create_model_uwd(AgeStratification) creates correct structure with OnePopulationTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(AgeStratification) creates correct structure with OnePopulationTyping" setup = [ModelSetup] begin
     age_strat = AgeStratification([:child, :adult])
     uwd = create_model_uwd(one_pop_typing, age_strat)
 
@@ -393,7 +362,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(AgeStratification) creates correct structure with UninfectedInfectedTyping" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(AgeStratification) creates correct structure with UninfectedInfectedTyping" setup = [ModelSetup] begin
     age_strat = AgeStratification([:child, :adult, :elderly])
     uwd = create_model_uwd(ui_typing, age_strat)
 
@@ -421,7 +390,7 @@ end
     @test uwd isa RelationDiagram
 end
 
-@testitem "create_model_uwd(AgeStratification) with single age group" setup = [ModelUWDSetup] begin
+@testitem "create_model_uwd(AgeStratification) with single age group" setup = [ModelSetup] begin
     age_strat = AgeStratification([:population])
     uwd = create_model_uwd(one_pop_typing, age_strat)
 

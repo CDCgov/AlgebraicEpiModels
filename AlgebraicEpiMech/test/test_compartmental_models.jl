@@ -1,6 +1,4 @@
 @testitem "Compartmental model constructors" begin
-    using AlgebraicEpiMech
-
     @testset "SI model" begin
         # Single stage
         model = SI()
