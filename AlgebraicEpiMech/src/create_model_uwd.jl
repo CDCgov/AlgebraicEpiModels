@@ -401,10 +401,13 @@ When composed with a compartmental model UWD via `typed_product`, the transmissi
 will align based on the `:transmission` name, allowing the contact structure to modulate
 the disease dynamics defined in the compartmental model.
 
+The movement graph (`model.transitions`) adds one movement box per edge and population type
+through [`add_strata_transition!`](@ref).
+
 # Keyword Arguments
 - `include_reflexives = true`: the transition types this factor is passive for (see
   [`create_model`](@ref)). The per-stratum `:disease`, `:reversion` and `:waning` boxes are
-  added when listed.
+  added when listed; any other listed type is added by `create_model`.
 """
 function create_model_uwd(
         typing::EpidemiologicalTyping, model::ContactStratification; include_reflexives = true
@@ -430,6 +433,15 @@ function create_model_uwd(
         :disease in reflexives && add_disease_progression!(uwd, infected, infected, typing)
         :reversion in reflexives && add_reversion_progression!(uwd, infected, uninfected, typing)
         :waning in reflexives && add_uninfected_density_progression!(uwd, uninfected, uninfected, typing)
+    end
+
+    # One movement box per edge and population type; under OnePopulationTyping both junctions
+    # of a stratum are the same one.
+    junctions_of = Dict(zip(model.stratum_names, unique.(stratum_junction_tuples)))
+    for (source, target) in model.transitions
+        for (from, to) in zip(junctions_of[source], junctions_of[target])
+            add_strata_transition!(uwd, from, to, typing)
+        end
     end
 
     return uwd
@@ -519,8 +531,8 @@ function create_model_uwd(
     end
 
     if :waning in reflexives
-        # Reflexive :waning on each uninfected class (inert with SEIRS).
-        for h in keys(U)
+        # Reflexive :waning on each uninfected class (inert with SEIRS), in class order.
+        for h in _immune_classes(mode, strains)
             add_uninfected_density_progression!(uwd, U[h], U[h], typing)
         end
     end

@@ -16,6 +16,13 @@ end
         [:transmission_S_I, :I_to_R, :waning_S, :waning_I, :waning_R]
     # Under the split typing :waning is Uninfected → Uninfected, so only S carries one.
     @test names(split, (:waning,)) == [:transmission_S_I, :I_to_R, :waning_S]
+    @test names(one, (:strata,)) == names(one, :strata) == names(one, [:strata, :strata]) ==
+        [:transmission_S_I, :I_to_R, :S, :I, :R]
+    # :strata expands to both movement types under the split typing; other types are prefixed.
+    split_sir = create_model(split, SIR(); include_reflexives = (:strata, :waning))
+    @test tnames(dom(split_sir)) == [:transmission_S_I, :I_to_R, :S, :I, :R, :waning_S]
+    @test [tname(codom(split_sir), split_sir[:T](t)) for t in 1:6] ==
+        [:transmission, :disease, :strata_U, :strata_I, :strata_I, :waning]
     # Types the factor implements are skipped.
     @test names(one, (:disease, :transmission)) == [:transmission_S_I, :I_to_R]
     @test length(names(one, (:reversion,))) == 5
@@ -37,6 +44,16 @@ end
     @test names(split, (:waning,)) ==
         [:child_U_child_I, :child_U_adult_I, :adult_U_child_I, :adult_U_adult_I, :child_U, :adult_U]
     @test create_model_uwd(one, age; include_reflexives = false) |> boxes |> length == 4
+    # A static factor is passive for movement on request, one box per population type.
+    @test names(one, (:strata,)) == [:child_child, :child_adult, :adult_child, :adult_adult, :child, :adult]
+    @test names(split, (:strata,)) == [
+        :child_U_child_I, :child_U_adult_I, :adult_U_child_I, :adult_U_adult_I,
+        :child_U, :adult_U, :child_I, :adult_I,
+    ]
+    # A moving factor implements movement, so listing :strata adds nothing.
+    aging = AgeStratification([:child, :adult]; transitions = [:child => :adult])
+    @test nt(dom(create_model(one, aging; include_reflexives = (default_reflexives(one, aging)..., :strata)))) ==
+        nt(dom(create_model(one, aging))) == 11
 end
 
 @testitem "immune history adds disease and waning reflexives when listed" setup = [ModelSetup] begin

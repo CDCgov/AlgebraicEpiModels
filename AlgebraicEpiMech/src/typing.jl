@@ -82,10 +82,15 @@ struct Transmission <: TransitionKind end
 struct Disease <: TransitionKind end
 struct Reversion <: TransitionKind end
 struct Waning <: TransitionKind end
+struct Movement <: TransitionKind end
 
 const TRANSITION_KINDS = (
     transmission = Transmission(), disease = Disease(), reversion = Reversion(), waning = Waning(),
+    strata = Movement(),
 )
+
+# Movement keeps the population type, so a typing with two populations has one box per population.
+const MOVEMENT_BOXES = (shared = :strata, uninfected = :strata_U, infected = :strata_I)
 
 function signatures(::Transmission, typing)
     U, I = get_uninfected_type(typing), get_infected_type(typing)
@@ -94,8 +99,20 @@ end
 signatures(::Disease, typing) = (:disease => (get_infected_type(typing) => get_infected_type(typing)),)
 signatures(::Reversion, typing) = (:reversion => (get_infected_type(typing) => get_uninfected_type(typing)),)
 signatures(::Waning, typing) = (:waning => (get_uninfected_type(typing) => get_uninfected_type(typing)),)
+function signatures(::Movement, typing)
+    U, I = get_uninfected_type(typing), get_infected_type(typing)
+    U == I && return (MOVEMENT_BOXES.shared => (U => U),)
+    return (MOVEMENT_BOXES.uninfected => (U => U), MOVEMENT_BOXES.infected => (I => I))
+end
 
 box_names(kind::TransitionKind, typing) = first.(signatures(kind, typing))
+
+function movement_box(typing, population::Symbol)
+    for (name, (input, _)) in signatures(Movement(), typing)
+        input == population && return name
+    end
+    throw(ArgumentError("population $population is not part of the typing"))
+end
 
 """
     type_system(typing::EpidemiologicalTyping, extras...)
@@ -109,6 +126,7 @@ population type and these transition types.
 | `:disease` | `P → P` | `I → I` |
 | `:reversion` | `P → P` | `I → U` |
 | `:waning` | `P → P` | `U → U` |
+| `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level
 experiments; [`create_model`](@ref) uses only the standard ones.
