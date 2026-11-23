@@ -32,7 +32,8 @@ export Stratification, ContactStratification, AgeStratification, GeographicStrat
     compose_stratifications
 
 # Model functions
-export EpiMechModel, create_model_uwd, create_model, generate_transition_names
+export EpiMechModel, create_model_uwd, create_model, generate_transition_names,
+    default_reflexives
 
 # Vectorfield functions
 export flatten_symbols, vectorfield_flat

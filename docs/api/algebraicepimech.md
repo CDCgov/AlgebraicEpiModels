@@ -930,7 +930,6 @@ age_geo = compose_stratifications(age, geo)
 create_model(
     typing::EpidemiologicalTyping,
     model::EpiMechModel;
-    population_transitions,
     include_reflexives
 ) -> Catlab.CategoricalAlgebra.Pointwise.ACSetTransformations.StructACSetTransformation{ACSets.Schemas.TypeLevelBasicSchema{Symbol, Tuple{:T, :S, :I, :O}, Tuple{(:it, :I, :T), (:is, :I, :S), (:ot, :O, :T), (:os, :O, :S)}, Tuple{:Name}, Tuple{(:tname, :T, :Name), (:sname, :S, :Name)}, Tuple{}}, Comp, AlgebraicPetri.LabelledPetriNet, AlgebraicPetri.LabelledPetriNet} where Comp<:NamedTuple
 ```
@@ -938,15 +937,6 @@ create_model(
 Create a typed Petri net model from an epidemiological typing strategy and model specification.
 
 This is the unified entry point for creating all model types in AlgebraicEpiMech. Through multiple dispatch on the `model` parameter, it supports any subtype of `EpiMechModel`. The undirected wiring diagram (UWD) provides an intermediate structural representation, recording how compartments and mechanisms connect independently of the final typed Petri net constructed by `oapply_typed`.
-
-**Functionality Overview**
-
-The `create_model` function builds the typed Petri net representation of the epidemiological-mechanical model in four steps:
-
-1. **Build Type System**: Materializes the typing strategy as a `LabelledPetriNet`
-2. **Create UWD**: Builds an undirected wiring diagram with model structure and box names
-3. **Generate Transition Names**: Creates unique names for ODE parameters via dispatch
-4. **Apply Typing**: Uses `oapply_typed` to create a typed Petri net
 
 The resulting typed Petri net can be used directly for ODE simulation or composed with other typed Petri nets via `typed_product` to build complex hierarchical models.
 
@@ -957,8 +947,7 @@ The resulting typed Petri net can be used directly for ODE simulation or compose
 
 **Keyword Arguments**
 
-- `population_transitions=nothing`: Extra transition types for [`type_system`](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}), as a single pair such as `:strata => (:Population => :Population)` or a collection of pairs. `nothing` gives the standard type system. Models that will be composed with `typed_product` must be created with the same extra transitions so that they share a codomain.
-- `include_reflexives::Bool=true` (for `ContactStratification`, forwarded to `create_model_uwd`): Controls whether per-stratum reflexive boxes (disease, reversion, and waning) are added. Required for `typed_product` composition; disable for standalone use to avoid zero-effect transitions.
+- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:waning` or `(:disease, :waning)`. Listed types the factor already implements are skipped.
 
 **Returns**
 
@@ -974,6 +963,7 @@ Transition names are generated automatically based on model type:
 - **Compartmental**: `transmission_S_I`, `E_to_I`, `I_to_R` (describes flow between compartments)
 - **Age Stratification**: `child_child`, `child_adult`, `adult_child` (infectee_infector pattern)
 - **Multistrain**: Strain identifiers like `h1n1`, `h3n2` (enables clean composition)
+- **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model the type is prefixed (`waning_S`)
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -1012,7 +1002,7 @@ age_sir_pn = dom(age_sir)
 
 Models expressed as typed Petri nets compose via `typed_product` using their common type-system codomain when box names match. The `vectorfield_flat` function automatically handles tuple transition names in composed models for ODE parameter assignment.
 
-See also: [`create_model_uwd`](algebraicepimech.md#AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}), [`generate_transition_names`](algebraicepimech.md#AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}), [`type_system`](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}),           `typed_product` (from `AlgebraicPetri.TypedPetri`), [`vectorfield_flat`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet})
+See also: [`create_model_uwd`](algebraicepimech.md#AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}), [`generate_transition_names`](algebraicepimech.md#AlgebraicEpiMech.generate_transition_names-Tuple{Any, CompartmentalModel}), [`type_system`](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple{EpidemiologicalTyping, Vararg{Any}}),           [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel}), `typed_product` (from `AlgebraicPetri.TypedPetri`),           [`vectorfield_flat`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet})
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}'></a>
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, CompartmentalModel}-1'></a>
@@ -1092,6 +1082,10 @@ For n strata, creates n² transmission boxes representing the contact matrix:
 **Composition Behavior**
 
 When composed with a compartmental model UWD via `typed_product`, the transmission boxes will align based on the `:transmission` name, allowing the contact structure to modulate the disease dynamics defined in the compartmental model.
+
+**Keyword Arguments**
+
+- `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion` and `:waning` boxes are added when listed.
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}'></a>
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}-1'></a>
@@ -1236,7 +1230,11 @@ The returned UWD can be applied to the typing using `oapply_typed` to create a t
 **`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
 
 ```julia
-create_model_uwd(_::OnePopulationTyping, _::ImmuneHistory)
+create_model_uwd(
+    ::OnePopulationTyping,
+    ::ImmuneHistory;
+    kwargs...
+)
 ```
 
 Immune-history stratification requires the uninfected/infected type split.
@@ -1336,7 +1334,8 @@ combined = typed_product(sir_typed, strain_typed)
 ```julia
 create_model_uwd(
     typing::UninfectedInfectedTyping,
-    model::ImmuneHistory
+    model::ImmuneHistory;
+    include_reflexives
 ) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
 ```
 
@@ -1351,6 +1350,8 @@ This is a stratification factor (like `ContactStratification`), meant to be `typ
 - **`:reversion`** is off-diagonal: `(h,i) → U_{recover}` with `recover = h∪{i}` (`FullHistory`) or `{i}` (`LatestInfection`). This is the one stratum-changing move — recovering from `i` folds it into the immune history.
 - **`:waning`** reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base compose).
 
+The `:disease` and `:waning` reflexives are added when listed in `include_reflexives` (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})); both are by default.
+
 **Examples**
 
 ```julia
@@ -1358,6 +1359,32 @@ typing = UninfectedInfectedTyping()
 history = create_model(typing, ImmuneHistory([:current, :invader]))
 model = typed_product(create_model(typing, SEIRS()), history)
 ```
+
+<a id='AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel}'></a>
+<a id='AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel}-1'></a>
+**`AlgebraicEpiMech.default_reflexives`** &mdash; *Method*.
+
+```julia
+default_reflexives(
+    _::EpidemiologicalTyping,
+    _::EpiMechModel
+) -> Vector{Symbol}
+```
+
+```julia
+default_reflexives(typing, model)
+```
+
+The transition types a factor is passive for under `include_reflexives = true`.
+
+
+| Model | Default |
+| ---: | ---: |
+| `CompartmentalModel`, `MultiStrainModel` | none |
+| `ContactStratification` | `:disease`, `:reversion`, `:waning` |
+| `ImmuneHistory` | `:disease`, `:waning` |
+
+Extend a default rather than restating it: `include_reflexives = (default_reflexives(typing, model)..., :waning)`.
 
 <a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}'></a>
 <a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}-1'></a>
@@ -1506,71 +1533,31 @@ This centralizes the observation naming/ordering contract, so downstream package
 ```julia
 type_system(
     typing::EpidemiologicalTyping,
-    population_transitions...
+    extras...
 ) -> AlgebraicPetri.LabelledPetriNet
 ```
 
 ```julia
-type_system(typing::EpidemiologicalTyping, population_transitions...)
+type_system(typing::EpidemiologicalTyping, extras...)
 ```
 
-Materialize an epidemiological typing strategy as the `LabelledPetriNet` used as the codomain of a typed Petri net. Concrete `EpidemiologicalTyping` subtypes must implement this interface.
+The `LabelledPetriNet` that a typed Petri net built under `typing` maps into: one species per population type and these transition types.
 
-<a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}'></a>
-<a id='AlgebraicEpiMech.type_system-Tuple{OnePopulationTyping, Vararg{Any}}-1'></a>
-**`AlgebraicEpiMech.type_system`** &mdash; *Method*.
 
-```julia
-type_system(
-    typing::OnePopulationTyping,
-    population_transitions...
-) -> AlgebraicPetri.LabelledPetriNet
-```
+| Transition type | `OnePopulationTyping` | `UninfectedInfectedTyping` |
+| ---: | ---: | ---: |
+| `:transmission` | `(P, P) → (P, P)` | `(U, I) → (I, I)` |
+| `:disease` | `P → P` | `I → I` |
+| `:reversion` | `P → P` | `I → U` |
+| `:waning` | `P → P` | `U → U` |
 
-```julia
-type_system(typing::OnePopulationTyping, population_transitions...)
-```
-
-Create the single-population Petri-net type system described by `typing`. Additional transition specifications are appended to the standard `:transmission`, `:disease`, `:reversion`, and `:waning` transitions.
+`extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level experiments; [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}) uses only the standard ones.
 
 **Examples**
 
 ```julia
-typing = OnePopulationTyping(population_type = :Individual)
-codomain = type_system(
-    typing,
-    :birth => (:Individual => (:Individual, :Individual)),
-)
-```
-
-<a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}'></a>
-<a id='AlgebraicEpiMech.type_system-Tuple{UninfectedInfectedTyping, Vararg{Any}}-1'></a>
-**`AlgebraicEpiMech.type_system`** &mdash; *Method*.
-
-```julia
-type_system(
-    typing::UninfectedInfectedTyping,
-    population_transitions...
-) -> AlgebraicPetri.LabelledPetriNet
-```
-
-```julia
-type_system(typing::UninfectedInfectedTyping, population_transitions...)
-```
-
-Create the uninfected/infected Petri-net type system described by `typing`. Additional transition specifications are appended to the standard `:transmission`, `:disease`, `:reversion`, and `:waning` transitions.
-
-**Examples**
-
-```julia
-typing = UninfectedInfectedTyping(
-    uninfected_type = :Susceptible,
-    infected_type = :Infectious,
-)
-codomain = type_system(
-    typing,
-    :vaccination => (:Susceptible => :Susceptible),
-)
+type_system(OnePopulationTyping(population_type = :Individual))
+type_system(UninfectedInfectedTyping(), :vaccination => (:Uninfected => :Uninfected))
 ```
 
 <a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}'></a>

@@ -53,95 +53,73 @@ See also: [`type_system`](@ref), [`OnePopulationTyping`](@ref)
 end
 
 """
-    type_system(typing::EpidemiologicalTyping, population_transitions...)
+    get_uninfected_type(typing)
+    get_infected_type(typing)
 
-Materialize an epidemiological typing strategy as the `LabelledPetriNet` used as the
-codomain of a typed Petri net. Concrete `EpidemiologicalTyping` subtypes must implement
-this interface.
-"""
-function type_system(typing::EpidemiologicalTyping, population_transitions...)
-    return error(
-        "`type_system` not implemented for typing $(typeof(typing)). " *
-            "Implement a method for this typing or use " *
-            "OnePopulationTyping/UninfectedInfectedTyping."
-    )
-end
-
-"""
-    type_system(typing::OnePopulationTyping, population_transitions...)
-
-Create the single-population Petri-net type system described by `typing`. Additional
-transition specifications are appended to the standard `:transmission`, `:disease`,
-`:reversion`, and `:waning` transitions.
-
-# Examples
-```julia
-typing = OnePopulationTyping(population_type = :Individual)
-codomain = type_system(
-    typing,
-    :birth => (:Individual => (:Individual, :Individual)),
-)
-```
-"""
-function type_system(typing::OnePopulationTyping, population_transitions...)
-    population_type = typing.population_type
-    return LabelledPetriNet(
-        [population_type],
-        :transmission => (
-            (population_type, population_type) => (population_type, population_type)
-        ),
-        :disease => (population_type => population_type),
-        :reversion => (population_type => population_type),
-        :waning => (population_type => population_type),
-        population_transitions...
-    )
-end
-
-"""
-    type_system(typing::UninfectedInfectedTyping, population_transitions...)
-
-Create the uninfected/infected Petri-net type system described by `typing`. Additional
-transition specifications are appended to the standard `:transmission`, `:disease`,
-`:reversion`, and `:waning` transitions.
-
-# Examples
-```julia
-typing = UninfectedInfectedTyping(
-    uninfected_type = :Susceptible,
-    infected_type = :Infectious,
-)
-codomain = type_system(
-    typing,
-    :vaccination => (:Susceptible => :Susceptible),
-)
-```
-"""
-function type_system(typing::UninfectedInfectedTyping, population_transitions...)
-    uninfected_type = typing.uninfected_type
-    infected_type = typing.infected_type
-    return LabelledPetriNet(
-        [uninfected_type, infected_type],
-        :transmission => (
-            (uninfected_type, infected_type) => (infected_type, infected_type)
-        ),
-        :disease => (infected_type => infected_type),
-        :reversion => (infected_type => uninfected_type),
-        :waning => (uninfected_type => uninfected_type),
-        population_transitions...
-    )
-end
-
-"""
-Return the type label used for infected compartments (E, I, and R).
-
-This interface lets model construction remain agnostic to the selected epidemiological
-typing strategy.
-"""
-get_infected_type(typing::OnePopulationTyping) = typing.population_type
-get_infected_type(typing::UninfectedInfectedTyping) = typing.infected_type
-
-"""
-Return the type label used for uninfected compartments such as S.
+The population types of uninfected compartments (such as S) and of infected compartments (E, I
+and R). They coincide under [`OnePopulationTyping`](@ref), and are all [`type_system`](@ref)
+needs from a typing.
 """
 get_uninfected_type(typing::OnePopulationTyping) = typing.population_type
 get_uninfected_type(typing::UninfectedInfectedTyping) = typing.uninfected_type
+get_uninfected_type(typing::EpidemiologicalTyping) = _not_implemented(typing)
+get_infected_type(typing::OnePopulationTyping) = typing.population_type
+get_infected_type(typing::UninfectedInfectedTyping) = typing.infected_type
+get_infected_type(typing::EpidemiologicalTyping) = _not_implemented(typing)
+
+function _not_implemented(typing)
+    return error(
+        "typing interface not implemented for $(typeof(typing)): define `get_uninfected_type` " *
+            "and `get_infected_type`, or use OnePopulationTyping/UninfectedInfectedTyping."
+    )
+end
+
+populations(typing) = unique([get_uninfected_type(typing), get_infected_type(typing)])
+
+# A transition kind owns the box names and Petri signatures it contributes to a type system.
+abstract type TransitionKind end
+struct Transmission <: TransitionKind end
+struct Disease <: TransitionKind end
+struct Reversion <: TransitionKind end
+struct Waning <: TransitionKind end
+
+const TRANSITION_KINDS = (
+    transmission = Transmission(), disease = Disease(), reversion = Reversion(), waning = Waning(),
+)
+
+function signatures(::Transmission, typing)
+    U, I = get_uninfected_type(typing), get_infected_type(typing)
+    return (:transmission => ((U, I) => (I, I)),)
+end
+signatures(::Disease, typing) = (:disease => (get_infected_type(typing) => get_infected_type(typing)),)
+signatures(::Reversion, typing) = (:reversion => (get_infected_type(typing) => get_uninfected_type(typing)),)
+signatures(::Waning, typing) = (:waning => (get_uninfected_type(typing) => get_uninfected_type(typing)),)
+
+box_names(kind::TransitionKind, typing) = first.(signatures(kind, typing))
+
+"""
+    type_system(typing::EpidemiologicalTyping, extras...)
+
+The `LabelledPetriNet` that a typed Petri net built under `typing` maps into: one species per
+population type and these transition types.
+
+| Transition type | `OnePopulationTyping` | `UninfectedInfectedTyping` |
+|---|---|---|
+| `:transmission` | `(P, P) → (P, P)` | `(U, I) → (I, I)` |
+| `:disease` | `P → P` | `I → I` |
+| `:reversion` | `P → P` | `I → U` |
+| `:waning` | `P → P` | `U → U` |
+
+`extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level
+experiments; [`create_model`](@ref) uses only the standard ones.
+
+# Examples
+```julia
+type_system(OnePopulationTyping(population_type = :Individual))
+type_system(UninfectedInfectedTyping(), :vaccination => (:Uninfected => :Uninfected))
+```
+"""
+function type_system(typing::EpidemiologicalTyping, extras...)
+    kinds = (s for kind in TRANSITION_KINDS for s in signatures(kind, typing))
+    return LabelledPetriNet(populations(typing), kinds..., extras...)
+end

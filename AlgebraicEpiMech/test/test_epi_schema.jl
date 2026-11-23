@@ -66,3 +66,17 @@ end
     @test occursin("MockTyping", string(error))
     @test occursin("not implemented", string(error))
 end
+
+@testitem "type_system builds the standard transition kinds from a typing's populations" setup = [ModelSetup] begin
+    @test tnames(type_system(OnePopulationTyping())) == [:transmission, :disease, :reversion, :waning]
+    split = type_system(UninfectedInfectedTyping(uninfected_type = :U, infected_type = :J))
+    arcs(t) = (snames(split)[AlgebraicPetri.inputs(split, t)], snames(split)[AlgebraicPetri.outputs(split, t)])
+    @test arcs.(1:4) == [([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U])]
+
+    struct TwoClassTyping <: EpidemiologicalTyping end
+    AlgebraicEpiMech.get_uninfected_type(::TwoClassTyping) = :Healthy
+    AlgebraicEpiMech.get_infected_type(::TwoClassTyping) = :Sick
+    @test snames(type_system(TwoClassTyping())) == [:Healthy, :Sick]
+    @test codom(create_model(one_pop_typing, SIR())) ==
+        codom(create_model(one_pop_typing, AgeStratification(:a, :b)))
+end

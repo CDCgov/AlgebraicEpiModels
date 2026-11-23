@@ -1,7 +1,3 @@
-# Unified create_model function for all model types
-# Multiple dispatch on model type parameter handles different model types
-# (CompartmentalModel, AgeStratification, MultiStrainModel)
-
 """
 Create a typed Petri net model from an epidemiological typing strategy and model specification.
 
@@ -11,15 +7,6 @@ The undirected wiring diagram (UWD) provides an intermediate structural represen
 how compartments and mechanisms connect independently of the final typed Petri net constructed by
 `oapply_typed`.
 
-# Functionality Overview
-The `create_model` function builds the typed
-Petri net representation of the epidemiological-mechanical model in four steps:
-
-1. **Build Type System**: Materializes the typing strategy as a `LabelledPetriNet`
-2. **Create UWD**: Builds an undirected wiring diagram with model structure and box names
-3. **Generate Transition Names**: Creates unique names for ODE parameters via dispatch
-4. **Apply Typing**: Uses `oapply_typed` to create a typed Petri net
-
 The resulting typed Petri net can be used directly for ODE simulation or composed with other
 typed Petri nets via `typed_product` to build complex hierarchical models.
 
@@ -28,14 +15,13 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
 - `model::EpiMechModel`: The model specification (uses dispatch for different types)
 
 # Keyword Arguments
-- `population_transitions=nothing`: Extra transition types for [`type_system`](@ref), as a single
-  pair such as `:strata => (:Population => :Population)` or a collection of pairs. `nothing` gives
-  the standard type system. Models that will be composed with `typed_product` must be created
-  with the same extra transitions so that they share a codomain.
-- `include_reflexives::Bool=true` (for `ContactStratification`, forwarded to `create_model_uwd`):
-  Controls whether per-stratum
-  reflexive boxes (disease, reversion, and waning) are added. Required for `typed_product`
-  composition; disable for standalone use to avoid zero-effect transitions.
+- `include_reflexives = true`: the transition types this factor is *passive* for. A
+  `typed_product` keeps a transition type only if every factor has a box of that type, so a
+  factor carries a reflexive box, on each junction of the matching population type, for every
+  listed type it does not implement. Accepts `true` (the defaults of
+  [`default_reflexives`](@ref)), `false` (none, for standalone use), or a transition type name
+  or collection of them, such as `:waning` or `(:disease, :waning)`. Listed types the factor
+  already implements are skipped.
 
 # Returns
 - `ACSetTransformation`: A typed Petri net with two components accessible via:
@@ -47,6 +33,8 @@ Transition names are generated automatically based on model type:
 - **Compartmental**: `transmission_S_I`, `E_to_I`, `I_to_R` (describes flow between compartments)
 - **Age Stratification**: `child_child`, `child_adult`, `adult_child` (infectee_infector pattern)
 - **Multistrain**: Strain identifiers like `h1n1`, `h3n2` (enables clean composition)
+- **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model
+  the type is prefixed (`waning_S`)
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -86,36 +74,92 @@ type-system codomain when box names match. The `vectorfield_flat` function autom
 in composed models for ODE parameter assignment.
 
 See also: [`create_model_uwd`](@ref), [`generate_transition_names`](@ref), [`type_system`](@ref),
-          `typed_product` (from `AlgebraicPetri.TypedPetri`), [`vectorfield_flat`](@ref)
+          [`default_reflexives`](@ref), `typed_product` (from `AlgebraicPetri.TypedPetri`),
+          [`vectorfield_flat`](@ref)
 """
 function create_model(
-        typing::EpidemiologicalTyping,
-        model::EpiMechModel;
-        population_transitions = nothing,
-        include_reflexives::Bool = true
+        typing::EpidemiologicalTyping, model::EpiMechModel; include_reflexives = true
     )
-    # Materialize the typing strategy as the Petri-net codomain for the typed petri net.
-    codomain = _type_system(typing, population_transitions)
-
-    # Create the UWD for the model (dispatch on include_reflexives via positional arg)
-    uwd = _create_model_uwd(typing, model, include_reflexives)
-
-    # Generate transition names (dispatch on model type)
-    transition_names = generate_transition_names(uwd, model)
-
-    # Apply oapply_typed to create the typed Petri net
-    typed_model = oapply_typed(codomain, uwd, transition_names)
-
-    return typed_model
+    codomain = type_system(typing)
+    reflexives = reflexive_types(typing, model, include_reflexives)
+    uwd = _create_model_uwd(typing, model, reflexives)
+    names = generate_transition_names(uwd, model)
+    # Added after naming, so the model-specific naming rules never see a junction-to-itself box.
+    _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomain)
+    return oapply_typed(codomain, uwd, names)
 end
 
-_type_system(typing, ::Nothing) = type_system(typing)
-# A bare Pair is iterable, so splatting it would split it into its two halves.
-_type_system(typing, transition::Pair) = type_system(typing, transition)
-_type_system(typing, transitions) = type_system(typing, transitions...)
+"""
+    default_reflexives(typing, model)
 
-# Intermediate layer: converts include_reflexives kwarg to positional for dispatch
-_create_model_uwd(typing, model, ::Bool) = create_model_uwd(typing, model)
-function _create_model_uwd(typing, model::ContactStratification, include_reflexives::Bool)
-    return create_model_uwd(typing, model; include_reflexives)
+The transition types a factor is passive for under `include_reflexives = true`.
+
+| Model | Default |
+|---|---|
+| `CompartmentalModel`, `MultiStrainModel` | none |
+| `ContactStratification` | `:disease`, `:reversion`, `:waning` |
+| `ImmuneHistory` | `:disease`, `:waning` |
+
+Extend a default rather than restating it:
+`include_reflexives = (default_reflexives(typing, model)..., :waning)`.
+"""
+default_reflexives(::EpidemiologicalTyping, ::EpiMechModel) = Symbol[]
+default_reflexives(::EpidemiologicalTyping, ::ContactStratification) = [:disease, :reversion, :waning]
+default_reflexives(::EpidemiologicalTyping, ::ImmuneHistory) = [:disease, :waning]
+
+# `include_reflexives` resolved to the ordered, unique box names of the typing it requests.
+reflexive_types(typing, model, include::Bool) =
+    include ? reflexive_types(typing, model, default_reflexives(typing, model)) : Symbol[]
+reflexive_types(typing, model, type::Symbol) = reflexive_types(typing, model, (type,))
+function reflexive_types(typing, model, types)
+    resolved = unique(Iterators.flatten(_reflexive_boxes(typing, t) for t in types))
+    available = tnames(type_system(typing))
+    for name in resolved
+        name in available || throw(
+            ArgumentError("`$name` is not a transition type of the typing; available types are $available")
+        )
+    end
+    return resolved
 end
+
+_reflexive_boxes(typing, type::Symbol) =
+    haskey(TRANSITION_KINDS, type) ? box_names(TRANSITION_KINDS[type], typing) : (type,)
+_reflexive_boxes(typing, type) = throw(
+    ArgumentError("`include_reflexives` takes a Bool, a transition type name or a collection of them; got $(repr(type))")
+)
+
+# Builders that add their own reflexive boxes receive the list; the others take no keyword.
+_create_model_uwd(typing, model, _) = create_model_uwd(typing, model)
+function _create_model_uwd(typing, model::Union{ContactStratification, ImmuneHistory}, reflexives)
+    return create_model_uwd(typing, model; include_reflexives = reflexives)
+end
+
+# One reflexive box per junction of the right population type, for every listed type the UWD
+# does not implement. Only a type that maps one population type to itself can be reflexive.
+function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomain)
+    implemented = Set(uwd[:name])
+    for type in reflexives
+        type in implemented && continue
+        t = findfirst(==(type), tnames(codomain))
+        ins, outs = AlgebraicPetri.inputs(codomain, t), AlgebraicPetri.outputs(codomain, t)
+        (length(ins) == length(outs) == 1 && only(ins) == only(outs)) || throw(
+            ArgumentError(
+                "cannot add reflexive `$type` boxes: it does not map one population type to itself, " *
+                    "so a factor must implement it"
+            )
+        )
+        population = sname(codomain, only(ins))
+        for j in junctions(uwd)
+            uwd[j, :junction_type] == population || continue
+            box = add_box!(uwd, [population, population]; name = type)
+            foreach(port -> set_junction!(uwd, port, j), ports(uwd, box))
+            push!(names, _reflexive_name(model, type, uwd[j, :variable]))
+        end
+    end
+    return nothing
+end
+
+# Stratification factors name a reflexive box after its junction; a compartmental model prefixes
+# the type (`waning_S`) so two passive types on one compartment cannot collide.
+_reflexive_name(::EpiMechModel, type, variable) = variable
+_reflexive_name(::CompartmentalModel, type, variable) = Symbol(type, "_", variable)
