@@ -7,6 +7,7 @@ Generate transition names from UWD structure for compartmental models.
 For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`.
 For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2`
 where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`).
+Birth and death boxes have one port and are named `birth_S`, `death_I`.
 
 # Arguments
 - `uwd`: The undirected wiring diagram with species names in junction :variable attributes
@@ -26,47 +27,16 @@ names = generate_transition_names(uwd, SEIR())
 
 See also: [`create_model`](@ref)
 """
-function generate_transition_names(uwd, model::CompartmentalModel)
-    transition_names = Symbol[]
-
-    for box_id in boxes(uwd)
-        box_ports = ports(uwd, box_id)
-        num_ports = length(box_ports)
-        box_name = subpart(uwd, box_id, :name)
-
-        # Get junctions connected to this box's ports
-        box_junctions = [junction(uwd, port) for port in box_ports]
-
-        if num_ports == 2
-            # One input, one output: name as "input_to_output"
-            input_junction = box_junctions[1]
-            output_junction = box_junctions[2]
-            input_name = subpart(uwd, input_junction, :variable)
-            output_name = subpart(uwd, output_junction, :variable)
-            transition_name = Symbol(input_name, "_to_", output_name)
-            push!(transition_names, transition_name)
-        elseif num_ports == 4
-            # Two inputs, two outputs: name as "box_name_input1_input2"
-            # First two ports are inputs, last two are outputs (by convention in mechanisms.jl)
-            input1_junction = box_junctions[1]
-            input2_junction = box_junctions[2]
-            input1_name = subpart(uwd, input1_junction, :variable)
-            input2_name = subpart(uwd, input2_junction, :variable)
-            # Sort input names in reverse alphabetical order for consistency (e.g., S_I not I_S)
-            input_names_sorted = sort(
-                [string(input1_name), string(input2_name)], rev = true
-            )
-            transition_name = Symbol(box_name, "_", join(input_names_sorted, "_"))
-            push!(transition_names, transition_name)
-        else
-            # Fallback: just use the box name
-            # This shouldn't happen in standard compartmental models
-            transition_name = box_name
-            push!(transition_names, transition_name)
-        end
+function generate_transition_names(uwd, ::CompartmentalModel)
+    return map(boxes(uwd)) do box
+        vars = [uwd[junction(uwd, port), :variable] for port in ports(uwd, box)]
+        name = uwd[box, :name]
+        length(vars) == 1 && return Symbol(_kind_prefix(name), "_", only(vars))
+        length(vars) == 2 && return Symbol(vars[1], "_to_", vars[2])
+        # The first two of four ports are the inputs, sorted so `S_I` never reads `I_S`.
+        length(vars) == 4 && return Symbol(name, "_", join(sort(string.(vars[1:2]); rev = true), "_"))
+        return name
     end
-
-    return transition_names
 end
 
 """
@@ -75,8 +45,8 @@ Generate transition names for a `ContactStratification` UWD.
 - Transmission boxes are named `infectee_infector`, e.g. `child_adult` for a child infected
   by an adult.
 - Movement boxes are named `source_to_target`, e.g. `child_to_adult` or `child_U_to_adult_U`.
-- Reflexive boxes take their stratum's junction variable, e.g. `child`, so a composite reads
-  `I_to_R_child`.
+- Reflexive, birth and death boxes take their stratum's junction variable, e.g. `child`, so a
+  composite reads `I_to_R_child` or `birth_S_child`.
 
 # Examples
 ```julia

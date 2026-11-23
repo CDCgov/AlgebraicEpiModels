@@ -98,8 +98,25 @@ end
         [:A, :B], :tetramerise => ((:A, :A, :A, :A) => :B), :split => (:B => (:A, :A, :A, :A))
     )
     simple = LabelledPetriNet([:S, :I], :infection => ((:S, :I) => (:I, :I)))
+    # A source (no input) and a sink (no output), directly and through composition.
+    open_chain = LabelledPetriNet(
+        [:A, :B], :source => (() => :A), :move => (:A => :B), :sink => (:B => ())
+    )
+    demography = dom(
+        typed_product(
+            create_model(
+                OnePopulationTyping(), SEIRS(births = [:S]); include_reflexives = (:strata, :death)
+            ),
+            create_model(
+                OnePopulationTyping(),
+                AgeStratification(
+                    [:child, :adult]; transitions = [:child => :adult], births = [:child], deaths = [:adult]
+                ),
+            ),
+        ),
+    )
 
-    for pn in (geo, dimer, quad, simple)
+    for pn in (geo, dimer, quad, simple, open_chain, demography)
         f = vectorfield_flat(pn)
         g = dense_vectorfield_flat(pn)
         ssyms = [flatten_symbols(s) for s in snames(pn)]
@@ -163,6 +180,11 @@ end
     f(du, u, (infection = (u, t) -> 0.5 * u[:S],), 1.0)
     @test du[:S] == -0.5 * 10.0 * 10.0 * 2.0
     @test du[:I] == -du[:S]
+
+    f_open = vectorfield_flat(open_chain)
+    du_open = LVector(A = 0.0, B = 0.0)
+    f_open(du_open, LVector(A = 0.0, B = 8.0), (source = 3.0, move = 0.5, sink = 0.25), 0.0)
+    @test du_open == LVector(A = 3.0, B = -2.0)
 
     # A rate container missing a transition name is an error naming the transition, not a
     # silent zero.

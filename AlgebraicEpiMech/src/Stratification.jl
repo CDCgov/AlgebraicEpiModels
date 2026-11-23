@@ -6,7 +6,7 @@ Represents a stratification structure for epidemiological models.
 abstract type Stratification <: EpiMechModel end
 
 """
-    ContactStratification(stratum_names, label; transitions = Pair{Symbol, Symbol}[])
+    ContactStratification(stratum_names, label; transitions = Pair{Symbol, Symbol}[], births = (), deaths = ())
 
 Strata with a full contact matrix between every pair (age groups, geographic regions, risk
 groups), and an optional directed graph of movement between them (ageing, migration).
@@ -22,6 +22,9 @@ create product strata (e.g., age × geography).
   declared strata. Each edge becomes one movement box per population type, named
   `source_to_target`. With no edges the stratification is static and a product with it has
   no movement.
+- `demography::Demography`: the strata that births enter and deaths leave, from the `births`
+  and `deaths` keywords (see [`Demography`](@ref)). A factor declaring no births drops them
+  from a `typed_product`.
 
 Reflexive boxes for the types a factor does not implement are controlled via the
 `include_reflexives` keyword on [`create_model`](@ref), not on the struct itself.
@@ -43,6 +46,11 @@ age_geo_sir = typed_product(age_sir, create_model(typing, geo))
 sir = create_model(typing, SIR(); include_reflexives = :strata)
 aging_sir = dom(typed_product(sir, create_model(typing, aging)))
 # Transitions include S_child_to_adult, I_child_to_adult, R_child_to_adult
+
+# Births into the youngest group, deaths out of the oldest
+demography = ContactStratification(
+    [:child, :adult], :age; transitions = [:child => :adult], births = [:child], deaths = [:adult],
+)
 ```
 
 See also: [`AgeStratification`](@ref), [`GeographicStratification`](@ref)
@@ -51,10 +59,12 @@ struct ContactStratification <: Stratification
     stratum_names::Vector{Symbol}
     label::Symbol
     transitions::Vector{Pair{Symbol, Symbol}}
+    demography::Demography
 
     function ContactStratification(
             stratum_names::Vector{Symbol}, label::Symbol;
-            transitions::AbstractVector{<:Pair{Symbol, Symbol}} = Pair{Symbol, Symbol}[]
+            transitions::AbstractVector{<:Pair{Symbol, Symbol}} = Pair{Symbol, Symbol}[],
+            demography...
         )
         if isempty(stratum_names)
             error("ContactStratification requires at least one stratum")
@@ -68,7 +78,12 @@ struct ContactStratification <: Stratification
             source == target && throw(ArgumentError("transition $source => $target is a self-loop"))
         end
         allunique(transitions) || throw(ArgumentError("duplicate stratum transitions in $transitions"))
-        return new(copy(stratum_names), label, collect(transitions))
+        d = Demography(; demography...)
+        for stratum in (d.births..., d.deaths...)
+            stratum in stratum_names ||
+                throw(ArgumentError("demography entry $stratum is not a declared stratum"))
+        end
+        return new(copy(stratum_names), label, collect(transitions), d)
     end
 end
 
@@ -78,7 +93,8 @@ end
 The Cartesian product of two contact stratifications, with combined stratum names and the
 label `a_x_b`. Movement graphs multiply: every edge of one factor pairs with every edge of the
 other, and a static factor contributes the identity on its strata, so ageing × static
-geography ages within each location. Two static factors give a static product.
+geography ages within each location. Two static factors give a static product. Births and
+deaths multiply the same way, a factor that declares none contributing all of its strata.
 
 # Examples
 ```julia
@@ -94,16 +110,22 @@ function compose_stratifications(a::ContactStratification, b::ContactStratificat
     combined(sa, sb) = Symbol(sa, "x", sb)
     names = [combined(sa, sb) for sa in a.stratum_names for sb in b.stratum_names]
     label = Symbol(a.label, "_x_", b.label)
-    isempty(a.transitions) && isempty(b.transitions) && return ContactStratification(names, label)
-    transitions = [
+    identity_edges(s) = [n => n for n in s.stratum_names]
+    transitions = _pair_entries(a, b, s -> s.transitions, identity_edges) do ea, eb
         combined(first(ea), first(eb)) => combined(last(ea), last(eb))
-            for ea in _movement_or_identity(a) for eb in _movement_or_identity(b)
-    ]
-    return ContactStratification(names, label; transitions)
+    end
+    births = _pair_entries(combined, a, b, s -> s.demography.births, s -> s.stratum_names)
+    deaths = _pair_entries(combined, a, b, s -> s.demography.deaths, s -> s.stratum_names)
+    return ContactStratification(names, label; transitions, births, deaths)
 end
 
-_movement_or_identity(s::ContactStratification) =
-    isempty(s.transitions) ? [n => n for n in s.stratum_names] : s.transitions
+# Every entry of one factor paired with every entry of the other, where a factor with none
+# contributes its default; two factors with none give none.
+function _pair_entries(combine, a, b, entries, default)
+    ea, eb = entries(a), entries(b)
+    isempty(ea) && isempty(eb) && return empty(ea)
+    return [combine(x, y) for x in (isempty(ea) ? default(a) : ea) for y in (isempty(eb) ? default(b) : eb)]
+end
 
 *(a::ContactStratification, b::ContactStratification) = compose_stratifications(a, b)
 
@@ -112,10 +134,11 @@ _movement_or_identity(s::ContactStratification) =
 #-------------------------------------
 
 """
-    AgeStratification(age_group_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
-    AgeStratification(names...; transitions = Pair{Symbol, Symbol}[])
+    AgeStratification(age_group_names::Vector{Symbol}; kwargs...)
+    AgeStratification(names...; kwargs...)
 
-A `ContactStratification` with label `:age`; `transitions` declares ageing between age groups.
+A `ContactStratification` with label `:age`; `transitions` declares ageing between age groups,
+and `births` and `deaths` the groups newborns enter and deaths leave.
 
 # Examples
 ```julia
@@ -128,11 +151,11 @@ AgeStratification(names::Vector{Symbol}; kwargs...) = ContactStratification(name
 AgeStratification(names...; kwargs...) = AgeStratification(collect(Symbol.(names)); kwargs...)
 
 """
-    GeographicStratification(location_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
-    GeographicStratification(names...; transitions = Pair{Symbol, Symbol}[])
+    GeographicStratification(location_names::Vector{Symbol}; kwargs...)
+    GeographicStratification(names...; kwargs...)
 
 A `ContactStratification` with label `:geography`; `transitions` declares movement between
-regions.
+regions, and `births` and `deaths` the regions with demography.
 
 # Examples
 ```julia

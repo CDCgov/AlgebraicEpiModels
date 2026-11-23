@@ -10,7 +10,8 @@ export EpidemiologicalTyping, OnePopulationTyping, UninfectedInfectedTyping, typ
 
 # Epi mechanism functions
 export add_infection!, add_disease_progression!,
-    add_uninfected_density_progression!, add_reversion_progression!, add_strata_transition!
+    add_uninfected_density_progression!, add_reversion_progression!, add_strata_transition!,
+    add_birth!, add_death!
 
 # Observation chain
 # Observation by pushout (attached after composition)
@@ -19,7 +20,7 @@ export ObservationTarget, AtEvent, AtCompartment, attach_observation
 export ObservationChainLayout, ObservationLayout, observation_layout
 
 # Compartmental models types
-export CompartmentalModel, SI, SEI, SIS, SIR, SEIR, SEIRS, SEIS
+export Demography, CompartmentalModel, SI, SEI, SIS, SIR, SEIR, SEIRS, SEIS
 
 # Multistrain model types
 export MultiStrainModel, NoCrossImmunity, CompleteCrossImmunity

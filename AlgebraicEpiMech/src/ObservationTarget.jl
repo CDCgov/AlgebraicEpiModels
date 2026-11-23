@@ -77,11 +77,13 @@ _startswith(label, prefix::Symbol) = startswith(string(_flat(label)), string(pre
 
 # The species a transition NETS — outputs that are not also inputs. For `S + I -> E + I` that is
 # `E`, so grouping infection routes by it gives one accumulator per infectee stratum, which is
-# what "incidence in location x" means. Structural, so it needs no name parsing.
+# what "incidence in location x" means. Structural, so it needs no name parsing. A death nets
+# nothing, so it is grouped by the species it leaves.
 function _net_product(pn, t)
-    ins = Set(AlgebraicPetri.inputs(pn, t))
-    outs = [s for s in AlgebraicPetri.outputs(pn, t) if !(s in ins)]
-    return isempty(outs) ? first(AlgebraicPetri.outputs(pn, t)) : first(outs)
+    ins, outs = AlgebraicPetri.inputs(pn, t), AlgebraicPetri.outputs(pn, t)
+    isempty(outs) && return first(ins)
+    net = setdiff(outs, ins)
+    return isempty(net) ? first(outs) : first(net)
 end
 
 """
@@ -101,7 +103,8 @@ observation layouts are required.
 
 Chains are grouped by stratum. For [`AtEvent`](@ref) the group is the transition's net product —
 for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count
-into `x`'s chain. For [`AtCompartment`](@ref) each matched species gets its own chain.
+into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves.
+For [`AtCompartment`](@ref) each matched species gets its own chain.
 
 Apply this after all `typed_product` composition so chains are grouped over the final strata.
 """

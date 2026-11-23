@@ -333,3 +333,63 @@ end
     @test AlgebraicPetri.nt(tap) == AlgebraicPetri.nt(seir) + 2
     @test attach_observation(tap, AtCompartment(:I); n_stages = 2) == tap
 end
+
+@testitem "births and deaths: left alone by observation, and countable as events" setup = [RewriteSetup] begin
+    typing = OnePopulationTyping()
+    base = dom(
+        typed_product(
+            create_model(typing, SIR(births = [:S]); include_reflexives = (:strata, :death)),
+            create_model(
+                typing,
+                AgeStratification(
+                    [:child, :adult];
+                    transitions = [:child => :adult], births = [:child], deaths = [:adult]
+                ),
+            ),
+        ),
+    )
+    arcs(pn, name) = begin
+        t = only(findall(==(name), tnames_flat(pn)))
+        (
+            [flat(sname(pn, s)) for s in AlgebraicPetri.inputs(pn, t)],
+            [flat(sname(pn, s)) for s in AlgebraicPetri.outputs(pn, t)],
+        )
+    end
+    demographic = (:birth_S_child, :death_S_adult, :death_I_adult, :death_R_adult)
+
+    obs = attach_observation(base, AtEvent(:transmission))
+    @test nt(obs) == nt(base)
+    @test ns(obs) == ns(base) + 2
+    for name in demographic
+        @test arcs(obs, name) == arcs(base, name)
+    end
+    @test arcs(obs, :birth_S_child) == (Symbol[], [:S_child])
+    @test arcs(obs, :death_I_adult) == ([:I_adult], Symbol[])
+
+    # One chain per stratum: every death in a stratum counts into the same accumulator.
+    counted = attach_observation(
+        attach_observation(obs, AtEvent(:birth); prefix = :B), AtEvent(:death); prefix = :D
+    )
+    @test nt(counted) == nt(base)
+    @test Set(names(counted)) == Set(
+        [names(obs); :B_birth_1_child; :D_death_1_adult]
+    )
+    @test arcs(counted, :birth_S_child) == (Symbol[], [:S_child, :B_birth_1_child])
+    for compartment in (:S, :I, :R)
+        @test arcs(counted, Symbol("death_", compartment, "_adult")) ==
+            ([Symbol(compartment, "_adult")], [:D_death_1_adult])
+    end
+
+    du = derivs(
+        counted;
+        rates = merge(Dict(:birth_S_child => 7.0), matching(counted, :death, 0.5)),
+        state = Dict(:S_adult => 10.0, :I_adult => 4.0, :R_adult => 6.0),
+    )
+    @test du[:B_birth_1_child] == du[:S_child] == 7.0
+    @test du[:D_death_1_adult] ≈ 0.5 * (10.0 + 4.0 + 6.0)
+    @test du[:D_death_1_adult] ≈ -(du[:S_adult] + du[:I_adult] + du[:R_adult])
+    @test du[:O_transmission_1_child] == du[:O_transmission_1_adult] == 0.0
+
+    @test attach_observation(counted, AtEvent(:death); prefix = :D) == counted
+    @test attach_observation(counted, AtEvent(:birth); prefix = :B) == counted
+end
