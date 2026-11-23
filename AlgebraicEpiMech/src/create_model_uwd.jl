@@ -400,11 +400,16 @@ For n strata, creates n² transmission boxes representing the contact matrix:
 When composed with a compartmental model UWD via `typed_product`, the transmission boxes
 will align based on the `:transmission` name, allowing the contact structure to modulate
 the disease dynamics defined in the compartmental model.
+
+# Keyword Arguments
+- `include_reflexives = true`: the transition types this factor is passive for (see
+  [`create_model`](@ref)). The per-stratum `:disease`, `:reversion` and `:waning` boxes are
+  added when listed.
 """
 function create_model_uwd(
-        typing::EpidemiologicalTyping, model::ContactStratification;
-        include_reflexives::Bool = true
+        typing::EpidemiologicalTyping, model::ContactStratification; include_reflexives = true
     )
+    reflexives = reflexive_types(typing, model, include_reflexives)
     uwd = RelationDiagram(Symbol[])
 
     # Create junction for each stratum
@@ -417,39 +422,27 @@ function create_model_uwd(
     for stratum_infectee in stratum_junction_tuples
         for stratum_infector in stratum_junction_tuples
             # Add transmission between strata (full contact matrix)
-            add_infection!(
-                uwd,
-                stratum_infectee[1],  # infectee junction (the stratum being infected)
-                stratum_infector[2],   # infector junction (the stratum causing infection)
-                stratum_infectee[2],   # first infected output junction (the stratum being infected is unchanged for ContactStratification)
-                typing
-            )
+            add_infection!(uwd, stratum_infectee[1], stratum_infector[2], stratum_infectee[2], typing)
         end
     end
 
-    # Add per-stratum reflexive boxes for non-transmission transitions.
-    # These ensure typed_product preserves disease, reversion, and waning transitions
-    # when composing with compartmental models.
-    # Can be disabled via include_reflexives=false for standalone use.
-    if include_reflexives
-        for stratum in stratum_junction_tuples
-            add_disease_progression!(uwd, stratum[2], stratum[2], typing)
-            add_reversion_progression!(uwd, stratum[2], stratum[1], typing)
-            add_uninfected_density_progression!(uwd, stratum[1], stratum[1], typing)
-        end
+    for (uninfected, infected) in stratum_junction_tuples
+        :disease in reflexives && add_disease_progression!(uwd, infected, infected, typing)
+        :reversion in reflexives && add_reversion_progression!(uwd, infected, uninfected, typing)
+        :waning in reflexives && add_uninfected_density_progression!(uwd, uninfected, uninfected, typing)
     end
 
     return uwd
 end
 
 # ============================================================================
-# Immune-history model UWD construction (issue #279)
+# Immune-history model UWD construction
 # ============================================================================
 
 """
 Immune-history stratification requires the uninfected/infected type split.
 """
-function create_model_uwd(::OnePopulationTyping, ::ImmuneHistory)
+function create_model_uwd(::OnePopulationTyping, ::ImmuneHistory; kwargs...)
     return error(
         "ImmuneHistory requires UninfectedInfectedTyping — the uninfected/infected " *
             "split is what carries immune history; OnePopulationTyping has no uninfected type."
@@ -478,6 +471,9 @@ This is a stratification factor (like `ContactStratification`), meant to be
 - **`:waning`** reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base
   compose).
 
+The `:disease` and `:waning` reflexives are added when listed in `include_reflexives` (see
+[`create_model`](@ref)); both are by default.
+
 # Examples
 ```julia
 typing = UninfectedInfectedTyping()
@@ -485,7 +481,10 @@ history = create_model(typing, ImmuneHistory([:current, :invader]))
 model = typed_product(create_model(typing, SEIRS()), history)
 ```
 """
-function create_model_uwd(typing::UninfectedInfectedTyping, model::ImmuneHistory)
+function create_model_uwd(
+        typing::UninfectedInfectedTyping, model::ImmuneHistory; include_reflexives = true
+    )
+    reflexives = reflexive_types(typing, model, include_reflexives)
     strains = model.strain_names
     mode = model.mode
     uninfected_type = get_uninfected_type(typing)
@@ -514,14 +513,16 @@ function create_model_uwd(typing::UninfectedInfectedTyping, model::ImmuneHistory
             add_infection!(uwd, U[h], inf_j, Iof[(h, i)], typing)
         end
         # Reflexive :disease so the base's E→I→R progression runs within this (h,i).
-        add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], typing)
+        :disease in reflexives && add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], typing)
         # Off-diagonal :reversion — the history-incrementing move.
         add_reversion_progression!(uwd, Iof[(h, i)], U[_recover_to(mode, h, i)], typing)
     end
 
-    # Reflexive :waning on each uninfected class (inert with SEIRS).
-    for h in keys(U)
-        add_uninfected_density_progression!(uwd, U[h], U[h], typing)
+    if :waning in reflexives
+        # Reflexive :waning on each uninfected class (inert with SEIRS).
+        for h in keys(U)
+            add_uninfected_density_progression!(uwd, U[h], U[h], typing)
+        end
     end
 
     return uwd
