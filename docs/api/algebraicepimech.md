@@ -118,9 +118,11 @@ combined = typed_product(sir_typed, strain_typed)
 struct ContactStratification <: Stratification
 ```
 
-Contact-based stratification for epidemiological models.
+```julia
+ContactStratification(stratum_names, label; transitions = Pair{Symbol, Symbol}[])
+```
 
-Represents stratifications where populations are divided into strata with contact-based interactions (full contact matrix between all pairs). This generalizes age groups, geographic regions modelled as cross-region contact (rather than explicit movement), risk groups, etc.
+Strata with a full contact matrix between every pair (age groups, geographic regions, risk groups), and an optional directed graph of movement between them (ageing, migration). Movement keeps the disease state and is independent of contact-based infection.
 
 Multiple contact stratifications can be stacked via `compose_stratifications` to create product strata (e.g., age × geography).
 
@@ -128,16 +130,15 @@ Multiple contact stratifications can be stacked via `compose_stratifications` to
 
 - `stratum_names::Vector{Symbol}`: Names of strata (e.g., [:child, :adult] or [:urban, :rural])
 - `label::Symbol`: Semantic label for the stratification (e.g., :age, :geography, :risk)
+- `transitions::Vector{Pair{Symbol, Symbol}}`: Directed movement edges between distinct declared strata. Each edge becomes one movement box per population type, named `source_to_target`. With no edges the stratification is static and a product with it has no movement.
 
-Reflexive boxes (disease, reversion, and waning) are controlled via the `include_reflexives` keyword on `create_model`, not on the struct itself.
+Reflexive boxes for the types a factor does not implement are controlled via the `include_reflexives` keyword on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}), not on the struct itself.
 
 **Examples**
 
 ```julia
-# Age stratification
 age = ContactStratification([:child, :adult], :age)
-
-# Geographic stratification
+aging = ContactStratification([:child, :adult], :age; transitions = [:child => :adult])
 geo = ContactStratification([:urban, :rural], :geography)
 
 # Compose to create age × geography strata
@@ -146,6 +147,11 @@ sir = create_model(typing, SIR())
 age_sir = typed_product(sir, create_model(typing, age))
 age_geo_sir = typed_product(age_sir, create_model(typing, geo))
 # Result: 4 strata (childxurban, childxrural, adultxurban, adultxrural)
+
+# Ageing: the disease model must carry reflexive movement boxes for the pullback to keep it
+sir = create_model(typing, SIR(); include_reflexives = :strata)
+aging_sir = dom(typed_product(sir, create_model(typing, aging)))
+# Transitions include S_child_to_adult, I_child_to_adult, R_child_to_adult
 ```
 
 See also: [`AgeStratification`](algebraicepimech.md#AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}), [`GeographicStratification`](algebraicepimech.md#AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}})
@@ -157,6 +163,7 @@ See also: [`AgeStratification`](algebraicepimech.md#AlgebraicEpiMech.AgeStratifi
 
 - `stratum_names::Vector{Symbol}`
 - `label::Symbol`
+- `transitions::Vector{Pair{Symbol, Symbol}}`
 
 <a id='AlgebraicEpiMech.EpiMechModel'></a>
 <a id='AlgebraicEpiMech.EpiMechModel-1'></a>
@@ -745,24 +752,24 @@ See also: [`type_system`](algebraicepimech.md#AlgebraicEpiMech.type_system-Tuple
 
 ```julia
 AgeStratification(
-    names::Vector{Symbol}
+    names::Vector{Symbol};
+    kwargs...
 ) -> ContactStratification
 ```
 
 ```julia
-AgeStratification(age_group_names::Vector{Symbol})
-AgeStratification(names...)
+AgeStratification(age_group_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
+AgeStratification(names...; transitions = Pair{Symbol, Symbol}[])
 ```
 
-Convenience constructor for age-based contact stratification.
-
-Creates a `ContactStratification` with label `:age`. Provided for backward compatibility and semantic clarity.
+A `ContactStratification` with label `:age`; `transitions` declares ageing between age groups.
 
 **Examples**
 
 ```julia
 age = AgeStratification([:child, :adult, :elderly])
 age = AgeStratification(:child, :adult, :elderly)  # splatting syntax
+aging = AgeStratification([:child, :adult]; transitions = [:child => :adult])
 ```
 
 <a id='AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}}'></a>
@@ -771,18 +778,17 @@ age = AgeStratification(:child, :adult, :elderly)  # splatting syntax
 
 ```julia
 GeographicStratification(
-    names::Vector{Symbol}
+    names::Vector{Symbol};
+    kwargs...
 ) -> ContactStratification
 ```
 
 ```julia
-GeographicStratification(location_names::Vector{Symbol})
-GeographicStratification(names...)
+GeographicStratification(location_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
+GeographicStratification(names...; transitions = Pair{Symbol, Symbol}[])
 ```
 
-Convenience constructor for geography-based contact stratification.
-
-Creates a `ContactStratification` with label `:geography`. Represents geographic regions with cross-region contact (not movement-based models).
+A `ContactStratification` with label `:geography`; `transitions` declares movement between regions.
 
 **Examples**
 
@@ -848,6 +854,25 @@ Add reversion progression mechanism: e.g. R → S (infected → uninfected trans
 
 Used for transitions from infected compartments back to uninfected compartments.
 
+<a id='AlgebraicEpiMech.add_strata_transition!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}'></a>
+<a id='AlgebraicEpiMech.add_strata_transition!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}-1'></a>
+**`AlgebraicEpiMech.add_strata_transition!`** &mdash; *Method*.
+
+```julia
+add_strata_transition!(
+    uwd,
+    from_junction::Integer,
+    to_junction::Integer,
+    typing::EpidemiologicalTyping
+) -> Any
+```
+
+```julia
+add_strata_transition!(uwd, from_junction, to_junction, typing)
+```
+
+Add a movement box between two junctions of the same population type, typed by that population's movement type (`:strata`, or `:strata_U` / `:strata_I` under the uninfected/infected split). Movement changes an individual's stratum and keeps its disease state; in a `typed_product` it pairs with the reflexive movement boxes of the other factors (see `include_reflexives` on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The mass-action rate is per capita. Returns the new box.
+
 <a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a>
 <a id='AlgebraicEpiMech.add_uninfected_density_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a>
 **`AlgebraicEpiMech.add_uninfected_density_progression!`** &mdash; *Method*.
@@ -901,25 +926,21 @@ compose_stratifications(
 ) -> ContactStratification
 ```
 
-Compose two `ContactStratification`s via Cartesian product.
+```julia
+compose_stratifications(a::ContactStratification, b::ContactStratification)
+```
 
-**Arguments**
-
-- `a::ContactStratification`: First contact stratification
-- `b::ContactStratification`: Second contact stratification
-
-**Returns**
-
-- `ContactStratification`: New contact stratification representing the product of `a` and   `b`, with combined stratum names and a composite label.
+The Cartesian product of two contact stratifications, with combined stratum names and the label `a_x_b`. Movement graphs multiply: every edge of one factor pairs with every edge of the other, and a static factor contributes the identity on its strata, so ageing × static geography ages within each location. Two static factors give a static product.
 
 **Examples**
 
 ```julia
-age = ContactStratification([:child, :adult], :age)
+age = ContactStratification([:child, :adult], :age; transitions = [:child => :adult])
 geo = ContactStratification([:urban, :rural], :geography)
 age_geo = compose_stratifications(age, geo)
 # Resulting stratum names: [:childxurban, :childxrural, :adultxurban, :adultxrural]
 # Resulting label: :age_x_geography
+# Resulting transitions: [:childxurban => :adultxurban, :childxrural => :adultxrural]
 ```
 
 <a id='AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}'></a>
@@ -947,7 +968,7 @@ The resulting typed Petri net can be used directly for ODE simulation or compose
 
 **Keyword Arguments**
 
-- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:waning` or `(:disease, :waning)`. Listed types the factor already implements are skipped.
+- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected split). Listed types the factor already implements are skipped.
 
 **Returns**
 
@@ -963,7 +984,8 @@ Transition names are generated automatically based on model type:
 - **Compartmental**: `transmission_S_I`, `E_to_I`, `I_to_R` (describes flow between compartments)
 - **Age Stratification**: `child_child`, `child_adult`, `adult_child` (infectee_infector pattern)
 - **Multistrain**: Strain identifiers like `h1n1`, `h3n2` (enables clean composition)
-- **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model the type is prefixed (`waning_S`)
+- **Movement** (`transitions` on a `ContactStratification`): `child_to_adult`
+- **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -996,6 +1018,12 @@ age_sir = typed_product(sir, age)
 age_sir_pn = dom(age_sir)
 # Result: S_child, I_child, R_child, S_adult, I_adult, R_adult compartments
 # Transition names become tuples: (:transmission_S_I, :child_adult)
+
+# Ageing: the age factor implements movement, the disease model is passive for it
+sir = create_model(typing, SIR(); include_reflexives = :strata)
+aging = create_model(typing, AgeStratification([:child, :adult]; transitions = [:child => :adult]))
+aging_sir = dom(typed_product(sir, aging))
+# Adds S_child_to_adult, I_child_to_adult, R_child_to_adult
 ```
 
 **Compositional Design**
@@ -1083,9 +1111,11 @@ For n strata, creates n² transmission boxes representing the contact matrix:
 
 When composed with a compartmental model UWD via `typed_product`, the transmission boxes will align based on the `:transmission` name, allowing the contact structure to modulate the disease dynamics defined in the compartmental model.
 
+The movement graph (`model.transitions`) adds one movement box per edge and population type through [`add_strata_transition!`](algebraicepimech.md#AlgebraicEpiMech.add_strata_transition!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}).
+
 **Keyword Arguments**
 
-- `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion` and `:waning` boxes are added when listed.
+- `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion` and `:waning` boxes are added when listed; any other listed type is added by `create_model`.
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}'></a>
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}-1'></a>
@@ -1380,11 +1410,11 @@ The transition types a factor is passive for under `include_reflexives = true`.
 
 | Model | Default |
 | ---: | ---: |
-| `CompartmentalModel`, `MultiStrainModel` | none |
+| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification |
 | `ContactStratification` | `:disease`, `:reversion`, `:waning` |
 | `ImmuneHistory` | `:disease`, `:waning` |
 
-Extend a default rather than restating it: `include_reflexives = (default_reflexives(typing, model)..., :waning)`.
+Extend a default rather than restating it: `include_reflexives = (default_reflexives(typing, model)..., :strata)`.
 
 <a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}'></a>
 <a id='AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}-1'></a>
@@ -1447,35 +1477,22 @@ See also: [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tup
 ```julia
 generate_transition_names(
     uwd,
-    model::ContactStratification
-) -> Vector{Symbol}
+    _::ContactStratification
+) -> Vector
 ```
 
-Generate transition names from UWD structure for age stratification models.
+Generate transition names for a `ContactStratification` UWD.
 
-For transmission boxes with 4 ports (two inputs, two outputs), generates names capturing the age-to-age contact pattern in the format `infectee_infector`. This naming convention clearly identifies which age group is being infected (infectee) by which age group (infector), enabling interpretation of age-structured contact matrices.
-
-For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`. This fallback handles any non-standard box types that might appear in extended models.
-
-**Arguments**
-
-- `uwd`: The undirected wiring diagram with age group names in junction :variable attributes
-- `model::AgeStratification`: The age stratification model (used for dispatch)
-
-**Returns**
-
-- `Vector{Symbol}`: Vector of transition names, one per box in the UWD
+- Transmission boxes are named `infectee_infector`, e.g. `child_adult` for a child infected by an adult.
+- Movement boxes are named `source_to_target`, e.g. `child_to_adult` or `child_U_to_adult_U`.
+- Reflexive boxes take their stratum's junction variable, e.g. `child`, so a composite reads `I_to_R_child`.
 
 **Examples**
 
 ```julia
-# Used internally by create_model
-typing = OnePopulationTyping()
-age_strat = AgeStratification([:child, :adult])
-uwd = create_model_uwd(typing, age_strat)
-names = generate_transition_names(uwd, age_strat)
-# Returns: [:child_child, :child_adult, :adult_child, :adult_adult]
-# Representing: child←child, child←adult, adult←child, adult←adult transmission
+age = AgeStratification([:child, :adult])
+uwd = create_model_uwd(OnePopulationTyping(), age; include_reflexives = false)
+generate_transition_names(uwd, age)   # [:child_child, :child_adult, :adult_child, :adult_adult]
 ```
 
 See also: [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}), [`ContactStratification`](algebraicepimech.md#AlgebraicEpiMech.ContactStratification), [`AgeStratification`](algebraicepimech.md#AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}})
@@ -1550,6 +1567,7 @@ The `LabelledPetriNet` that a typed Petri net built under `typing` maps into: on
 | `:disease` | `P → P` | `I → I` |
 | `:reversion` | `P → P` | `I → U` |
 | `:waning` | `P → P` | `U → U` |
+| `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level experiments; [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}) uses only the standard ones.
 

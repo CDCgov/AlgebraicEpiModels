@@ -2,6 +2,29 @@
 # This file give primitives for programmatic construction of a UWDs
 
 """
+    add_strata_transition!(uwd, from_junction, to_junction, typing)
+
+Add a movement box between two junctions of the same population type, typed by that
+population's movement type (`:strata`, or `:strata_U` / `:strata_I` under the
+uninfected/infected split). Movement changes an individual's stratum and keeps its disease
+state; in a `typed_product` it pairs with the reflexive movement boxes of the other factors
+(see `include_reflexives` on [`create_model`](@ref)). The mass-action rate is per capita.
+Returns the new box.
+"""
+function add_strata_transition!(
+        uwd, from_junction::Integer, to_junction::Integer, typing::EpidemiologicalTyping
+    )
+    population = uwd[from_junction, :junction_type]
+    uwd[to_junction, :junction_type] == population ||
+        throw(ArgumentError("a strata transition must preserve population type"))
+    box = add_box!(uwd, [population, population]; name = movement_box(typing, population))
+    from_port, to_port = ports(uwd, box)
+    set_junction!(uwd, from_port, from_junction)
+    set_junction!(uwd, to_port, to_junction)
+    return box
+end
+
+"""
 Add infection mechanism: Infectee + Infector → first_infected + Infector
 
 General infection mechanism where an infectee (typically S) interacts with an infector (typically I)

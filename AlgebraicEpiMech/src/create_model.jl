@@ -20,8 +20,9 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
   factor carries a reflexive box, on each junction of the matching population type, for every
   listed type it does not implement. Accepts `true` (the defaults of
   [`default_reflexives`](@ref)), `false` (none, for standalone use), or a transition type name
-  or collection of them, such as `:waning` or `(:disease, :waning)`. Listed types the factor
-  already implements are skipped.
+  or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every
+  movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected
+  split). Listed types the factor already implements are skipped.
 
 # Returns
 - `ACSetTransformation`: A typed Petri net with two components accessible via:
@@ -33,8 +34,9 @@ Transition names are generated automatically based on model type:
 - **Compartmental**: `transmission_S_I`, `E_to_I`, `I_to_R` (describes flow between compartments)
 - **Age Stratification**: `child_child`, `child_adult`, `adult_child` (infectee_infector pattern)
 - **Multistrain**: Strain identifiers like `h1n1`, `h3n2` (enables clean composition)
+- **Movement** (`transitions` on a `ContactStratification`): `child_to_adult`
 - **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model
-  the type is prefixed (`waning_S`)
+  `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -66,6 +68,12 @@ age_sir = typed_product(sir, age)
 age_sir_pn = dom(age_sir)
 # Result: S_child, I_child, R_child, S_adult, I_adult, R_adult compartments
 # Transition names become tuples: (:transmission_S_I, :child_adult)
+
+# Ageing: the age factor implements movement, the disease model is passive for it
+sir = create_model(typing, SIR(); include_reflexives = :strata)
+aging = create_model(typing, AgeStratification([:child, :adult]; transitions = [:child => :adult]))
+aging_sir = dom(typed_product(sir, aging))
+# Adds S_child_to_adult, I_child_to_adult, R_child_to_adult
 ```
 
 # Compositional Design
@@ -96,12 +104,12 @@ The transition types a factor is passive for under `include_reflexives = true`.
 
 | Model | Default |
 |---|---|
-| `CompartmentalModel`, `MultiStrainModel` | none |
+| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification |
 | `ContactStratification` | `:disease`, `:reversion`, `:waning` |
 | `ImmuneHistory` | `:disease`, `:waning` |
 
 Extend a default rather than restating it:
-`include_reflexives = (default_reflexives(typing, model)..., :waning)`.
+`include_reflexives = (default_reflexives(typing, model)..., :strata)`.
 """
 default_reflexives(::EpidemiologicalTyping, ::EpiMechModel) = Symbol[]
 default_reflexives(::EpidemiologicalTyping, ::ContactStratification) = [:disease, :reversion, :waning]
@@ -159,7 +167,9 @@ function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomai
     return nothing
 end
 
-# Stratification factors name a reflexive box after its junction; a compartmental model prefixes
-# the type (`waning_S`) so two passive types on one compartment cannot collide.
+# A reflexive box is named after its junction. A compartmental model prefixes any non-movement
+# type (`waning_S`) so two passive types on one compartment cannot collide, while movement keeps
+# the bare name so composites read `S_child_to_adult`.
 _reflexive_name(::EpiMechModel, type, variable) = variable
-_reflexive_name(::CompartmentalModel, type, variable) = Symbol(type, "_", variable)
+_reflexive_name(::CompartmentalModel, type, variable) =
+    type in MOVEMENT_BOXES ? variable : Symbol(type, "_", variable)

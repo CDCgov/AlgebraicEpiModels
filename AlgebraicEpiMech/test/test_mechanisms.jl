@@ -23,6 +23,39 @@
     ui_typing = UninfectedInfectedTyping()
 end
 
+@testitem "Strata movement primitive" setup = [MechanismSetup] begin
+    using AlgebraicPetri.TypedPetri: oapply_typed
+
+    for typing in (one_pop_typing, ui_typing)
+        codomain = type_system(typing)
+        for population in AlgebraicPetri.snames(codomain)
+            uwd = RelationDiagram(Symbol[])
+            young = add_junction!(uwd, population; variable = :young)
+            old = add_junction!(uwd, population; variable = :old)
+            linear = add_strata_transition!(uwd, young, old, typing)
+            reflexive = add_strata_transition!(uwd, old, old, typing)
+            @test [linear, reflexive] == collect(boxes(uwd))
+            @test uwd[linear, :name] == uwd[reflexive, :name] ==
+                AlgebraicEpiMech.movement_box(typing, population)
+            @test junction.(Ref(uwd), ports(uwd, linear)) == [young, old]
+            @test junction.(Ref(uwd), ports(uwd, reflexive)) == [old, old]
+
+            pn = dom(oapply_typed(codomain, uwd, [:aging, :identity]))
+            @test AlgebraicPetri.inputs(pn, linear) == [young]
+            @test AlgebraicPetri.outputs(pn, linear) == [old]
+            @test AlgebraicPetri.inputs(pn, reflexive) == AlgebraicPetri.outputs(pn, reflexive) == [old]
+        end
+    end
+
+    uwd = RelationDiagram(Symbol[])
+    u = add_junction!(uwd, ui_typing.uninfected_type; variable = :U)
+    i = add_junction!(uwd, ui_typing.infected_type; variable = :I)
+    foreign = add_junction!(uwd, :Other; variable = :other)
+    @test_throws ArgumentError add_strata_transition!(uwd, u, i, ui_typing)
+    @test_throws ArgumentError add_strata_transition!(uwd, foreign, foreign, ui_typing)
+    @test isempty(boxes(uwd))  # invalid declarations leave no partial wiring
+end
+
 @testitem "Infection mechanism (direct to I)" setup = [MechanismSetup] begin
     # OnePopulationTyping: S + I → I + I
     @testset "OnePopulationTyping" begin

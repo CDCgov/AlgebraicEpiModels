@@ -68,10 +68,18 @@ end
 end
 
 @testitem "type_system builds the standard transition kinds from a typing's populations" setup = [ModelSetup] begin
-    @test tnames(type_system(OnePopulationTyping())) == [:transmission, :disease, :reversion, :waning]
-    split = type_system(UninfectedInfectedTyping(uninfected_type = :U, infected_type = :J))
+    one = OnePopulationTyping(population_type = :Person)
+    @test tnames(type_system(one)) == [:transmission, :disease, :reversion, :waning, :strata]
+    typing = UninfectedInfectedTyping(uninfected_type = :U, infected_type = :J)
+    split = type_system(typing)
+    @test tnames(split) == [:transmission, :disease, :reversion, :waning, :strata_U, :strata_I]
     arcs(t) = (snames(split)[AlgebraicPetri.inputs(split, t)], snames(split)[AlgebraicPetri.outputs(split, t)])
-    @test arcs.(1:4) == [([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U])]
+    @test arcs.(1:6) == [([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U]), ([:U], [:U]), ([:J], [:J])]
+
+    @test AlgebraicEpiMech.movement_box(one, :Person) == :strata
+    @test AlgebraicEpiMech.movement_box(typing, :U) == :strata_U
+    @test AlgebraicEpiMech.movement_box(typing, :J) == :strata_I
+    @test_throws ArgumentError AlgebraicEpiMech.movement_box(typing, :Other)
 
     struct TwoClassTyping <: EpidemiologicalTyping end
     AlgebraicEpiMech.get_uninfected_type(::TwoClassTyping) = :Healthy

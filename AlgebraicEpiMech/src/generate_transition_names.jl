@@ -70,65 +70,31 @@ function generate_transition_names(uwd, model::CompartmentalModel)
 end
 
 """
-Generate transition names from UWD structure for age stratification models.
+Generate transition names for a `ContactStratification` UWD.
 
-For transmission boxes with 4 ports (two inputs, two outputs), generates names capturing
-the age-to-age contact pattern in the format `infectee_infector`. This naming
-convention clearly identifies which age group is being infected (infectee) by which age
-group (infector), enabling interpretation of age-structured contact matrices.
-
-For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`.
-This fallback handles any non-standard box types that might appear in extended models.
-
-# Arguments
-- `uwd`: The undirected wiring diagram with age group names in junction :variable attributes
-- `model::AgeStratification`: The age stratification model (used for dispatch)
-
-# Returns
-- `Vector{Symbol}`: Vector of transition names, one per box in the UWD
+- Transmission boxes are named `infectee_infector`, e.g. `child_adult` for a child infected
+  by an adult.
+- Movement boxes are named `source_to_target`, e.g. `child_to_adult` or `child_U_to_adult_U`.
+- Reflexive boxes take their stratum's junction variable, e.g. `child`, so a composite reads
+  `I_to_R_child`.
 
 # Examples
 ```julia
-# Used internally by create_model
-typing = OnePopulationTyping()
-age_strat = AgeStratification([:child, :adult])
-uwd = create_model_uwd(typing, age_strat)
-names = generate_transition_names(uwd, age_strat)
-# Returns: [:child_child, :child_adult, :adult_child, :adult_adult]
-# Representing: child←child, child←adult, adult←child, adult←adult transmission
+age = AgeStratification([:child, :adult])
+uwd = create_model_uwd(OnePopulationTyping(), age; include_reflexives = false)
+generate_transition_names(uwd, age)   # [:child_child, :child_adult, :adult_child, :adult_adult]
 ```
 
 See also: [`create_model`](@ref), [`ContactStratification`](@ref), [`AgeStratification`](@ref)
 """
-function generate_transition_names(uwd, model::ContactStratification)
-    transition_names = Symbol[]
-
-    for box_id in boxes(uwd)
-        box_ports = ports(uwd, box_id)
-        num_ports = length(box_ports)
-        box_name = subpart(uwd, box_id, :name)
-
-        # Get junctions connected to this box's ports
-        box_junctions = [junction(uwd, port) for port in box_ports]
-
-        if num_ports == 4
-            # Transmission: infectee_infector (2 inputs, 2 outputs)
-            input1_name = subpart(uwd, box_junctions[1], :variable)
-            input2_name = subpart(uwd, box_junctions[2], :variable)
-            input_names = [string(input1_name), string(input2_name)]
-            push!(transition_names, Symbol(join(input_names, "_")))
-        elseif num_ports == 2 || num_ports == 3
-            # Per-stratum reflexive boxes (disease, reversion, and waning):
-            # Use first port's junction variable as the stratum name.
-            # After typed_product, these compose as e.g. (:I_to_R, :child) → I_to_R_child
-            first_name = subpart(uwd, box_junctions[1], :variable)
-            push!(transition_names, first_name)
-        else
-            push!(transition_names, box_name)
-        end
+function generate_transition_names(uwd, ::ContactStratification)
+    return map(boxes(uwd)) do box
+        vars = [uwd[junction(uwd, port), :variable] for port in ports(uwd, box)]
+        name = uwd[box, :name]
+        name == :transmission && return Symbol(vars[1], "_", vars[2])
+        name in MOVEMENT_BOXES && return Symbol(vars[1], "_to_", vars[2])
+        return vars[1]
     end
-
-    return transition_names
 end
 
 
