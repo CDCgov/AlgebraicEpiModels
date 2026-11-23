@@ -1,6 +1,6 @@
 # AlgebraicEpiMech
 
-AlgebraicEpiMech builds a representation of the dynamics of compartmental epidemic models as typed Petri nets, following the algebraic framework of [Libkind et al. (2023), _An algebraic framework for structured epidemic modelling_](https://royalsocietypublishing.org/doi/10.1098/rsta.2021.0309).
+AlgebraicEpiMech builds a representation of the dynamics of compartmental epidemic models as typed Petri nets, following the algebraic framework of [Libkind et al. (2023), *An algebraic framework for structured epidemic modelling*](https://royalsocietypublishing.org/doi/10.1098/rsta.2021.0309).
 Species are compartments, transitions are flows, and each model is typed over a small type system so that models built separately can be composed.
 In this paradigm, the "type" of a petri net species/transition are conceptually close to choosing join keys to combine dataframes but come with guaranteed structure preservation.
 
