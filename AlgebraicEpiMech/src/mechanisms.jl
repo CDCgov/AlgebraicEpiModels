@@ -58,6 +58,25 @@ function add_death!(uwd, junction::Integer, typing::EpidemiologicalTyping)
     return box
 end
 
+"""
+    add_importation!(uwd, from_junction, to_junction, typing)
+
+Add an `:importation` box: `from_junction` (uninfected) becomes `to_junction` (infected) with
+no infector, so the mass-action rate is per capita. Returns the new box.
+"""
+function add_importation!(
+        uwd, from_junction::Integer, to_junction::Integer, typing::EpidemiologicalTyping
+    )
+    U, I = get_uninfected_type(typing), get_infected_type(typing)
+    uwd[from_junction, :junction_type] == U && uwd[to_junction, :junction_type] == I ||
+        throw(ArgumentError("importation goes from the $U population to the $I population"))
+    box = add_box!(uwd, [U, I]; name = :importation)
+    from_port, to_port = ports(uwd, box)
+    set_junction!(uwd, from_port, from_junction)
+    set_junction!(uwd, to_port, to_junction)
+    return box
+end
+
 # Births enter a name's first junction (a stratum's uninfected one); deaths leave all of them.
 function _add_demography!(uwd, typing, demography, junctions_of)
     for name in demography.births

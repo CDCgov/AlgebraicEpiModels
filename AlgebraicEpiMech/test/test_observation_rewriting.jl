@@ -393,3 +393,94 @@ end
     @test attach_observation(counted, AtEvent(:death); prefix = :D) == counted
     @test attach_observation(counted, AtEvent(:birth); prefix = :B) == counted
 end
+
+@testsnippet GroupedObservationSetup begin
+    using LabelledArrays
+    using SeeToDee: Rk4
+
+    ui = UninfectedInfectedTyping()
+    function imported_history()
+        history = ImmuneHistory([:a, :b])
+        return dom(
+            typed_product(
+                create_model(ui, SEIRS(importation = true)),
+                create_model(ui, history; include_reflexives = (default_reflexives(ui, history)..., :importation)),
+            ),
+        )
+    end
+    strain_of(label) = Symbol(first(split(string(label), "_from_")))
+    drop_history(label) = (label[1], strain_of(label[2]))
+    infections = AtEvent((:transmission, :importation); source = :infection)
+end
+
+@testitem "events from several prefixes count into one chain per product" setup = [RewriteSetup, GroupedObservationSetup] begin
+    base = imported_history()
+    obs = attach_observation(base, infections; n_stages = 2)
+    heads = [n for n in names(obs) if startswith(string(n), "O_infection_1_")]
+    @test Set(heads) == Set(
+        [:O_infection_1_a_from_naive, :O_infection_1_b_from_naive, :O_infection_1_a_from_b, :O_infection_1_b_from_a]
+    )
+    @test nt(obs) == nt(base) + 4
+
+    for name in tnames_flat(base)
+        startswith(string(name), "importation") || startswith(string(name), "transmission") || continue
+        t = only(findall(==(name), tnames_flat(obs)))
+        outputs = [flat(sname(obs, s)) for s in AlgebraicPetri.outputs(obs, t)]
+        product = only(n for n in outputs if startswith(string(n), "E_"))
+        @test Symbol(:O_infection_1_, chopprefix(string(product), "E_")) in outputs
+    end
+    @test attach_observation(obs, infections; n_stages = 2) == obs
+
+    @test AtEvent(:transmission).transitions == (:transmission,)
+    @test AtEvent(:transmission).source == :transmission
+    @test AtEvent((:transmission, :importation)).source == :transmission
+    @test_throws ArgumentError AtEvent(())
+    @test_throws ArgumentError AtEvent((:transmission, :transmission))
+end
+
+@testitem "grouped chains carry exactly the sum of the chains they merge" setup = [RewriteSetup, GroupedObservationSetup] begin
+    base = imported_history()
+    ungrouped = attach_observation(base, infections; n_stages = 3)
+    grouped_target = AtEvent((:transmission, :importation); source = :infection, group = drop_history)
+    grouped = attach_observation(base, grouped_target; n_stages = 3)
+
+    layout = observation_layout(grouped)
+    @test Set(chain.source_name for chain in layout.chains) == Set([:infection_a, :infection_b])
+    @test length(observation_layout(ungrouped).chains) == 4
+    @test ns(grouped) == ns(base) + 2 * 3
+    @test filter(n -> !startswith(string(n), "O_"), names(grouped)) == names(base)
+
+    rates_for(pn) = Dict(
+        t => startswith(string(t), "transmission") ? 1.0e-3 :
+            startswith(string(t), "importation") ? 0.02 :
+            startswith(string(t), "O_") ? 0.3 : 0.15
+            for t in tnames_flat(pn)
+    )
+    function run(pn)
+        u0 = LVector(; (n => 0.0 for n in names(pn))...)
+        u0.S_U_naive = 500.0
+        u0.S_U_a = 200.0
+        u0.S_U_b = 300.0
+        u0.I_a_from_naive = 10.0
+        u0.I_b_from_naive = 5.0
+        f! = vectorfield_flat(pn)
+        step = Rk4((x, u, p, t) -> f!(similar(x), x, p, t), 1.0; supersample = 8)
+        state = u0
+        for t in 0:39
+            state = step(state, nothing, rates_for(pn), Float64(t))
+        end
+        return state
+    end
+    u = run(ungrouped)
+    g = run(grouped)
+    for strain in (:a, :b), stage in 1:3
+        merged = sum(
+            u[n] for n in names(ungrouped)
+                if startswith(string(n), "O_infection_$(stage)_$(strain)_from_")
+        )
+        @test g[Symbol(:O_infection_, stage, :_, strain)] ≈ merged rtol = 1.0e-10
+    end
+    for n in names(base)
+        @test g[n] ≈ u[n] rtol = 1.0e-12
+    end
+end

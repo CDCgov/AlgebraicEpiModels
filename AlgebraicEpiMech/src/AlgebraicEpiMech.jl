@@ -11,7 +11,7 @@ export EpidemiologicalTyping, OnePopulationTyping, UninfectedInfectedTyping, typ
 # Epi mechanism functions
 export add_infection!, add_disease_progression!,
     add_uninfected_density_progression!, add_reversion_progression!, add_strata_transition!,
-    add_birth!, add_death!
+    add_birth!, add_death!, add_importation!
 
 # Observation chain
 # Observation by pushout (attached after composition)

@@ -30,6 +30,16 @@ Immune-history combination of the available strain/subtype names and `ImmuneHist
 # Fields
 - `strain_names::Vector{Symbol}`: strain names (e.g. `[:current, :invader]`)
 - `mode::M`: `FullHistory()` or `LatestInfection()`
+- `waning::Bool`: when `true`, the factor implements loss of immunity as `:waning` edges
+  `U_h → U_{h∖{i}}` for every strain `i` in each class `h`, one strain forgotten at a time
+  (under `LatestInfection` every class returns to naive). Each edge is named `wane_<i>_<h>`,
+  so a per-strain waning rate is keyed by the `wane_<i>_` prefix. The disease model must then
+  list `:waning` in `include_reflexives` for the pullback to keep those edges. Default
+  `false`: `:waning` is reflexive on each class.
+
+Listing `:importation` in `include_reflexives` adds one `:importation` box `U_h → (h, i)` for
+every strain `i` that class `h` is susceptible to, named `import_<i>_<h>`, so a disease model
+declaring `importation = true` keeps its importation per class and strain.
 
 # Examples
 ```julia
@@ -40,20 +50,26 @@ history = create_model(typing, ImmuneHistory([:current, :invader]))
 
 model = typed_product(seirs, history)   # immune-history-resolved SEIRS
 # States: S_naive, S_current, …, E_invader_from_current, I_…, R_…
+
+# Waning immunity
+sir     = create_model(typing, SIR(); include_reflexives = :waning)
+waning  = create_model(typing, ImmuneHistory([:current, :invader]; waning = true))
+model   = typed_product(sir, waning)    # adds waning_S_wane_current_current, …
 ```
 """
 struct ImmuneHistory{M <: ImmuneHistoryMode} <: MultiStrainModel
     strain_names::Vector{Symbol}
     mode::M
+    waning::Bool
 
     function ImmuneHistory(
-            strain_names::Vector{Symbol}; mode::M = FullHistory()
+            strain_names::Vector{Symbol}; mode::M = FullHistory(), waning::Bool = false
         ) where {M <: ImmuneHistoryMode}
         isempty(strain_names) &&
             throw(ArgumentError("ImmuneHistory requires at least one strain"))
         length(strain_names) == length(unique(strain_names)) ||
             throw(ArgumentError("strain names must be unique"))
-        return new{M}(strain_names, mode)
+        return new{M}(strain_names, mode, waning)
     end
 end
 
@@ -105,6 +121,14 @@ _susceptible_strains(class, strains::Vector{Symbol}) =
 # Immune class reached after recovering from strain `i` (the :reversion target).
 _recover_to(::FullHistory, class, i::Symbol) = Tuple(sort(unique((class..., i)); by = string))
 _recover_to(::LatestInfection, ::Any, i::Symbol) = (i,)
+
+# The `:waning` boxes as `(from, to)` classes, in class order: one strain forgotten at a time
+# when the factor implements waning, otherwise a reflexive box per class when it is listed.
+function _waning_edges(model::ImmuneHistory, reflexives)
+    classes = _immune_classes(model.mode, model.strain_names)
+    model.waning && return [(h, Tuple(s for s in h if s != i)) for h in classes for i in h]
+    return :waning in reflexives ? [(h, h) for h in classes] : Tuple{_ImmuneClass, _ImmuneClass}[]
+end
 
 _htag(class) = isempty(class) ? "naive" : join(string.(class), "_")
 

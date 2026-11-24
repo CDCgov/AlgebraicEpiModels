@@ -24,6 +24,7 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
   movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected
   split), and `:death` for every death type. Listed types the factor already implements are
   skipped. `:birth` cannot be passive: declare `births` on the model specification.
+  Stratification factors list `:importation` to keep a disease model's importation per stratum.
 
 # Returns
 - `ACSetTransformation`: A typed Petri net with two components accessible via:
@@ -39,6 +40,7 @@ Transition names are generated automatically based on model type:
 - **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model
   `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
 - **Births and deaths**: `birth_S`, `death_S`; composites read `birth_S_child`, `death_I_adult`
+- **Importation**: `importation_S_to_E`; with `ImmuneHistory`, `importation_S_to_E_import_a_naive`
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 

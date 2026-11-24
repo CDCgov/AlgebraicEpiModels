@@ -341,3 +341,79 @@ end
     @test all(s -> all(isfinite, s) && minimum(s) >= 0 && isapprox(sum(s), sum(u0)), infected)
     @test last(infected).R_child + last(infected).R_adult > u0.R_child + u0.R_adult
 end
+
+@testitem "ImmuneHistory waning is a movement between immune classes" setup = [StratumTransitionSetup] begin
+    typing = UninfectedInfectedTyping()
+    @test !ImmuneHistory([:a]).waning
+    @test ImmuneHistory(2; waning = true).waning
+    @test AEM._waning_edges(ImmuneHistory([:a, :b]; waning = true), Symbol[]) ==
+        [((:a,), ()), ((:b,), ()), ((:a, :b), (:b,)), ((:a, :b), (:a,))]
+    @test AEM._waning_edges(ImmuneHistory([:a, :b]; mode = LatestInfection(), waning = true), Symbol[]) ==
+        [((:a,), ()), ((:b,), ())]
+    @test AEM._waning_edges(ImmuneHistory([:a]), [:waning]) == [((), ()), ((:a,), (:a,))]
+    @test isempty(AEM._waning_edges(ImmuneHistory([:a]), Symbol[]))
+
+    # The factor implements :waning as edges and carries no :waning reflexives.
+    history_spec = ImmuneHistory([:a, :b]; waning = true)
+    full = create_model_uwd(typing, history_spec)
+    waning_boxes = [b for b in boxes(full) if full[b, :name] == :waning]
+    @test length(waning_boxes) == 4
+    @test all(length(unique(junction(full, p) for p in ports(full, b))) == 2 for b in waning_boxes)
+    @test Set(generate_transition_names(full, history_spec)[waning_boxes]) ==
+        Set([:wane_a_a, :wane_b_b, :wane_a_a_b, :wane_b_a_b])
+    latest = create_model_uwd(typing, ImmuneHistory([:a, :b]; mode = LatestInfection(), waning = true))
+    @test count(==(:waning), latest[:name]) == 2
+    # Listing :waning on an implementing factor adds nothing.
+    @test nt(dom(create_model(typing, history_spec))) ==
+        nt(dom(create_model(typing, history_spec; include_reflexives = (:disease, :waning))))
+
+    # The disease model must be passive to waning for the pullback to keep it.
+    history = create_model(typing, history_spec)
+    dropped = typed_product(create_model(typing, SIR()), history)
+    @test !any(startswith(string(n), "waning") for n in flattransitions(dom(dropped)))
+    model = typed_product(create_model(typing, SIR(); include_reflexives = :waning), history)
+    pn = dom(model)
+    @test Set(filter(n -> startswith(string(n), "waning_S"), flattransitions(pn))) ==
+        Set([:waning_S_wane_a_a, :waning_S_wane_b_b, :waning_S_wane_a_a_b, :waning_S_wane_b_a_b])
+    @test length(unique(flattransitions(pn))) == nt(pn)
+    for t in 1:nt(pn)
+        tname(codom(model), model[:T](t)) == :waning || continue
+        source, target = label_parts.(unary_arc(pn, t))
+        @test source[1] == target[1] == :S
+    end
+
+    # Waning alone: U_a_b decays at the sum of its two waning rates; the population is conserved.
+    rates = Dict(n => 0.0 for n in flattransitions(pn))
+    to_a, to_b = 0.01, 0.03
+    rates[:waning_S_wane_b_a_b] = to_a  # forgetting b lands in U_a
+    rates[:waning_S_wane_a_a_b] = to_b  # forgetting a lands in U_b
+    u0 = LVector(; (n => 0.0 for n in flatnames(pn))...)
+    u0.S_U_a_b = 100.0
+    for (day, state) in enumerate(solve_steps(pn, u0, rates; days = 40))
+        t = day - 1
+        decay = exp(-(to_a + to_b) * t)
+        @test state.S_U_a_b ≈ 100.0 * decay rtol = 1.0e-10
+        @test state.S_U_a ≈ 100.0 * to_a / (to_a + to_b) * (1 - decay) rtol = 1.0e-9 atol = 1.0e-9
+        @test state.S_U_b ≈ 100.0 * to_b / (to_a + to_b) * (1 - decay) rtol = 1.0e-9 atol = 1.0e-9
+        @test sum(state) ≈ 100.0
+        @test minimum(state) >= 0
+    end
+
+    # Ageing and waning are independent movements because they have distinct types.
+    age = create_model(typing, AgeStratification([:child, :adult]; transitions = age_graph))
+    joint = typed_product(
+        typed_product(create_model(typing, SIR(); include_reflexives = (:strata, :waning)), age),
+        create_model(typing, history_spec; include_reflexives = (:disease, :strata)),
+    )
+    joint_pn = dom(joint)
+    joint_names = flattransitions(joint_pn)
+    @test length(unique(joint_names)) == nt(joint_pn)
+    @test length(movement_indices(joint, typing)) == 12  # S × 4 classes + (I, R) × 4 infected junctions
+    @test count(n -> startswith(string(n), "waning_S"), joint_names) == 8  # 4 edges × 2 ages
+    for t in movement_indices(joint, typing)
+        source, target = label_parts.(unary_arc(joint_pn, t))
+        @test source[1] == target[1]
+        @test source[3] == target[3]  # immune history untouched by ageing
+    end
+    vectorfield_flat(joint_pn)
+end

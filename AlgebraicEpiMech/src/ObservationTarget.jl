@@ -23,15 +23,9 @@
 # Because this runs after the pullback compositions, stratification factors need to know nothing whatsoever
 # about observation: no per-stratum accumulator, no reflexive observation box etc.
 #
-# Optimisation
-# An earlier version of this file materialized the observations literally using Catlab functions one pushout per matched transition,
-# re-matching against the grown net after every step. That was O(L^4) in the number of strata —
-# ~L^2 matched routes, each paying a `homomorphism` search plus a colimit on a net that is itself
-# ~L^2 transitions. For example, on a 50-state geographic model it meant hours of model construction
-# before any model running (1.2 s at L = 6, 109 s at L = 20, extrapolated 1-2 h at L = 50; 0.01 s
-# now). Both rules are monotone additions — nothing is deleted, nothing is merged beyond gluing
-# onto a chain that is findable by label — so the same colimit is materialized directly below in
-# one pass, appending chains and arcs in first-encounter order.
+# Both rules are monotone additions, nothing deleted and nothing merged beyond gluing onto a chain
+# findable by label, so the colimit is materialized directly in one pass rather than by a
+# pushout per matched transition.
 
 """
     ObservationTarget
@@ -42,18 +36,37 @@ What an observation attaches to. [`AtEvent`](@ref) records a transition (inciden
 abstract type ObservationTarget end
 
 """
-    AtEvent(transition)
+    AtEvent(transition::Symbol; group = identity)
+    AtEvent(transitions::Tuple; source = first(transitions), group = identity)
 
-Record a TRANSITION: incidence. Every transition whose (flattened) name begins with `transition`
-gains an output arc into an accumulator, so it fires at that transition's own rate and counts
-exactly one observation per occurrence.
+Record a TRANSITION: incidence. Every transition whose (flattened) name begins with one of
+`transitions` gains an output arc into an accumulator, so it fires at that transition's own
+rate and counts exactly one observation per occurrence. Chains are named after `source`.
 
 `AtEvent(:transmission)` counts infections as they happen, which is what decouples a reporting
 delay from the latent period — the delay is then whatever the chain adds and nothing else.
+`AtEvent((:transmission, :importation); source = :infection)` counts local and imported
+infections together.
+
+`group` maps the label of the species an event nets to the label its chain is keyed on, so
+several products can share one chain. Dropping a stratum from the label, such as the immune
+class, merges those chains; this is exact because every chain is linear with the same delay
+rates.
 """
-struct AtEvent <: ObservationTarget
-    transition::Symbol
+struct AtEvent{G} <: ObservationTarget
+    transitions::Tuple{Vararg{Symbol}}
+    source::Symbol
+    group::G
+
+    function AtEvent(
+            transitions::Tuple{Vararg{Symbol}}; source::Symbol = first(transitions), group::G = identity
+        ) where {G}
+        allunique(transitions) || throw(ArgumentError("duplicate prefix in $transitions"))
+        return new{G}(transitions, source, group)
+    end
 end
+AtEvent(transition::Symbol; group = identity) = AtEvent((transition,); group)
+AtEvent(::Tuple{}; kwargs...) = throw(ArgumentError("AtEvent needs at least one transition prefix"))
 
 """
     AtCompartment(species)
@@ -103,8 +116,9 @@ observation layouts are required.
 
 Chains are grouped by stratum. For [`AtEvent`](@ref) the group is the transition's net product —
 for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count
-into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves.
-For [`AtCompartment`](@ref) each matched species gets its own chain.
+into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves,
+and the target's `group` can merge these groups further. For [`AtCompartment`](@ref) each
+matched species gets its own chain.
 
 Apply this after all `typed_product` composition so chains are grouped over the final strata.
 """
@@ -121,12 +135,13 @@ end
 function _attach_all!(net, target::AtEvent, n_stages, prefix)
     chain_heads = Dict{Any, Int}()   # chain head label -> species index of stage 1
     for t in 1:nt(net)
-        _startswith(tname(net, t), target.transition) || continue
-        key = _net_product(net, t)
-        chain, _ = _chain_labels(net, key, n_stages, prefix, target.transition)
+        name = tname(net, t)
+        any(p -> _startswith(name, p), target.transitions) || continue
+        key = target.group(sname(net, _net_product(net, t)))
+        chain, _ = _chain_labels(key, n_stages, prefix, target.source)
         head = get!(chain_heads, chain[1]) do
             # A chain may pre-exist from an earlier `attach_observation` call: validate and glue.
-            first(_ensure_chain!(net, key, n_stages, prefix, target.transition))
+            first(_ensure_chain!(net, key, n_stages, prefix, target.source))
         end
         # An identical re-application already has this output arc.
         any(==(head), AlgebraicPetri.outputs(net, t)) ||
@@ -140,9 +155,9 @@ function _attach_all!(net, target::AtCompartment, n_stages, prefix)
         _startswith(sname(net, s), target.species) || continue
         src = sname(net, s)
         source = _head_symbol(src)
-        chain, _ = _chain_labels(net, s, n_stages, prefix, source)
+        chain, _ = _chain_labels(src, n_stages, prefix, source)
         tap = _relabel_head(src, Symbol("obs_inflow_", _flat(src)))
-        head, built = _ensure_chain!(net, s, n_stages, prefix, source)
+        head, built = _ensure_chain!(net, src, n_stages, prefix, source)
         taps = [t for t in 1:nt(net) if tname(net, t) == tap]
         if built
             isempty(taps) || _incompatible_chain(chain[1], n_stages)
@@ -160,16 +175,9 @@ end
 
 _stage_head(prefix::Symbol, source::Symbol, stage::Int) = Symbol(prefix, "_", source, "_", stage)
 
-# Chain labels for the group keyed by species `key_idx`: one per stage, plus the delay transitions.
-#
-# `source` is part of the name, not decoration. Dropping it breaks two contracts at once:
-# every `I` stage of a multi-stage compartment would key to the SAME chain label and all but the
-# first would be skipped as already-tapped; and `_parse_observation_stage` (observation_chain.jl)
-# requires a `<prefix>_<source>_<stage>` leaf, so `observation_layout` — and hence
-# `ConfigurableEpi`'s `StateLayout` — would not recognise the accumulators as observation states
-# at all and would treat them as core model state.
-function _chain_labels(net, key_idx, n_stages, prefix, source)
-    key = sname(net, key_idx)
+# Chain labels for the group keyed by label `key`: one per stage, plus the delay transitions.
+# `source` is part of each label, so every stage of a multi-stage compartment keys its own chain.
+function _chain_labels(key, n_stages, prefix, source)
     species = [_relabel_head(key, _stage_head(prefix, source, i)) for i in 1:n_stages]
     delays = [
         _relabel_head(
@@ -182,11 +190,9 @@ function _chain_labels(net, key_idx, n_stages, prefix, source)
     return species, delays
 end
 
-function _ensure_chain!(net, key_idx, n_stages, prefix, source)
-    chain, delays = _chain_labels(net, key_idx, n_stages, prefix, source)
-    extended_chain, extended_delays = _chain_labels(
-        net, key_idx, n_stages + 1, prefix, source
-    )
+function _ensure_chain!(net, key, n_stages, prefix, source)
+    chain, delays = _chain_labels(key, n_stages, prefix, source)
+    extended_chain, extended_delays = _chain_labels(key, n_stages + 1, prefix, source)
 
     species_matches = [
         [s for s in 1:ns(net) if sname(net, s) == label] for label in chain
