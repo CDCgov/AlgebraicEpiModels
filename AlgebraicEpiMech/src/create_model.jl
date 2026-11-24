@@ -24,7 +24,8 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
   movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected
   split), and `:death` for every death type. Listed types the factor already implements are
   skipped. `:birth` cannot be passive: declare `births` on the model specification.
-  Stratification factors list `:importation` to keep a disease model's importation per stratum.
+  Stratification factors list `:importation` to keep a disease model's importation per stratum;
+  a compartmental model cannot, and declares `importation = true` instead.
 
 # Returns
 - `ACSetTransformation`: A typed Petri net with two components accessible via:
@@ -158,6 +159,7 @@ function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomai
     implemented = Set(uwd[:name])
     for type in reflexives
         type in implemented && continue
+        _check_passive(model, type)
         t = findfirst(==(type), tnames(codomain))
         ins, outs = AlgebraicPetri.inputs(codomain, t), AlgebraicPetri.outputs(codomain, t)
         isempty(ins) && throw(
@@ -181,6 +183,19 @@ function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomai
         end
     end
     return nothing
+end
+
+# A compartmental model's junctions are disease states, so a reflexive importation box would
+# pair with a stratum's importation into a spurious `S → S`; it must declare importation instead.
+_check_passive(::EpiMechModel, type) = nothing
+function _check_passive(model::CompartmentalModel, type)
+    type == :importation || return nothing
+    throw(
+        ArgumentError(
+            "a compartmental model cannot be passive for importation: declare " *
+                "`$(nameof(typeof(model)))(importation = true)`"
+        )
+    )
 end
 
 # A reflexive box is named after its junction. A compartmental model prefixes any non-movement

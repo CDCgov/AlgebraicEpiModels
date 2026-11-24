@@ -94,7 +94,15 @@ end
         end
         @test isempty(typed_indices(create_model(typing, SEIRS()), :importation))
     end
-    @test_throws ArgumentError create_model(ui_typing, SEIRS(); include_reflexives = :importation)
+    # Passive importation on disease states would pair with a stratum's importation into `S → S`.
+    for typing in (OnePopulationTyping(), ui_typing)
+        @test_throws ArgumentError create_model(typing, SEIRS(); include_reflexives = :importation)
+        @test nt(dom(create_model(typing, SIR(importation = true); include_reflexives = :importation))) ==
+            nt(dom(create_model(typing, SIR(importation = true))))
+    end
+    # A one-population strain factor keeps importation on each strain junction.
+    strains = create_model(OnePopulationTyping(), NoCrossImmunity([:x, :y]); include_reflexives = :importation)
+    @test count(==(:importation), [tname(codom(strains), strains[:T](t)) for t in 1:nt(dom(strains))]) == 2
 end
 
 @testitem "immune history imports one route per susceptible class and strain" setup = [ImportationSetup] begin
