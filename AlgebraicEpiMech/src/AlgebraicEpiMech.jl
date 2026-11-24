@@ -3,6 +3,7 @@ module AlgebraicEpiMech
 using AlgebraicPetri, AlgebraicPetri.TypedPetri
 using Catlab
 using DocStringExtensions
+using SparseArrays: SparseMatrixCSC, nnz, nonzeros, nzrange, rowvals, sparse
 import Base: *
 
 # Epidemiological typing strategies and their Petri-net type systems
@@ -37,7 +38,7 @@ export EpiMechModel, create_model_uwd, create_model, generate_transition_names,
     default_reflexives
 
 # Vectorfield functions
-export flatten_symbols, vectorfield_flat
+export flatten_symbols, vectorfield_flat, KineticStructure, kinetic_structure, vectorfield_factored
 
 # Documentation strings
 include("docstrings.jl")
@@ -54,6 +55,7 @@ include("create_model_uwd.jl")
 include("generate_transition_names.jl")
 include("create_model.jl")
 include("vectorfield_flat.jl")
+include("vectorfield_factored.jl")
 
 # Observation attachment.
 include("ObservationTarget.jl")
