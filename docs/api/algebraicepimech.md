@@ -338,6 +338,51 @@ Abstract base type for selections of how much immune history is retained.
 
 **Fields**
 
+<a id='AlgebraicEpiMech.KineticStructure'></a>
+<a id='AlgebraicEpiMech.KineticStructure-1'></a>
+**`AlgebraicEpiMech.KineticStructure`** &mdash; *Type*.
+
+```julia
+struct KineticStructure
+```
+
+The mass-action kinetics of a Petri net in factored form, as built by [`kinetic_structure`](algebraicepimech.md#AlgebraicEpiMech.kinetic_structure-Tuple{AlgebraicPetri.AbstractPetriNet}) and evaluated by [`vectorfield_factored`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_factored-Tuple{KineticStructure}).
+
+With `x` the state and `p` the rates by key, the field is
+
+```julia
+dx = b + A x + Σ_ℓ z_ℓ · (L_ℓ x) + residual,      z = K(p) Π x
+```
+
+**Fields**
+
+- `species`: flattened species names, in net order.
+- `rate_keys`: the keys `p` must supply, in order of first appearance.
+- `fixed_keys`: the keys whose rate was folded into the constants.
+- `zero_order`: `b`, as `ZeroOrderTerms`.
+- `first_order`: `A x`, as `FirstOrderTerms`.
+- `catalysed`: the factored second-order part, as `CatalysedTerms`.
+- `residual`: transitions kept as they are (uncatalysed second order, and third order and above), as `Reaction`s.
+- `report`: counts from the analysis, as a `KineticReport`.
+
+Each of these types is documented under its own name, for example `?AlgebraicEpiMech.Reaction`.
+
+A key index of `0` in any of these stands for the fixed rates.
+
+
+---
+
+**Fields**
+
+- `species::Vector{Symbol}`
+- `rate_keys::Vector{Symbol}`
+- `fixed_keys::Vector{Symbol}`
+- `zero_order::AlgebraicEpiMech.ZeroOrderTerms`
+- `first_order::AlgebraicEpiMech.FirstOrderTerms`
+- `catalysed::AlgebraicEpiMech.CatalysedTerms`
+- `residual::Vector{AlgebraicEpiMech.Reaction}`
+- `report::AlgebraicEpiMech.KineticReport`
+
 <a id='AlgebraicEpiMech.LatestInfection'></a>
 <a id='AlgebraicEpiMech.LatestInfection-1'></a>
 **`AlgebraicEpiMech.LatestInfection`** &mdash; *Type*.
@@ -1502,6 +1547,41 @@ names = generate_transition_names(factor, ImmuneHistory([:current, :invader]))
 # transmission names begin `infect_current…` / `infect_invader…`
 ```
 
+<a id='AlgebraicEpiMech.kinetic_structure-Tuple{AlgebraicPetri.AbstractPetriNet}'></a>
+<a id='AlgebraicEpiMech.kinetic_structure-Tuple{AlgebraicPetri.AbstractPetriNet}-1'></a>
+**`AlgebraicEpiMech.kinetic_structure`** &mdash; *Method*.
+
+```julia
+kinetic_structure(
+    pn::AlgebraicPetri.AbstractPetriNet;
+    rate_class,
+    fixed,
+    sigdigits
+) -> KineticStructure
+```
+
+```julia
+kinetic_structure(pn; rate_class, fixed = (;), sigdigits = 12) -> KineticStructure
+```
+
+Analyse the mass-action kinetics of `pn` once, from its arcs and its rate classes, into the factored form [`vectorfield_factored`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_factored-Tuple{KineticStructure}) evaluates.
+
+**Arguments**
+
+- `rate_class`: a function from a transition's name (as `tname` gives it, so a tuple for a typed product) to `(key, weight)` or `key => weight`. The transition's rate is `weight * p[key]`, and `key` is flattened with [`flatten_symbols`](algebraicepimech.md#AlgebraicEpiMech.flatten_symbols-Tuple{Tuple}). By default every transition is its own class with weight one and the keys are the flattened transition names, which is the contract of [`vectorfield_flat`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}).
+- `fixed`: rates by key (a `NamedTuple` or a dictionary) that never change. They are folded into the constants and `p` must not supply them.
+- `sigdigits`: weight vectors that agree to this many significant digits once scaled share a factor.
+
+**Analysis**
+
+1. Zero-order and first-order transitions become a constant vector and sparse linear operators, one per key, with the fixed keys summed into a single constant operator.
+2. A second-order transition with an input that is also an output is catalysed. Such transitions are grouped into classes by substrate and net stoichiometry, so a class's flux is `x[substrate] * Σ_c B[class, c] x[c]`.
+3. Each key's part of `B` is split by row direction: rows proportional to one another share a right factor, so a rank-one part costs one inner product and anything else keeps its rows.
+4. Right factors, and the left factors that carry them back to classes, are merged across keys.
+5. Every other transition is kept in a flat loop.
+
+The `report` field holds the counts; see `KineticReport`.
+
 <a id='AlgebraicEpiMech.observation_layout-Tuple{Any}'></a>
 <a id='AlgebraicEpiMech.observation_layout-Tuple{Any}-1'></a>
 **`AlgebraicEpiMech.observation_layout`** &mdash; *Method*.
@@ -1563,6 +1643,25 @@ A birth has no input, so its mass-action rate is zero-order (births per unit tim
 type_system(OnePopulationTyping(population_type = :Individual))
 type_system(UninfectedInfectedTyping(), :vaccination => (:Uninfected => :Uninfected))
 ```
+
+<a id='AlgebraicEpiMech.vectorfield_factored-Tuple{KineticStructure}'></a>
+<a id='AlgebraicEpiMech.vectorfield_factored-Tuple{KineticStructure}-1'></a>
+**`AlgebraicEpiMech.vectorfield_factored`** &mdash; *Method*.
+
+```julia
+vectorfield_factored(
+    structure::KineticStructure
+) -> AlgebraicEpiMech.var"#vectorfield!#vectorfield_factored##0"{KineticStructure, AlgebraicEpiMech._NamePositions, AlgebraicEpiMech._NamePositions, AlgebraicEpiMech._NamePositions, Int64}
+```
+
+```julia
+vectorfield_factored(structure::KineticStructure) -> vectorfield!(du, u, p, t)
+vectorfield_factored(pn; kwargs...)
+```
+
+The mass-action vector field of a Petri net from its [`kinetic_structure`](algebraicepimech.md#AlgebraicEpiMech.kinetic_structure-Tuple{AlgebraicPetri.AbstractPetriNet}). `u` and `du` are indexed by flattened species name as for [`vectorfield_flat`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}), and `p` holds one rate per key of `structure.rate_keys`, by name. A rate may be a function of `(u, t)`.
+
+The two fields agree to rounding, not bit for bit, because the factored form sums in a different order. With the default rate classes `p` is keyed by transition name and the call is interchangeable with [`vectorfield_flat`](algebraicepimech.md#AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}).
 
 <a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}'></a>
 <a id='AlgebraicEpiMech.vectorfield_flat-Tuple{AlgebraicPetri.AbstractPetriNet}-1'></a>
