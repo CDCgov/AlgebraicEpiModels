@@ -17,11 +17,56 @@ function add_strata_transition!(
     population = uwd[from_junction, :junction_type]
     uwd[to_junction, :junction_type] == population ||
         throw(ArgumentError("a strata transition must preserve population type"))
-    box = add_box!(uwd, [population, population]; name = movement_box(typing, population))
+    box = add_box!(uwd, [population, population]; name = population_box(Movement(), typing, population))
     from_port, to_port = ports(uwd, box)
     set_junction!(uwd, from_port, from_junction)
     set_junction!(uwd, to_port, to_junction)
     return box
+end
+
+"""
+    add_birth!(uwd, junction, typing)
+
+Add a `:birth` box, an entry into `junction` with no source, so its mass-action rate is
+zero-order (births per unit time). The junction must have the uninfected population type.
+Returns the new box.
+"""
+function add_birth!(uwd, junction::Integer, typing::EpidemiologicalTyping)
+    population = uwd[junction, :junction_type]
+    population == get_uninfected_type(typing) || throw(
+        ArgumentError(
+            "births enter the $(get_uninfected_type(typing)) population; " *
+                "`$(uwd[junction, :variable])` has type $population"
+        )
+    )
+    box = add_box!(uwd, [population]; name = :birth)
+    set_junction!(uwd, only(ports(uwd, box)), junction)
+    return box
+end
+
+"""
+    add_death!(uwd, junction, typing)
+
+Add a death box, an exit from `junction` with no target, typed `:death` (or `:death_U` /
+`:death_I` under the uninfected/infected split). The mass-action rate is per capita. Returns
+the new box.
+"""
+function add_death!(uwd, junction::Integer, typing::EpidemiologicalTyping)
+    population = uwd[junction, :junction_type]
+    box = add_box!(uwd, [population]; name = population_box(Death(), typing, population))
+    set_junction!(uwd, only(ports(uwd, box)), junction)
+    return box
+end
+
+# Births enter a name's first junction (a stratum's uninfected one); deaths leave all of them.
+function _add_demography!(uwd, typing, demography, junctions_of)
+    for name in demography.births
+        add_birth!(uwd, first(junctions_of[name]), typing)
+    end
+    for name in demography.deaths, junction in junctions_of[name]
+        add_death!(uwd, junction, typing)
+    end
+    return uwd
 end
 
 """

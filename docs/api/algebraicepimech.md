@@ -59,6 +59,8 @@ Abstract base type for compartmental epidemiological models.
 
 Compartmental models define the specific disease dynamics and transitions between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.
 
+Every concrete model also takes the [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography) keywords, naming compartments, for example `SIR(births = [:S], deaths = [:I])`.
+
 
 ---
 
@@ -119,7 +121,7 @@ struct ContactStratification <: Stratification
 ```
 
 ```julia
-ContactStratification(stratum_names, label; transitions = Pair{Symbol, Symbol}[])
+ContactStratification(stratum_names, label; transitions = Pair{Symbol, Symbol}[], births = (), deaths = ())
 ```
 
 Strata with a full contact matrix between every pair (age groups, geographic regions, risk groups), and an optional directed graph of movement between them (ageing, migration). Movement keeps the disease state and is independent of contact-based infection.
@@ -131,6 +133,7 @@ Multiple contact stratifications can be stacked via `compose_stratifications` to
 - `stratum_names::Vector{Symbol}`: Names of strata (e.g., [:child, :adult] or [:urban, :rural])
 - `label::Symbol`: Semantic label for the stratification (e.g., :age, :geography, :risk)
 - `transitions::Vector{Pair{Symbol, Symbol}}`: Directed movement edges between distinct declared strata. Each edge becomes one movement box per population type, named `source_to_target`. With no edges the stratification is static and a product with it has no movement.
+- `demography::Demography`: the strata that births enter and deaths leave, from the `births` and `deaths` keywords (see [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography)). A factor declaring no births drops them from a `typed_product`.
 
 Reflexive boxes for the types a factor does not implement are controlled via the `include_reflexives` keyword on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}), not on the struct itself.
 
@@ -152,6 +155,11 @@ age_geo_sir = typed_product(age_sir, create_model(typing, geo))
 sir = create_model(typing, SIR(); include_reflexives = :strata)
 aging_sir = dom(typed_product(sir, create_model(typing, aging)))
 # Transitions include S_child_to_adult, I_child_to_adult, R_child_to_adult
+
+# Births into the youngest group, deaths out of the oldest
+demography = ContactStratification(
+    [:child, :adult], :age; transitions = [:child => :adult], births = [:child], deaths = [:adult],
+)
 ```
 
 See also: [`AgeStratification`](algebraicepimech.md#AlgebraicEpiMech.AgeStratification-Tuple{Vector{Symbol}}), [`GeographicStratification`](algebraicepimech.md#AlgebraicEpiMech.GeographicStratification-Tuple{Vector{Symbol}})
@@ -164,6 +172,31 @@ See also: [`AgeStratification`](algebraicepimech.md#AlgebraicEpiMech.AgeStratifi
 - `stratum_names::Vector{Symbol}`
 - `label::Symbol`
 - `transitions::Vector{Pair{Symbol, Symbol}}`
+- `demography::Demography`
+
+<a id='AlgebraicEpiMech.Demography'></a>
+<a id='AlgebraicEpiMech.Demography-1'></a>
+**`AlgebraicEpiMech.Demography`** &mdash; *Type*.
+
+```julia
+struct Demography
+```
+
+```julia
+Demography(; births = (), deaths = ())
+```
+
+The open-population part of a model specification: the names (compartments, or strata of a [`ContactStratification`](algebraicepimech.md#AlgebraicEpiMech.ContactStratification)) that births enter and that deaths leave. Each birth becomes one `:birth` box and each death one death box per junction of that name; a stratum's births enter its uninfected junction.
+
+In a `typed_product` a transition type survives only if every factor has it. A factor that declares no deaths can still be passive for them through `include_reflexives = :death` on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}); births cannot be passive, because a newborn must be placed in every factor.
+
+
+---
+
+**Fields**
+
+- `births::Tuple{Vararg{Symbol}}`
+- `deaths::Tuple{Vararg{Symbol}}`
 
 <a id='AlgebraicEpiMech.EpiMechModel'></a>
 <a id='AlgebraicEpiMech.EpiMechModel-1'></a>
@@ -504,6 +537,7 @@ The SEI model represents diseases with an incubation period but no recovery.
 - `number_E_stages::Int64`
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SEIR'></a>
 <a id='AlgebraicEpiMech.SEIR-1'></a>
@@ -538,6 +572,7 @@ Built by extending SEI model with recovery transition.
 - `number_E_stages::Int64`
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SEIRS'></a>
 <a id='AlgebraicEpiMech.SEIRS-1'></a>
@@ -573,6 +608,7 @@ Built by extending SEIR model with waning transition.
 - `number_E_stages::Int64`
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SEIS'></a>
 <a id='AlgebraicEpiMech.SEIS-1'></a>
@@ -606,6 +642,7 @@ The SEIS model represents diseases with incubation period but no lasting immunit
 - `number_E_stages::Int64`
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SI'></a>
 <a id='AlgebraicEpiMech.SI-1'></a>
@@ -635,6 +672,7 @@ The SI model represents endemic diseases with no recovery.
 
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SIR'></a>
 <a id='AlgebraicEpiMech.SIR-1'></a>
@@ -666,6 +704,7 @@ Built by extending SI model with recovery transition.
 
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.SIS'></a>
 <a id='AlgebraicEpiMech.SIS-1'></a>
@@ -696,6 +735,7 @@ The SIS model represents diseases with no lasting immunity.
 
 - `number_I_stages::Int64`
 - `number_of_states::Int64`
+- `demography::Demography`
 
 <a id='AlgebraicEpiMech.Stratification'></a>
 <a id='AlgebraicEpiMech.Stratification-1'></a>
@@ -758,11 +798,11 @@ AgeStratification(
 ```
 
 ```julia
-AgeStratification(age_group_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
-AgeStratification(names...; transitions = Pair{Symbol, Symbol}[])
+AgeStratification(age_group_names::Vector{Symbol}; kwargs...)
+AgeStratification(names...; kwargs...)
 ```
 
-A `ContactStratification` with label `:age`; `transitions` declares ageing between age groups.
+A `ContactStratification` with label `:age`; `transitions` declares ageing between age groups, and `births` and `deaths` the groups newborns enter and deaths leave.
 
 **Examples**
 
@@ -784,11 +824,11 @@ GeographicStratification(
 ```
 
 ```julia
-GeographicStratification(location_names::Vector{Symbol}; transitions = Pair{Symbol, Symbol}[])
-GeographicStratification(names...; transitions = Pair{Symbol, Symbol}[])
+GeographicStratification(location_names::Vector{Symbol}; kwargs...)
+GeographicStratification(names...; kwargs...)
 ```
 
-A `ContactStratification` with label `:geography`; `transitions` declares movement between regions.
+A `ContactStratification` with label `:geography`; `transitions` declares movement between regions, and `births` and `deaths` the regions with demography.
 
 **Examples**
 
@@ -796,6 +836,42 @@ A `ContactStratification` with label `:geography`; `transitions` declares moveme
 geo = GeographicStratification([:urban, :suburban, :rural])
 geo = GeographicStratification(:urban, :suburban, :rural)  # splatting syntax
 ```
+
+<a id='AlgebraicEpiMech.add_birth!-Tuple{Any, Integer, EpidemiologicalTyping}'></a>
+<a id='AlgebraicEpiMech.add_birth!-Tuple{Any, Integer, EpidemiologicalTyping}-1'></a>
+**`AlgebraicEpiMech.add_birth!`** &mdash; *Method*.
+
+```julia
+add_birth!(
+    uwd,
+    junction::Integer,
+    typing::EpidemiologicalTyping
+) -> Any
+```
+
+```julia
+add_birth!(uwd, junction, typing)
+```
+
+Add a `:birth` box, an entry into `junction` with no source, so its mass-action rate is zero-order (births per unit time). The junction must have the uninfected population type. Returns the new box.
+
+<a id='AlgebraicEpiMech.add_death!-Tuple{Any, Integer, EpidemiologicalTyping}'></a>
+<a id='AlgebraicEpiMech.add_death!-Tuple{Any, Integer, EpidemiologicalTyping}-1'></a>
+**`AlgebraicEpiMech.add_death!`** &mdash; *Method*.
+
+```julia
+add_death!(
+    uwd,
+    junction::Integer,
+    typing::EpidemiologicalTyping
+) -> Any
+```
+
+```julia
+add_death!(uwd, junction, typing)
+```
+
+Add a death box, an exit from `junction` with no target, typed `:death` (or `:death_U` / `:death_I` under the uninfected/infected split). The mass-action rate is per capita. Returns the new box.
 
 <a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}'></a>
 <a id='AlgebraicEpiMech.add_disease_progression!-Tuple{Any, Any, Any, OnePopulationTyping}-1'></a>
@@ -911,7 +987,7 @@ Attach an observation chain to `pn`, returning a new net. The result is the coli
 
 Reapplying the same target, prefix, and stage count is idempotent. Reusing a target and prefix for an incompatible chain shape throws an `ArgumentError`; choose a different prefix when both observation layouts are required.
 
-Chains are grouped by stratum. For [`AtEvent`](algebraicepimech.md#AlgebraicEpiMech.AtEvent) the group is the transition's net product — for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count into `x`'s chain. For [`AtCompartment`](algebraicepimech.md#AlgebraicEpiMech.AtCompartment) each matched species gets its own chain.
+Chains are grouped by stratum. For [`AtEvent`](algebraicepimech.md#AlgebraicEpiMech.AtEvent) the group is the transition's net product — for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves. For [`AtCompartment`](algebraicepimech.md#AlgebraicEpiMech.AtCompartment) each matched species gets its own chain.
 
 Apply this after all `typed_product` composition so chains are grouped over the final strata.
 
@@ -930,7 +1006,7 @@ compose_stratifications(
 compose_stratifications(a::ContactStratification, b::ContactStratification)
 ```
 
-The Cartesian product of two contact stratifications, with combined stratum names and the label `a_x_b`. Movement graphs multiply: every edge of one factor pairs with every edge of the other, and a static factor contributes the identity on its strata, so ageing × static geography ages within each location. Two static factors give a static product.
+The Cartesian product of two contact stratifications, with combined stratum names and the label `a_x_b`. Movement graphs multiply: every edge of one factor pairs with every edge of the other, and a static factor contributes the identity on its strata, so ageing × static geography ages within each location. Two static factors give a static product. Births and deaths multiply the same way, a factor that declares none contributing all of its strata.
 
 **Examples**
 
@@ -968,7 +1044,7 @@ The resulting typed Petri net can be used directly for ODE simulation or compose
 
 **Keyword Arguments**
 
-- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected split). Listed types the factor already implements are skipped.
+- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected split), and `:death` for every death type. Listed types the factor already implements are skipped. `:birth` cannot be passive: declare `births` on the model specification.
 
 **Returns**
 
@@ -986,6 +1062,7 @@ Transition names are generated automatically based on model type:
 - **Multistrain**: Strain identifiers like `h1n1`, `h3n2` (enables clean composition)
 - **Movement** (`transitions` on a `ContactStratification`): `child_to_adult`
 - **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
+- **Births and deaths**: `birth_S`, `death_S`; composites read `birth_S_child`, `death_I_adult`
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -1024,6 +1101,12 @@ sir = create_model(typing, SIR(); include_reflexives = :strata)
 aging = create_model(typing, AgeStratification([:child, :adult]; transitions = [:child => :adult]))
 aging_sir = dom(typed_product(sir, aging))
 # Adds S_child_to_adult, I_child_to_adult, R_child_to_adult
+
+# Births into children, deaths out of adults
+sir = create_model(typing, SIR(births = [:S]); include_reflexives = (:strata, :death))
+age = AgeStratification([:child, :adult]; transitions = [:child => :adult], births = [:child], deaths = [:adult])
+open_sir = dom(typed_product(sir, create_model(typing, age)))
+# Adds birth_S_child, death_S_adult, death_I_adult, death_R_adult
 ```
 
 **Compositional Design**
@@ -1040,32 +1123,23 @@ See also: [`create_model_uwd`](algebraicepimech.md#AlgebraicEpiMech.create_model
 create_model_uwd(
     typing::EpidemiologicalTyping,
     model::CompartmentalModel
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
+) -> Any
 ```
 
-Create an undirected wiring diagram (UWD) for a compartmental model within a specific typing.
+```julia
+create_model_uwd(typing, model::CompartmentalModel)
+```
 
-This function returns the undirected wiring diagram that defines the compartmental structure and transitions, using the type names from the typing. The compartments are typed according to the typing's population structure. The returned UWD does not declare an outer boundary/ports; `oapply_typed` derives the boundary from its junctions when materializing the typed Petri net.
+The undirected wiring diagram (UWD) of a compartmental model under `typing`: one junction per compartment, typed by the typing's population types, and one box per transition, plus the births and deaths declared by the model's [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography). The UWD declares no outer ports; `oapply_typed` derives the boundary from its junctions.
 
-**Arguments**
-
-- `typing::EpidemiologicalTyping`: The population typing defining type names
-- `model::CompartmentalModel`: The compartmental model instance (SI(), SEI(), SIR(), SEIR(), etc.)
-
-**Returns**
-
-- Undirected wiring diagram defining the compartmental model structure with typing-specific types
+Multi-stage compartments (`number_E_stages`, `number_I_stages`) are chained, and recovery or reversion always leaves the last infectious stage.
 
 **Examples**
 
 ```julia
-# Create SIR model UWD with single population typing
-typing = OnePopulationTyping(population_type = :Individual)
-sir_uwd = create_model_uwd(typing, SIR())  # Uses Individual type
-
-# Create SEIR model UWD with uninfected/infected typing
+sir_uwd = create_model_uwd(OnePopulationTyping(population_type = :Individual), SIR())
 typing = UninfectedInfectedTyping(uninfected_type = :Susceptible, infected_type = :Infectious)
-seir_uwd = create_model_uwd(typing, SEIR())  # S::Susceptible, E,I,R::Infectious
+seir_uwd = create_model_uwd(typing, SEIR(births = [:S]))  # S::Susceptible, E, I, R::Infectious
 ```
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, ContactStratification}'></a>
@@ -1111,149 +1185,11 @@ For n strata, creates n² transmission boxes representing the contact matrix:
 
 When composed with a compartmental model UWD via `typed_product`, the transmission boxes will align based on the `:transmission` name, allowing the contact structure to modulate the disease dynamics defined in the compartmental model.
 
-The movement graph (`model.transitions`) adds one movement box per edge and population type through [`add_strata_transition!`](algebraicepimech.md#AlgebraicEpiMech.add_strata_transition!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}).
+The movement graph (`model.transitions`) adds one movement box per edge and population type through [`add_strata_transition!`](algebraicepimech.md#AlgebraicEpiMech.add_strata_transition!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}). Declared births enter a stratum's uninfected junction ([`add_birth!`](algebraicepimech.md#AlgebraicEpiMech.add_birth!-Tuple{Any, Integer, EpidemiologicalTyping})) and declared deaths leave each of its junctions ([`add_death!`](algebraicepimech.md#AlgebraicEpiMech.add_death!-Tuple{Any, Integer, EpidemiologicalTyping})).
 
 **Keyword Arguments**
 
 - `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion` and `:waning` boxes are added when listed; any other listed type is added by `create_model`.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIRS}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::SEIRS
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete SEIRS model UWD by extending SEI with recovery and waning immunity.
-
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-
-- R (recovered) compartment
-- Recovery transition: I_last → R
-- Waning immunity transition: R → S
-
-Represents diseases with latent periods and temporary immunity. The dual multi-stage capability enables independent control of latent and infectious period distributions. Recovery occurs from the last I stage, and waning immunity returns individuals from R to S.
-
-**Usage with oapply_typed**
-
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIR}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::SEIR
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete SEIR model UWD by extending SEI with recovery.
-
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-
-- R (recovered) compartment
-- Recovery transition: I_last → R
-
-The dual multi-stage capability (independent E and I stages) enables independent control of latent and infectious period distributions. Recovery always occurs from the last I stage.
-
-**Usage with oapply_typed**
-
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SEIS}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::SEIS
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete SEIS model UWD by extending SEI with waning immunity.
-
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-
-- Reversion transition: I_last → S (waning immunity)
-
-Represents diseases with latent periods but no lasting immunity. The dual multi-stage capability enables independent control of latent and infectious period distributions. Reversion occurs from the last I stage back to S.
-
-**Usage with oapply_typed**
-
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIR}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::SIR
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete SIR model UWD by extending SI with recovery.
-
-Builds on the SI base model (S→I dynamics with multi-stage I support) and adds:
-
-- R (recovered) compartment
-- Recovery transition: I_last → R
-
-The multi-stage I capability from SI is preserved, enabling gamma-distributed infectious periods. Recovery always occurs from the last I stage, ensuring proper sequencing.
-
-**Usage with oapply_typed**
-
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, SIS}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::SIS
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete SIS model UWD by extending SI with waning immunity.
-
-Builds on the SI base model (S→I dynamics with multi-stage I support) and adds:
-
-- Reversion transition: I_last → S (waning immunity)
-
-Represents diseases where recovery returns individuals to susceptible state. The multi-stage I capability enables realistic infectious period distributions. Reversion occurs from the last I stage back to S.
-
-**Usage with oapply_typed**
-
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}'></a>
-<a id='AlgebraicEpiMech.create_model_uwd-Tuple{EpidemiologicalTyping, Union{SEI, SI}}-1'></a>
-**`AlgebraicEpiMech.create_model_uwd`** &mdash; *Method*.
-
-```julia
-create_model_uwd(
-    typing::EpidemiologicalTyping,
-    model::Union{SEI, SI}
-) -> Catlab.WiringDiagrams.RelationDiagrams.TypedUnnamedRelationDiagram{Symbol, Symbol, Symbol}
-```
-
-Construct a complete undirected wiring diagram (UWD) for SI or SEI models.
-
-Populates an initially empty UWD with compartments and mechanisms via `setup_basic!`. These are the base models that other compartmental models extend from.
-
-**Usage with oapply_typed**
-
-The returned UWD can be applied to the typing using `oapply_typed` to create a typed Petri net, enabling composition with other typed Petri nets (e.g., demographic processes, interventions).
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}'></a>
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}-1'></a>
@@ -1410,7 +1346,7 @@ The transition types a factor is passive for under `include_reflexives = true`.
 
 | Model | Default |
 | ---: | ---: |
-| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification |
+| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification, `:death` with one that has deaths |
 | `ContactStratification` | `:disease`, `:reversion`, `:waning` |
 | `ImmuneHistory` | `:disease`, `:waning` |
 
@@ -1441,13 +1377,13 @@ flatten_symbols((((:a, :b), :c), :d)) # returns :a_b_c_d
 ```julia
 generate_transition_names(
     uwd,
-    model::CompartmentalModel
-) -> Vector{Symbol}
+    _::CompartmentalModel
+) -> Vector
 ```
 
 Generate transition names from UWD structure for compartmental models.
 
-For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`. For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2` where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`).
+For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`. For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2` where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`). Birth and death boxes have one port and are named `birth_S`, `death_I`.
 
 **Arguments**
 
@@ -1485,7 +1421,7 @@ Generate transition names for a `ContactStratification` UWD.
 
 - Transmission boxes are named `infectee_infector`, e.g. `child_adult` for a child infected by an adult.
 - Movement boxes are named `source_to_target`, e.g. `child_to_adult` or `child_U_to_adult_U`.
-- Reflexive boxes take their stratum's junction variable, e.g. `child`, so a composite reads `I_to_R_child`.
+- Reflexive, birth and death boxes take their stratum's junction variable, e.g. `child`, so a composite reads `I_to_R_child` or `birth_S_child`.
 
 **Examples**
 
@@ -1568,6 +1504,10 @@ The `LabelledPetriNet` that a typed Petri net built under `typing` maps into: on
 | `:reversion` | `P → P` | `I → U` |
 | `:waning` | `P → P` | `U → U` |
 | `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
+| `:birth` | `∅ → P` | `∅ → U` |
+| `:death` | `P → ∅` | `:death_U`: `U → ∅`, `:death_I`: `I → ∅` |
+
+A birth has no input, so its mass-action rate is zero-order (births per unit time); a death has no output and a per-capita rate.
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level experiments; [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}) uses only the standard ones.
 

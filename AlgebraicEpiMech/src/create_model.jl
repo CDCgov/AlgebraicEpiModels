@@ -22,7 +22,8 @@ typed Petri nets via `typed_product` to build complex hierarchical models.
   [`default_reflexives`](@ref)), `false` (none, for standalone use), or a transition type name
   or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every
   movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected
-  split). Listed types the factor already implements are skipped.
+  split), and `:death` for every death type. Listed types the factor already implements are
+  skipped. `:birth` cannot be passive: declare `births` on the model specification.
 
 # Returns
 - `ACSetTransformation`: A typed Petri net with two components accessible via:
@@ -37,6 +38,7 @@ Transition names are generated automatically based on model type:
 - **Movement** (`transitions` on a `ContactStratification`): `child_to_adult`
 - **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model
   `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
+- **Births and deaths**: `birth_S`, `death_S`; composites read `birth_S_child`, `death_I_adult`
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -74,6 +76,12 @@ sir = create_model(typing, SIR(); include_reflexives = :strata)
 aging = create_model(typing, AgeStratification([:child, :adult]; transitions = [:child => :adult]))
 aging_sir = dom(typed_product(sir, aging))
 # Adds S_child_to_adult, I_child_to_adult, R_child_to_adult
+
+# Births into children, deaths out of adults
+sir = create_model(typing, SIR(births = [:S]); include_reflexives = (:strata, :death))
+age = AgeStratification([:child, :adult]; transitions = [:child => :adult], births = [:child], deaths = [:adult])
+open_sir = dom(typed_product(sir, create_model(typing, age)))
+# Adds birth_S_child, death_S_adult, death_I_adult, death_R_adult
 ```
 
 # Compositional Design
@@ -104,7 +112,7 @@ The transition types a factor is passive for under `include_reflexives = true`.
 
 | Model | Default |
 |---|---|
-| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification |
+| `CompartmentalModel`, `MultiStrainModel` | none; pass `:strata` to compose with a moving stratification, `:death` with one that has deaths |
 | `ContactStratification` | `:disease`, `:reversion`, `:waning` |
 | `ImmuneHistory` | `:disease`, `:waning` |
 
@@ -142,24 +150,30 @@ function _create_model_uwd(typing, model::Union{ContactStratification, ImmuneHis
     return create_model_uwd(typing, model; include_reflexives = reflexives)
 end
 
-# One reflexive box per junction of the right population type, for every listed type the UWD
-# does not implement. Only a type that maps one population type to itself can be reflexive.
+# One passive box per junction of the right population type, for every listed type the UWD does
+# not implement: a reflexive box for a type `P → P`, a death box for `P → ∅`.
 function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomain)
     implemented = Set(uwd[:name])
     for type in reflexives
         type in implemented && continue
         t = findfirst(==(type), tnames(codomain))
         ins, outs = AlgebraicPetri.inputs(codomain, t), AlgebraicPetri.outputs(codomain, t)
-        (length(ins) == length(outs) == 1 && only(ins) == only(outs)) || throw(
+        isempty(ins) && throw(
             ArgumentError(
-                "cannot add reflexive `$type` boxes: it does not map one population type to itself, " *
+                "a factor cannot be passive for `$type`: an entry must be placed, so declare " *
+                    "`births` on the model specification"
+            )
+        )
+        (length(ins) == 1 && length(outs) <= 1 && outs ⊆ ins) || throw(
+            ArgumentError(
+                "cannot add reflexive `$type` boxes: it does not keep to one population type, " *
                     "so a factor must implement it"
             )
         )
         population = sname(codomain, only(ins))
         for j in junctions(uwd)
             uwd[j, :junction_type] == population || continue
-            box = add_box!(uwd, [population, population]; name = type)
+            box = add_box!(uwd, fill(population, 1 + length(outs)); name = type)
             foreach(port -> set_junction!(uwd, port, j), ports(uwd, box))
             push!(names, _reflexive_name(model, type, uwd[j, :variable]))
         end
@@ -168,8 +182,11 @@ function _add_passive_reflexives!(uwd, names, typing, model, reflexives, codomai
 end
 
 # A reflexive box is named after its junction. A compartmental model prefixes any non-movement
-# type (`waning_S`) so two passive types on one compartment cannot collide, while movement keeps
-# the bare name so composites read `S_child_to_adult`.
+# type (`waning_S`, `death_S`) so two passive types on one compartment cannot collide, while
+# movement keeps the bare name so composites read `S_child_to_adult`.
 _reflexive_name(::EpiMechModel, type, variable) = variable
 _reflexive_name(::CompartmentalModel, type, variable) =
-    type in MOVEMENT_BOXES ? variable : Symbol(type, "_", variable)
+    type in MOVEMENT_BOXES ? variable : Symbol(_kind_prefix(type), "_", variable)
+
+# Death boxes are named for the kind, not the per-population box (`death_S`, not `death_U_S`).
+_kind_prefix(box) = box in DEATH_BOXES ? :death : box

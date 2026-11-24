@@ -36,7 +36,7 @@ end
             reflexive = add_strata_transition!(uwd, old, old, typing)
             @test [linear, reflexive] == collect(boxes(uwd))
             @test uwd[linear, :name] == uwd[reflexive, :name] ==
-                AlgebraicEpiMech.movement_box(typing, population)
+                AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), typing, population)
             @test junction.(Ref(uwd), ports(uwd, linear)) == [young, old]
             @test junction.(Ref(uwd), ports(uwd, reflexive)) == [old, old]
 
@@ -53,6 +53,44 @@ end
     foreign = add_junction!(uwd, :Other; variable = :other)
     @test_throws ArgumentError add_strata_transition!(uwd, u, i, ui_typing)
     @test_throws ArgumentError add_strata_transition!(uwd, foreign, foreign, ui_typing)
+    @test isempty(boxes(uwd))  # invalid declarations leave no partial wiring
+end
+
+@testitem "Birth and death primitives" setup = [MechanismSetup] begin
+    using AlgebraicPetri.TypedPetri: oapply_typed
+
+    for typing in (one_pop_typing, ui_typing)
+        codomain = type_system(typing)
+        uwd = RelationDiagram(Symbol[])
+        newborn = add_junction!(uwd, AlgebraicEpiMech.get_uninfected_type(typing); variable = :newborn)
+        birth = add_birth!(uwd, newborn, typing)
+        @test uwd[birth, :name] == :birth
+        @test junction.(Ref(uwd), ports(uwd, birth)) == [newborn]
+        leaving = Pair{Int, Int}[]
+        for population in AlgebraicPetri.snames(codomain)
+            old = add_junction!(uwd, population; variable = Symbol(:old_, population))
+            death = add_death!(uwd, old, typing)
+            @test uwd[death, :name] == AlgebraicEpiMech.population_box(AlgebraicEpiMech.Death(), typing, population)
+            @test junction.(Ref(uwd), ports(uwd, death)) == [old]
+            push!(leaving, death => old)
+        end
+
+        names = [:birth; [Symbol(:death, i) for i in eachindex(leaving)]]
+        pn = dom(oapply_typed(codomain, uwd, names))
+        @test isempty(AlgebraicPetri.inputs(pn, birth))
+        @test AlgebraicPetri.outputs(pn, birth) == [newborn]
+        for (death, old) in leaving
+            @test AlgebraicPetri.inputs(pn, death) == [old]
+            @test isempty(AlgebraicPetri.outputs(pn, death))
+        end
+    end
+
+    uwd = RelationDiagram(Symbol[])
+    i = add_junction!(uwd, ui_typing.infected_type; variable = :I)
+    foreign = add_junction!(uwd, :Other; variable = :other)
+    @test_throws ArgumentError add_birth!(uwd, i, ui_typing)
+    @test_throws ArgumentError add_birth!(uwd, foreign, one_pop_typing)
+    @test_throws ArgumentError add_death!(uwd, foreign, ui_typing)
     @test isempty(boxes(uwd))  # invalid declarations leave no partial wiring
 end
 

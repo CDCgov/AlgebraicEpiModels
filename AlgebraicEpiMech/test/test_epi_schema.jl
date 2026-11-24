@@ -25,13 +25,10 @@ end
 
     @test codomain isa LabelledPetriNet
     @test snames(codomain) == [:Individual]
-    @test all(in(tnames(codomain)), [:transmission, :disease, :reversion, :waning])
+    @test all(in(tnames(codomain)), [:transmission, :disease, :reversion, :waning, :birth, :death])
 
-    system_with_birth = type_system(
-        typing,
-        :birth => (:Individual => (:Individual, :Individual)),
-    )
-    @test :birth in tnames(system_with_birth)
+    system_with_vaccination = type_system(typing, :vaccination => (:Individual => :Individual))
+    @test :vaccination in tnames(system_with_vaccination)
 end
 
 @testitem "type_system materializes UninfectedInfectedTyping" setup = [ModelSetup] begin
@@ -69,17 +66,24 @@ end
 
 @testitem "type_system builds the standard transition kinds from a typing's populations" setup = [ModelSetup] begin
     one = OnePopulationTyping(population_type = :Person)
-    @test tnames(type_system(one)) == [:transmission, :disease, :reversion, :waning, :strata]
+    @test tnames(type_system(one)) == [:transmission, :disease, :reversion, :waning, :strata, :birth, :death]
     typing = UninfectedInfectedTyping(uninfected_type = :U, infected_type = :J)
     split = type_system(typing)
-    @test tnames(split) == [:transmission, :disease, :reversion, :waning, :strata_U, :strata_I]
+    @test tnames(split) ==
+        [:transmission, :disease, :reversion, :waning, :strata_U, :strata_I, :birth, :death_U, :death_I]
     arcs(t) = (snames(split)[AlgebraicPetri.inputs(split, t)], snames(split)[AlgebraicPetri.outputs(split, t)])
-    @test arcs.(1:6) == [([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U]), ([:U], [:U]), ([:J], [:J])]
+    @test arcs.(1:9) == [
+        ([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U]), ([:U], [:U]), ([:J], [:J]),
+        (Symbol[], [:U]), ([:U], Symbol[]), ([:J], Symbol[]),
+    ]
 
-    @test AlgebraicEpiMech.movement_box(one, :Person) == :strata
-    @test AlgebraicEpiMech.movement_box(typing, :U) == :strata_U
-    @test AlgebraicEpiMech.movement_box(typing, :J) == :strata_I
-    @test_throws ArgumentError AlgebraicEpiMech.movement_box(typing, :Other)
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), one, :Person) == :strata
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), typing, :U) == :strata_U
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), typing, :J) == :strata_I
+    @test_throws ArgumentError AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), typing, :Other)
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Death(), one, :Person) == :death
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Death(), typing, :U) == :death_U
+    @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Death(), typing, :J) == :death_I
 
     struct TwoClassTyping <: EpidemiologicalTyping end
     AlgebraicEpiMech.get_uninfected_type(::TwoClassTyping) = :Healthy

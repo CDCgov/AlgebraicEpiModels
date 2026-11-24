@@ -1,223 +1,79 @@
-# Constructors for compartmental epidemiological models
-# Uses functions from construction_helpers.jl and mechanisms.jl
-# Dispatch methods to create compartmental models based on typing and model instances
+# The undirected wiring diagram of each model specification.
 
 """
-Create an undirected wiring diagram (UWD) for a compartmental model within a specific typing.
+    create_model_uwd(typing, model::CompartmentalModel)
 
-This function returns the undirected wiring diagram that defines the
-compartmental structure and transitions, using the type names from the typing.
-The compartments are typed according to the typing's population structure.
-The returned UWD does not declare an outer boundary/ports; `oapply_typed` derives the
-boundary from its junctions when materializing the typed Petri net.
+The undirected wiring diagram (UWD) of a compartmental model under `typing`: one junction per
+compartment, typed by the typing's population types, and one box per transition, plus the
+births and deaths declared by the model's [`Demography`](@ref). The UWD declares no outer
+ports; `oapply_typed` derives the boundary from its junctions.
 
-# Arguments
-- `typing::EpidemiologicalTyping`: The population typing defining type names
-- `model::CompartmentalModel`: The compartmental model instance (SI(), SEI(), SIR(), SEIR(), etc.)
-
-# Returns
-- Undirected wiring diagram defining the compartmental model structure with typing-specific types
+Multi-stage compartments (`number_E_stages`, `number_I_stages`) are chained, and recovery or
+reversion always leaves the last infectious stage.
 
 # Examples
 ```julia
-# Create SIR model UWD with single population typing
-typing = OnePopulationTyping(population_type = :Individual)
-sir_uwd = create_model_uwd(typing, SIR())  # Uses Individual type
-
-# Create SEIR model UWD with uninfected/infected typing
+sir_uwd = create_model_uwd(OnePopulationTyping(population_type = :Individual), SIR())
 typing = UninfectedInfectedTyping(uninfected_type = :Susceptible, infected_type = :Infectious)
-seir_uwd = create_model_uwd(typing, SEIR())  # S::Susceptible, E,I,R::Infectious
+seir_uwd = create_model_uwd(typing, SEIR(births = [:S]))  # S::Susceptible, E, I, R::Infectious
 ```
 """
 function create_model_uwd(typing::EpidemiologicalTyping, model::CompartmentalModel)
-    error("create_model_uwd not implemented for typing type $(typeof(typing)) and model type $(typeof(model)). Implement a method for this combination.")
-end
-
-"""
-Construct a complete undirected wiring diagram (UWD) for SI or SEI models.
-
-Populates an initially empty UWD with compartments and mechanisms via `setup_basic!`.
-These are the base models that other compartmental models extend from.
-
-# Usage with oapply_typed
-The returned UWD can be applied to the typing using `oapply_typed` to create a typed
-Petri net, enabling composition with other typed Petri nets (e.g., demographic processes,
-interventions).
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::Union{SI, SEI})
-    uwd = RelationDiagram(Symbol[])
-    (uwd, _, _) = setup_basic!(uwd, typing, model)
-    return uwd
-end
-
-"""
-Construct a complete SIR model UWD by extending SI with recovery.
-
-Builds on the SI base model (S→I dynamics with multi-stage I support) and adds:
-- R (recovered) compartment
-- Recovery transition: I_last → R
-
-The multi-stage I capability from SI is preserved, enabling gamma-distributed infectious
-periods. Recovery always occurs from the last I stage, ensuring proper sequencing.
-
-# Usage with oapply_typed
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::SIR)
-    uwd = RelationDiagram(Symbol[])
-
-    # Get SI base model
-    uwd, _,
-        last_I_junction = setup_basic!(uwd, typing, SI(number_I_stages = model.number_I_stages))
-
-    pop_type = get_infected_type(typing)
-
-    # Add R compartment junction
-    R_junction = add_junction!(uwd, pop_type, variable = :R)
-
-    # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
-
-    return uwd
-end
-
-"""
-Construct a complete SIS model UWD by extending SI with waning immunity.
-
-Builds on the SI base model (S→I dynamics with multi-stage I support) and adds:
-- Reversion transition: I_last → S (waning immunity)
-
-Represents diseases where recovery returns individuals to susceptible state. The multi-stage
-I capability enables realistic infectious period distributions. Reversion occurs from the
-last I stage back to S.
-
-# Usage with oapply_typed
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::SIS)
-    uwd = RelationDiagram(Symbol[])
-
-    # Get SI base model
-    uwd, S_junction,
-        last_I_junction = setup_basic!(uwd, typing, SI(number_I_stages = model.number_I_stages))
-
-    # Add reversion: last I stage → S (waning immunity)
-    add_reversion_progression!(uwd, last_I_junction, S_junction, typing)
-
-    return uwd
-end
-
-"""
-Construct a complete SEIR model UWD by extending SEI with recovery.
-
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-- R (recovered) compartment
-- Recovery transition: I_last → R
-
-The dual multi-stage capability (independent E and I stages) enables independent control
-of latent and infectious period distributions. Recovery always occurs from the last I stage.
-
-# Usage with oapply_typed
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::SEIR)
-    uwd = RelationDiagram(Symbol[])
-
-    # Get SEI base model
-    uwd, _,
-        last_I_junction = setup_basic!(
-        uwd,
-        typing,
-        SEI(
-            number_E_stages = model.number_E_stages,
-            number_I_stages = model.number_I_stages
+    uwd = _compartments_uwd(typing, model)
+    compartments = Dict(uwd[j, :variable] => [j] for j in junctions(uwd))
+    for name in (model.demography.births..., model.demography.deaths...)
+        haskey(compartments, name) || throw(
+            ArgumentError(
+                "`$name` is not a compartment of $(nameof(typeof(model))); " *
+                    "compartments are $(uwd[:variable])"
+            )
         )
-    )
+    end
+    return _add_demography!(uwd, typing, model.demography, compartments)
+end
 
-    pop_type = get_infected_type(typing)
+function _compartments_uwd(typing, model::CompartmentalModel)
+    return error("create_model_uwd not implemented for $(typeof(typing)) and $(typeof(model))")
+end
 
-    # Add R compartment junction
-    R_junction = add_junction!(uwd, pop_type, variable = :R)
-
-    # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
-
+function _compartments_uwd(typing, model::Union{SI, SEI})
+    uwd, _, _ = setup_basic!(RelationDiagram(Symbol[]), typing, model)
     return uwd
 end
 
-"""
-Construct a complete SEIS model UWD by extending SEI with waning immunity.
-
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-- Reversion transition: I_last → S (waning immunity)
-
-Represents diseases with latent periods but no lasting immunity. The dual multi-stage
-capability enables independent control of latent and infectious period distributions.
-Reversion occurs from the last I stage back to S.
-
-# Usage with oapply_typed
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::SEIS)
-    uwd = RelationDiagram(Symbol[])
-
-    # Get SEI base model
-    uwd, S_junction,
-        last_I_junction = setup_basic!(
-        uwd,
-        typing,
-        SEI(
-            number_E_stages = model.number_E_stages,
-            number_I_stages = model.number_I_stages
-        )
-    )
-
-    # Add reversion: last I stage → S (waning immunity)
-    add_reversion_progression!(uwd, last_I_junction, S_junction, typing)
-
+function _compartments_uwd(typing, model::SIR)
+    uwd, _, last_I = setup_basic!(RelationDiagram(Symbol[]), typing, SI(number_I_stages = model.number_I_stages))
+    R = add_junction!(uwd, get_infected_type(typing), variable = :R)
+    add_disease_progression!(uwd, last_I, R, typing)
     return uwd
 end
 
-"""
-Construct a complete SEIRS model UWD by extending SEI with recovery and waning immunity.
+function _compartments_uwd(typing, model::SIS)
+    uwd, S, last_I = setup_basic!(RelationDiagram(Symbol[]), typing, SI(number_I_stages = model.number_I_stages))
+    add_reversion_progression!(uwd, last_I, S, typing)
+    return uwd
+end
 
-Builds on the SEI base model (S→E→I dynamics with multi-stage E and I support) and adds:
-- R (recovered) compartment
-- Recovery transition: I_last → R
-- Waning immunity transition: R → S
+_latent_base(model) = SEI(number_E_stages = model.number_E_stages, number_I_stages = model.number_I_stages)
 
-Represents diseases with latent periods and temporary immunity. The dual multi-stage capability
-enables independent control of latent and infectious period distributions. Recovery occurs from
-the last I stage, and waning immunity returns individuals from R to S.
+function _compartments_uwd(typing, model::SEIR)
+    uwd, _, last_I = setup_basic!(RelationDiagram(Symbol[]), typing, _latent_base(model))
+    R = add_junction!(uwd, get_infected_type(typing), variable = :R)
+    add_disease_progression!(uwd, last_I, R, typing)
+    return uwd
+end
 
-# Usage with oapply_typed
-Apply to typing with `oapply_typed` to create a typed Petri net for composition.
-"""
-function create_model_uwd(typing::EpidemiologicalTyping, model::SEIRS)
-    uwd = RelationDiagram(Symbol[])
+function _compartments_uwd(typing, model::SEIS)
+    uwd, S, last_I = setup_basic!(RelationDiagram(Symbol[]), typing, _latent_base(model))
+    add_reversion_progression!(uwd, last_I, S, typing)
+    return uwd
+end
 
-    # Get SEIR model (which already calls SEI and adds R)
-    # SEIR returns just uwd since it's already complete
-    uwd, S_junction,
-        last_I_junction = setup_basic!(
-        uwd,
-        typing,
-        SEI(
-            number_E_stages = model.number_E_stages,
-            number_I_stages = model.number_I_stages
-        )
-    )
-
-    # Add R compartment junction
-    pop_type = get_infected_type(typing)
-    R_junction = add_junction!(uwd, pop_type, variable = :R)
-
-    # Add recovery: last I stage → R
-    add_disease_progression!(uwd, last_I_junction, R_junction, typing)
-
-    # Add waning immunity: R → S
-    add_reversion_progression!(uwd, R_junction, S_junction, typing)
-
+function _compartments_uwd(typing, model::SEIRS)
+    uwd, S, last_I = setup_basic!(RelationDiagram(Symbol[]), typing, _latent_base(model))
+    R = add_junction!(uwd, get_infected_type(typing), variable = :R)
+    add_disease_progression!(uwd, last_I, R, typing)
+    add_reversion_progression!(uwd, R, S, typing)
     return uwd
 end
 
@@ -402,7 +258,8 @@ will align based on the `:transmission` name, allowing the contact structure to 
 the disease dynamics defined in the compartmental model.
 
 The movement graph (`model.transitions`) adds one movement box per edge and population type
-through [`add_strata_transition!`](@ref).
+through [`add_strata_transition!`](@ref). Declared births enter a stratum's uninfected junction
+([`add_birth!`](@ref)) and declared deaths leave each of its junctions ([`add_death!`](@ref)).
 
 # Keyword Arguments
 - `include_reflexives = true`: the transition types this factor is passive for (see
@@ -444,7 +301,7 @@ function create_model_uwd(
         end
     end
 
-    return uwd
+    return _add_demography!(uwd, typing, model.demography, junctions_of)
 end
 
 # ============================================================================

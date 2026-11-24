@@ -20,8 +20,39 @@ Abstract base type for compartmental epidemiological models.
 
 Compartmental models define the specific disease dynamics and transitions
 between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.
+
+Every concrete model also takes the [`Demography`](@ref) keywords, naming compartments, for
+example `SIR(births = [:S], deaths = [:I])`.
 """
 abstract type CompartmentalModel <: EpiMechModel end
+
+"""
+    Demography(; births = (), deaths = ())
+
+The open-population part of a model specification: the names (compartments, or strata of a
+[`ContactStratification`](@ref)) that births enter and that deaths leave. Each birth becomes
+one `:birth` box and each death one death box per junction of that name; a stratum's births
+enter its uninfected junction.
+
+In a `typed_product` a transition type survives only if every factor has it. A factor that
+declares no deaths can still be passive for them through `include_reflexives = :death` on
+[`create_model`](@ref); births cannot be passive, because a newborn must be placed in every
+factor.
+"""
+struct Demography
+    births::Tuple{Vararg{Symbol}}
+    deaths::Tuple{Vararg{Symbol}}
+
+    # Tuples, so that specifications compare by value (`SIR() == SIR()`).
+    function Demography(;
+            births::Union{Tuple{Vararg{Symbol}}, AbstractVector{Symbol}} = (),
+            deaths::Union{Tuple{Vararg{Symbol}}, AbstractVector{Symbol}} = ()
+        )
+        allunique(births) || throw(ArgumentError("duplicate `births` entry in $births"))
+        allunique(deaths) || throw(ArgumentError("duplicate `deaths` entry in $deaths"))
+        return new(Tuple(births), Tuple(deaths))
+    end
+end
 
 function _validate_stage_count(name::Symbol, count::Int)
     count >= 1 || throw(ArgumentError("$name must be at least 1"))
@@ -45,10 +76,11 @@ The SI model represents endemic diseases with no recovery.
 struct SI <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SI(; number_I_stages::Int = 1)
+    function SI(; number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_I_stages, 1 + number_I_stages)
+        return new(number_I_stages, 1 + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -70,11 +102,12 @@ struct SEI <: CompartmentalModel
     number_E_stages::Int
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SEI(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+    function SEI(; number_E_stages::Int = 1, number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_E_stages, number_E_stages)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages)
+        return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -97,10 +130,11 @@ Built by extending SI model with recovery transition.
 struct SIR <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SIR(; number_I_stages::Int = 1)
+    function SIR(; number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_I_stages, 2 + number_I_stages)
+        return new(number_I_stages, 2 + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -124,11 +158,12 @@ struct SEIR <: CompartmentalModel
     number_E_stages::Int
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SEIR(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+    function SEIR(; number_E_stages::Int = 1, number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_E_stages, number_E_stages)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages)
+        return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -148,10 +183,11 @@ The SIS model represents diseases with no lasting immunity.
 struct SIS <: CompartmentalModel
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SIS(; number_I_stages::Int = 1)
+    function SIS(; number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_I_stages, 1 + number_I_stages)
+        return new(number_I_stages, 1 + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -174,11 +210,12 @@ struct SEIS <: CompartmentalModel
     number_E_stages::Int
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SEIS(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+    function SEIS(; number_E_stages::Int = 1, number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_E_stages, number_E_stages)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages)
+        return new(number_E_stages, number_I_stages, 1 + number_E_stages + number_I_stages, Demography(; demography...))
     end
 end
 
@@ -203,10 +240,11 @@ struct SEIRS <: CompartmentalModel
     number_E_stages::Int
     number_I_stages::Int
     number_of_states::Int
+    demography::Demography
 
-    function SEIRS(; number_E_stages::Int = 1, number_I_stages::Int = 1)
+    function SEIRS(; number_E_stages::Int = 1, number_I_stages::Int = 1, demography...)
         _validate_stage_count(:number_E_stages, number_E_stages)
         _validate_stage_count(:number_I_stages, number_I_stages)
-        return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages)
+        return new(number_E_stages, number_I_stages, 2 + number_E_stages + number_I_stages, Demography(; demography...))
     end
 end

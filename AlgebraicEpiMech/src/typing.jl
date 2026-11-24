@@ -83,14 +83,24 @@ struct Disease <: TransitionKind end
 struct Reversion <: TransitionKind end
 struct Waning <: TransitionKind end
 struct Movement <: TransitionKind end
+struct Birth <: TransitionKind end
+struct Death <: TransitionKind end
 
 const TRANSITION_KINDS = (
     transmission = Transmission(), disease = Disease(), reversion = Reversion(), waning = Waning(),
-    strata = Movement(),
+    strata = Movement(), birth = Birth(), death = Death(),
 )
 
-# Movement keeps the population type, so a typing with two populations has one box per population.
+# Movement and death keep to one population type, so a typing with two populations has one box
+# per population.
 const MOVEMENT_BOXES = (shared = :strata, uninfected = :strata_U, infected = :strata_I)
+const DEATH_BOXES = (shared = :death, uninfected = :death_U, infected = :death_I)
+
+function _per_population(boxes, typing, signature)
+    U, I = get_uninfected_type(typing), get_infected_type(typing)
+    U == I && return (boxes.shared => signature(U),)
+    return (boxes.uninfected => signature(U), boxes.infected => signature(I))
+end
 
 function signatures(::Transmission, typing)
     U, I = get_uninfected_type(typing), get_infected_type(typing)
@@ -99,16 +109,15 @@ end
 signatures(::Disease, typing) = (:disease => (get_infected_type(typing) => get_infected_type(typing)),)
 signatures(::Reversion, typing) = (:reversion => (get_infected_type(typing) => get_uninfected_type(typing)),)
 signatures(::Waning, typing) = (:waning => (get_uninfected_type(typing) => get_uninfected_type(typing)),)
-function signatures(::Movement, typing)
-    U, I = get_uninfected_type(typing), get_infected_type(typing)
-    U == I && return (MOVEMENT_BOXES.shared => (U => U),)
-    return (MOVEMENT_BOXES.uninfected => (U => U), MOVEMENT_BOXES.infected => (I => I))
-end
+signatures(::Movement, typing) = _per_population(MOVEMENT_BOXES, typing, P -> P => P)
+signatures(::Birth, typing) = (:birth => (() => get_uninfected_type(typing)),)
+signatures(::Death, typing) = _per_population(DEATH_BOXES, typing, P -> P => ())
 
 box_names(kind::TransitionKind, typing) = first.(signatures(kind, typing))
 
-function movement_box(typing, population::Symbol)
-    for (name, (input, _)) in signatures(Movement(), typing)
+# The box of a per-population kind (movement or death) that a `population` junction takes.
+function population_box(kind::Union{Movement, Death}, typing, population::Symbol)
+    for (name, (input, _)) in signatures(kind, typing)
         input == population && return name
     end
     throw(ArgumentError("population $population is not part of the typing"))
@@ -127,6 +136,11 @@ population type and these transition types.
 | `:reversion` | `P → P` | `I → U` |
 | `:waning` | `P → P` | `U → U` |
 | `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
+| `:birth` | `∅ → P` | `∅ → U` |
+| `:death` | `P → ∅` | `:death_U`: `U → ∅`, `:death_I`: `I → ∅` |
+
+A birth has no input, so its mass-action rate is zero-order (births per unit time); a death has
+no output and a per-capita rate.
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level
 experiments; [`create_model`](@ref) uses only the standard ones.
