@@ -5,8 +5,9 @@
 
 The undirected wiring diagram (UWD) of a compartmental model under `typing`: one junction per
 compartment, typed by the typing's population types, and one box per transition, plus the
-births and deaths declared by the model's [`Demography`](@ref). The UWD declares no outer
-ports; `oapply_typed` derives the boundary from its junctions.
+births, deaths and importation declared by the model's [`Demography`](@ref). Importation
+enters the first infected stage (`E1` or `I1`). The UWD declares no outer ports;
+`oapply_typed` derives the boundary from its junctions.
 
 Multi-stage compartments (`number_E_stages`, `number_I_stages`) are chained, and recovery or
 reversion always leaves the last infectious stage.
@@ -29,8 +30,13 @@ function create_model_uwd(typing::EpidemiologicalTyping, model::CompartmentalMod
             )
         )
     end
+    model.demography.importation &&
+        add_importation!(uwd, only(compartments[:S]), only(compartments[_first_infected(model)]), typing)
     return _add_demography!(uwd, typing, model.demography, compartments)
 end
+
+_first_infected(model::Union{SEI, SEIR, SEIS, SEIRS}) = variable_name(:E, 1, model.number_E_stages)
+_first_infected(model::CompartmentalModel) = variable_name(:I, 1, model.number_I_stages)
 
 function _compartments_uwd(typing, model::CompartmentalModel)
     return error("create_model_uwd not implemented for $(typeof(typing)) and $(typeof(model))")
@@ -263,8 +269,10 @@ through [`add_strata_transition!`](@ref). Declared births enter a stratum's unin
 
 # Keyword Arguments
 - `include_reflexives = true`: the transition types this factor is passive for (see
-  [`create_model`](@ref)). The per-stratum `:disease`, `:reversion` and `:waning` boxes are
-  added when listed; any other listed type is added by `create_model`.
+  [`create_model`](@ref)). The per-stratum `:disease`, `:reversion`, `:waning` and
+  `:importation` boxes are added when listed; any other listed type is added by
+  `create_model`. `:importation` is not a default: list it to keep a disease model's
+  importation within each stratum.
 """
 function create_model_uwd(
         typing::EpidemiologicalTyping, model::ContactStratification; include_reflexives = true
@@ -290,6 +298,7 @@ function create_model_uwd(
         :disease in reflexives && add_disease_progression!(uwd, infected, infected, typing)
         :reversion in reflexives && add_reversion_progression!(uwd, infected, uninfected, typing)
         :waning in reflexives && add_uninfected_density_progression!(uwd, uninfected, uninfected, typing)
+        :importation in reflexives && add_importation!(uwd, uninfected, infected, typing)
     end
 
     # One movement box per edge and population type; under OnePopulationTyping both junctions
@@ -337,17 +346,25 @@ This is a stratification factor (like `ContactStratification`), meant to be
 - **`:reversion`** is off-diagonal: `(h,i) → U_{recover}` with `recover = h∪{i}`
   (`FullHistory`) or `{i}` (`LatestInfection`). This is the one stratum-changing move
   — recovering from `i` folds it into the immune history.
-- **`:waning`** reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base
-  compose).
+- **`:waning`**: with `waning = true`, edges `U_h → U_{h∖{i}}` for every strain `i` in `h`,
+  named `wane_<i>_<h>` (`wane_b_a_b` for `U_a_b → U_a`); the disease model then needs
+  `include_reflexives = :waning` so the pullback keeps them. Otherwise `:waning` is
+  reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base compose).
+- **`:importation`**: `U_h → (h,i)` for every susceptible pair, named `import_<i>_<h>`.
 
-The `:disease` and `:waning` reflexives are added when listed in `include_reflexives` (see
-[`create_model`](@ref)); both are by default.
+The `:disease`, `:waning` and `:importation` boxes are added when listed in
+`include_reflexives` (see [`create_model`](@ref)); `:disease` and `:waning` are by default.
 
 # Examples
 ```julia
 typing = UninfectedInfectedTyping()
 history = create_model(typing, ImmuneHistory([:current, :invader]))
 model = typed_product(create_model(typing, SEIRS()), history)
+
+# Waning immunity, independent of the disease model's own dynamics
+waning = create_model(typing, ImmuneHistory([:current, :invader]; waning = true))
+model = typed_product(create_model(typing, SIR(); include_reflexives = :waning), waning)
+# adds waning_S_wane_invader_current_invader, …
 ```
 """
 function create_model_uwd(
@@ -385,13 +402,11 @@ function create_model_uwd(
         :disease in reflexives && add_disease_progression!(uwd, Iof[(h, i)], Iof[(h, i)], typing)
         # Off-diagonal :reversion — the history-incrementing move.
         add_reversion_progression!(uwd, Iof[(h, i)], U[_recover_to(mode, h, i)], typing)
+        :importation in reflexives && add_importation!(uwd, U[h], Iof[(h, i)], typing)
     end
 
-    if :waning in reflexives
-        # Reflexive :waning on each uninfected class (inert with SEIRS), in class order.
-        for h in _immune_classes(mode, strains)
-            add_uninfected_density_progression!(uwd, U[h], U[h], typing)
-        end
+    for (from, to) in _waning_edges(model, reflexives)
+        add_uninfected_density_progression!(uwd, U[from], U[to], typing)
     end
 
     return uwd

@@ -22,35 +22,38 @@ Compartmental models define the specific disease dynamics and transitions
 between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.
 
 Every concrete model also takes the [`Demography`](@ref) keywords, naming compartments, for
-example `SIR(births = [:S], deaths = [:I])`.
+example `SIR(births = [:S], deaths = [:I], importation = true)`.
 """
 abstract type CompartmentalModel <: EpiMechModel end
 
 """
-    Demography(; births = (), deaths = ())
+    Demography(; births = (), deaths = (), importation = false)
 
 The open-population part of a model specification: the names (compartments, or strata of a
 [`ContactStratification`](@ref)) that births enter and that deaths leave. Each birth becomes
 one `:birth` box and each death one death box per junction of that name; a stratum's births
-enter its uninfected junction.
+enter its uninfected junction. `importation = true` adds an `:importation` box from `S` into
+a compartmental model's first infected stage.
 
 In a `typed_product` a transition type survives only if every factor has it. A factor that
 declares no deaths can still be passive for them through `include_reflexives = :death` on
-[`create_model`](@ref); births cannot be passive, because a newborn must be placed in every
-factor.
+[`create_model`](@ref), and a stratification factor is passive for importation through
+`:importation`; births cannot be passive, because a newborn must be placed in every factor.
 """
 struct Demography
     births::Tuple{Vararg{Symbol}}
     deaths::Tuple{Vararg{Symbol}}
+    importation::Bool
 
     # Tuples, so that specifications compare by value (`SIR() == SIR()`).
     function Demography(;
             births::Union{Tuple{Vararg{Symbol}}, AbstractVector{Symbol}} = (),
-            deaths::Union{Tuple{Vararg{Symbol}}, AbstractVector{Symbol}} = ()
+            deaths::Union{Tuple{Vararg{Symbol}}, AbstractVector{Symbol}} = (),
+            importation::Bool = false,
         )
         allunique(births) || throw(ArgumentError("duplicate `births` entry in $births"))
         allunique(deaths) || throw(ArgumentError("duplicate `deaths` entry in $deaths"))
-        return new(Tuple(births), Tuple(deaths))
+        return new(Tuple(births), Tuple(deaths), importation)
     end
 end
 

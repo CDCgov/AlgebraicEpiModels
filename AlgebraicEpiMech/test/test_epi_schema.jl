@@ -66,15 +66,17 @@ end
 
 @testitem "type_system builds the standard transition kinds from a typing's populations" setup = [ModelSetup] begin
     one = OnePopulationTyping(population_type = :Person)
-    @test tnames(type_system(one)) == [:transmission, :disease, :reversion, :waning, :strata, :birth, :death]
+    @test tnames(type_system(one)) == [:transmission, :disease, :reversion, :waning, :strata, :birth, :death, :importation]
     typing = UninfectedInfectedTyping(uninfected_type = :U, infected_type = :J)
     split = type_system(typing)
-    @test tnames(split) ==
-        [:transmission, :disease, :reversion, :waning, :strata_U, :strata_I, :birth, :death_U, :death_I]
+    @test tnames(split) == [
+        :transmission, :disease, :reversion, :waning, :strata_U, :strata_I, :birth, :death_U, :death_I,
+        :importation,
+    ]
     arcs(t) = (snames(split)[AlgebraicPetri.inputs(split, t)], snames(split)[AlgebraicPetri.outputs(split, t)])
-    @test arcs.(1:9) == [
+    @test arcs.(1:10) == [
         ([:U, :J], [:J, :J]), ([:J], [:J]), ([:J], [:U]), ([:U], [:U]), ([:U], [:U]), ([:J], [:J]),
-        (Symbol[], [:U]), ([:U], Symbol[]), ([:J], Symbol[]),
+        (Symbol[], [:U]), ([:U], Symbol[]), ([:J], Symbol[]), ([:U], [:J]),
     ]
 
     @test AlgebraicEpiMech.population_box(AlgebraicEpiMech.Movement(), one, :Person) == :strata

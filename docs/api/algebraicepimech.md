@@ -29,23 +29,28 @@ Sample a SPECIES: prevalence. Every species whose (flattened) name begins with `
 **`AlgebraicEpiMech.AtEvent`** &mdash; *Type*.
 
 ```julia
-struct AtEvent <: ObservationTarget
+struct AtEvent{G} <: ObservationTarget
 ```
 
 ```julia
-AtEvent(transition)
+AtEvent(transition::Symbol; group = identity)
+AtEvent(transitions::Tuple; source = first(transitions), group = identity)
 ```
 
-Record a TRANSITION: incidence. Every transition whose (flattened) name begins with `transition` gains an output arc into an accumulator, so it fires at that transition's own rate and counts exactly one observation per occurrence.
+Record a TRANSITION: incidence. Every transition whose (flattened) name begins with one of `transitions` gains an output arc into an accumulator, so it fires at that transition's own rate and counts exactly one observation per occurrence. Chains are named after `source`.
 
-`AtEvent(:transmission)` counts infections as they happen, which is what decouples a reporting delay from the latent period — the delay is then whatever the chain adds and nothing else.
+`AtEvent(:transmission)` counts infections as they happen, which is what decouples a reporting delay from the latent period — the delay is then whatever the chain adds and nothing else. `AtEvent((:transmission, :importation); source = :infection)` counts local and imported infections together.
+
+`group` maps the label of the species an event nets to the label its chain is keyed on, so several products can share one chain. Dropping a stratum from the label, such as the immune class, merges those chains; this is exact because every chain is linear with the same delay rates.
 
 
 ---
 
 **Fields**
 
-- `transition::Symbol`
+- `transitions::Tuple{Vararg{Symbol}}`
+- `source::Symbol`
+- `group::Any`
 
 <a id='AlgebraicEpiMech.CompartmentalModel'></a>
 <a id='AlgebraicEpiMech.CompartmentalModel-1'></a>
@@ -59,7 +64,7 @@ Abstract base type for compartmental epidemiological models.
 
 Compartmental models define the specific disease dynamics and transitions between epidemiological states (e.g., S→I→R) as undirected wiring diagrams.
 
-Every concrete model also takes the [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography) keywords, naming compartments, for example `SIR(births = [:S], deaths = [:I])`.
+Every concrete model also takes the [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography) keywords, naming compartments, for example `SIR(births = [:S], deaths = [:I], importation = true)`.
 
 
 ---
@@ -183,12 +188,12 @@ struct Demography
 ```
 
 ```julia
-Demography(; births = (), deaths = ())
+Demography(; births = (), deaths = (), importation = false)
 ```
 
-The open-population part of a model specification: the names (compartments, or strata of a [`ContactStratification`](algebraicepimech.md#AlgebraicEpiMech.ContactStratification)) that births enter and that deaths leave. Each birth becomes one `:birth` box and each death one death box per junction of that name; a stratum's births enter its uninfected junction.
+The open-population part of a model specification: the names (compartments, or strata of a [`ContactStratification`](algebraicepimech.md#AlgebraicEpiMech.ContactStratification)) that births enter and that deaths leave. Each birth becomes one `:birth` box and each death one death box per junction of that name; a stratum's births enter its uninfected junction. `importation = true` adds an `:importation` box from `S` into a compartmental model's first infected stage.
 
-In a `typed_product` a transition type survives only if every factor has it. A factor that declares no deaths can still be passive for them through `include_reflexives = :death` on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}); births cannot be passive, because a newborn must be placed in every factor.
+In a `typed_product` a transition type survives only if every factor has it. A factor that declares no deaths can still be passive for them through `include_reflexives = :death` on [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}), and a stratification factor is passive for importation through `:importation`; births cannot be passive, because a newborn must be placed in every factor.
 
 
 ---
@@ -197,6 +202,7 @@ In a `typed_product` a transition type survives only if every factor has it. A f
 
 - `births::Tuple{Vararg{Symbol}}`
 - `deaths::Tuple{Vararg{Symbol}}`
+- `importation::Bool`
 
 <a id='AlgebraicEpiMech.EpiMechModel'></a>
 <a id='AlgebraicEpiMech.EpiMechModel-1'></a>
@@ -277,6 +283,9 @@ Immune-history combination of the available strain/subtype names and `ImmuneHist
 
 - `strain_names::Vector{Symbol}`: strain names (e.g. `[:current, :invader]`)
 - `mode::M`: `FullHistory()` or `LatestInfection()`
+- `waning::Bool`: when `true`, the factor implements loss of immunity as `:waning` edges `U_h → U_{h∖{i}}` for every strain `i` in each class `h`, one strain forgotten at a time (under `LatestInfection` every class returns to naive). Each edge is named `wane_<i>_<h>`, so a per-strain waning rate is keyed by the `wane_<i>_` prefix. The disease model must then list `:waning` in `include_reflexives` for the pullback to keep those edges. Default `false`: `:waning` is reflexive on each class.
+
+Listing `:importation` in `include_reflexives` adds one `:importation` box `U_h → (h, i)` for every strain `i` that class `h` is susceptible to, named `import_<i>_<h>`, so a disease model declaring `importation = true` keeps its importation per class and strain.
 
 **Examples**
 
@@ -288,6 +297,11 @@ history = create_model(typing, ImmuneHistory([:current, :invader]))
 
 model = typed_product(seirs, history)   # immune-history-resolved SEIRS
 # States: S_naive, S_current, …, E_invader_from_current, I_…, R_…
+
+# Waning immunity
+sir     = create_model(typing, SIR(); include_reflexives = :waning)
+waning  = create_model(typing, ImmuneHistory([:current, :invader]; waning = true))
+model   = typed_product(sir, waning)    # adds waning_S_wane_current_current, …
 ```
 
 
@@ -297,6 +311,7 @@ model = typed_product(seirs, history)   # immune-history-resolved SEIRS
 
 - `strain_names::Vector{Symbol}`
 - `mode::ImmuneHistoryMode`
+- `waning::Bool`
 
 <a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}'></a>
 <a id='AlgebraicEpiMech.ImmuneHistory-Tuple{Int64}-1'></a>
@@ -890,6 +905,25 @@ Add disease progression mechanism: from*compartment → to*compartment
 
 Used for transitions like E→I, I→R, etc. (infected → infected transitions)
 
+<a id='AlgebraicEpiMech.add_importation!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}'></a>
+<a id='AlgebraicEpiMech.add_importation!-Tuple{Any, Integer, Integer, EpidemiologicalTyping}-1'></a>
+**`AlgebraicEpiMech.add_importation!`** &mdash; *Method*.
+
+```julia
+add_importation!(
+    uwd,
+    from_junction::Integer,
+    to_junction::Integer,
+    typing::EpidemiologicalTyping
+) -> Any
+```
+
+```julia
+add_importation!(uwd, from_junction, to_junction, typing)
+```
+
+Add an `:importation` box: `from_junction` (uninfected) becomes `to_junction` (infected) with no infector, so the mass-action rate is per capita. Returns the new box.
+
 <a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}'></a>
 <a id='AlgebraicEpiMech.add_infection!-Tuple{Any, Any, Any, Any, OnePopulationTyping}-1'></a>
 **`AlgebraicEpiMech.add_infection!`** &mdash; *Method*.
@@ -987,7 +1021,7 @@ Attach an observation chain to `pn`, returning a new net. The result is the coli
 
 Reapplying the same target, prefix, and stage count is idempotent. Reusing a target and prefix for an incompatible chain shape throws an `ArgumentError`; choose a different prefix when both observation layouts are required.
 
-Chains are grouped by stratum. For [`AtEvent`](algebraicepimech.md#AlgebraicEpiMech.AtEvent) the group is the transition's net product — for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves. For [`AtCompartment`](algebraicepimech.md#AlgebraicEpiMech.AtCompartment) each matched species gets its own chain.
+Chains are grouped by stratum. For [`AtEvent`](algebraicepimech.md#AlgebraicEpiMech.AtEvent) the group is the transition's net product — for infection routes `S_x + I_y -> E_x + I_y` that is `E_x`, so all routes infecting `x` count into `x`'s chain. A transition with no output (a death) is grouped by the species it leaves, and the target's `group` can merge these groups further. For [`AtCompartment`](algebraicepimech.md#AlgebraicEpiMech.AtCompartment) each matched species gets its own chain.
 
 Apply this after all `typed_product` composition so chains are grouped over the final strata.
 
@@ -1044,7 +1078,7 @@ The resulting typed Petri net can be used directly for ODE simulation or compose
 
 **Keyword Arguments**
 
-- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected split), and `:death` for every death type. Listed types the factor already implements are skipped. `:birth` cannot be passive: declare `births` on the model specification.
+- `include_reflexives = true`: the transition types this factor is *passive* for. A `typed_product` keeps a transition type only if every factor has a box of that type, so a factor carries a reflexive box, on each junction of the matching population type, for every listed type it does not implement. Accepts `true` (the defaults of [`default_reflexives`](algebraicepimech.md#AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel})), `false` (none, for standalone use), or a transition type name or collection of them, such as `:strata` or `(:disease, :strata)`. `:strata` stands for every movement type of the typing (`:strata_U` and `:strata_I` under the uninfected/infected split), and `:death` for every death type. Listed types the factor already implements are skipped. `:birth` cannot be passive: declare `births` on the model specification. Stratification factors list `:importation` to keep a disease model's importation per stratum; a compartmental model cannot, and declares `importation = true` instead.
 
 **Returns**
 
@@ -1063,6 +1097,7 @@ Transition names are generated automatically based on model type:
 - **Movement** (`transitions` on a `ContactStratification`): `child_to_adult`
 - **Reflexive boxes**: the junction's variable (`child`, `child_U`); on a compartmental model `S`, `I`, `R` for movement types and the type-prefixed `waning_S` for any other
 - **Births and deaths**: `birth_S`, `death_S`; composites read `birth_S_child`, `death_I_adult`
+- **Importation**: `importation_S_to_E`; with `ImmuneHistory`, `importation_S_to_E_import_a_naive`
 
 These names become ODE parameters and differ from box names (`:transmission`, `:density`) used for composition.
 
@@ -1130,7 +1165,7 @@ create_model_uwd(
 create_model_uwd(typing, model::CompartmentalModel)
 ```
 
-The undirected wiring diagram (UWD) of a compartmental model under `typing`: one junction per compartment, typed by the typing's population types, and one box per transition, plus the births and deaths declared by the model's [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography). The UWD declares no outer ports; `oapply_typed` derives the boundary from its junctions.
+The undirected wiring diagram (UWD) of a compartmental model under `typing`: one junction per compartment, typed by the typing's population types, and one box per transition, plus the births, deaths and importation declared by the model's [`Demography`](algebraicepimech.md#AlgebraicEpiMech.Demography). Importation enters the first infected stage (`E1` or `I1`). The UWD declares no outer ports; `oapply_typed` derives the boundary from its junctions.
 
 Multi-stage compartments (`number_E_stages`, `number_I_stages`) are chained, and recovery or reversion always leaves the last infectious stage.
 
@@ -1189,7 +1224,7 @@ The movement graph (`model.transitions`) adds one movement box per edge and popu
 
 **Keyword Arguments**
 
-- `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion` and `:waning` boxes are added when listed; any other listed type is added by `create_model`.
+- `include_reflexives = true`: the transition types this factor is passive for (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})). The per-stratum `:disease`, `:reversion`, `:waning` and `:importation` boxes are added when listed; any other listed type is added by `create_model`. `:importation` is not a default: list it to keep a disease model's importation within each stratum.
 
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}'></a>
 <a id='AlgebraicEpiMech.create_model_uwd-Tuple{OnePopulationTyping, ImmuneHistory}-1'></a>
@@ -1314,9 +1349,10 @@ This is a stratification factor (like `ContactStratification`), meant to be `typ
 - **`:transmission`** (escape-selective): `U_h + (h',i) → (h,i)` for every susceptible class `h` (`i ∉ h`) and every infector `(h',i)`. A class immune to `i` simply has no such box, so the pullback drops that infection — the escape.
 - **`:disease`** is reflexive on each `(h,i)`, so the base model's progression runs inside a fixed `(h,i)`.
 - **`:reversion`** is off-diagonal: `(h,i) → U_{recover}` with `recover = h∪{i}` (`FullHistory`) or `{i}` (`LatestInfection`). This is the one stratum-changing move — recovering from `i` folds it into the immune history.
-- **`:waning`** reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base compose).
+- **`:waning`**: with `waning = true`, edges `U_h → U_{h∖{i}}` for every strain `i` in `h`, named `wane_<i>_<h>` (`wane_b_a_b` for `U_a_b → U_a`); the disease model then needs `include_reflexives = :waning` so the pullback keeps them. Otherwise `:waning` is reflexive on each `U_h` (inert with SEIRS; lets a waning-bearing base compose).
+- **`:importation`**: `U_h → (h,i)` for every susceptible pair, named `import_<i>_<h>`.
 
-The `:disease` and `:waning` reflexives are added when listed in `include_reflexives` (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})); both are by default.
+The `:disease`, `:waning` and `:importation` boxes are added when listed in `include_reflexives` (see [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel})); `:disease` and `:waning` are by default.
 
 **Examples**
 
@@ -1324,6 +1360,11 @@ The `:disease` and `:waning` reflexives are added when listed in `include_reflex
 typing = UninfectedInfectedTyping()
 history = create_model(typing, ImmuneHistory([:current, :invader]))
 model = typed_product(create_model(typing, SEIRS()), history)
+
+# Waning immunity, independent of the disease model's own dynamics
+waning = create_model(typing, ImmuneHistory([:current, :invader]; waning = true))
+model = typed_product(create_model(typing, SIR(); include_reflexives = :waning), waning)
+# adds waning_S_wane_invader_current_invader, …
 ```
 
 <a id='AlgebraicEpiMech.default_reflexives-Tuple{EpidemiologicalTyping, EpiMechModel}'></a>
@@ -1383,7 +1424,7 @@ generate_transition_names(
 
 Generate transition names from UWD structure for compartmental models.
 
-For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`. For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2` where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`). Birth and death boxes have one port and are named `birth_S`, `death_I`.
+For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`. For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2` where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`). Birth and death boxes have one port and are named `birth_S`, `death_I`. An importation box is named `importation_S_to_E`.
 
 **Arguments**
 
@@ -1441,13 +1482,17 @@ See also: [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tup
 generate_transition_names(
     uwd,
     model::ImmuneHistory
-) -> Vector{Symbol}
+) -> Vector
 ```
 
 Generate transition names for the `ImmuneHistory` stratification factor. These become the second component of the composed `typed_product` transition names.
 
 - **`:transmission`** (4-port) → `infect_<strain>_<susceptible-class>_by_<infector-class>`, exposing the infecting strain (recovered from the infector junction) so the composed name stays keyable per strain.
-- **reflexive / reversion boxes** (2–3 port) → the first junction's variable, mirroring `ContactStratification` — e.g. the `:disease` reflexives and the off-diagonal `:reversion` on `(h,i)` are named by that `(h,i)`, and `:waning` by its `U_h`. Composition with the base disambiguates them (base name differs).
+- **`:waning` edges** (`waning = true`) → `wane_<strain>_<class>`: the strain forgotten, then the class it is forgotten from, e.g. `wane_b_a_b` for `U_a_b → U_a`.
+- **`:importation`** (`U_h → (h,i)`) → `import_<strain>_<class>`, e.g. `import_b_naive`.
+- **reflexive / reversion boxes** (2–3 port) → the first junction's variable, mirroring `ContactStratification` — e.g. the `:disease` reflexives and the off-diagonal `:reversion` on `(h,i)` are named by that `(h,i)`, and a reflexive `:waning` by its `U_h`. Composition with the base disambiguates them (base name differs).
+
+Every name that changes stratum starts with its strain, so a per-strain rate is keyed by prefix in the composed name.
 
 **Examples**
 
@@ -1506,8 +1551,9 @@ The `LabelledPetriNet` that a typed Petri net built under `typing` maps into: on
 | `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
 | `:birth` | `∅ → P` | `∅ → U` |
 | `:death` | `P → ∅` | `:death_U`: `U → ∅`, `:death_I`: `I → ∅` |
+| `:importation` | `P → P` | `U → I` |
 
-A birth has no input, so its mass-action rate is zero-order (births per unit time); a death has no output and a per-capita rate.
+A birth has no input, so its mass-action rate is zero-order (births per unit time); a death has no output and a per-capita rate. Importation is infection from outside the modelled population: it has no infector, so its rate is per capita.
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level experiments; [`create_model`](algebraicepimech.md#AlgebraicEpiMech.create_model-Tuple{EpidemiologicalTyping, EpiMechModel}) uses only the standard ones.
 

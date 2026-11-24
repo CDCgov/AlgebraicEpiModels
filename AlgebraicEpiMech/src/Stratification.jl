@@ -79,6 +79,12 @@ struct ContactStratification <: Stratification
         end
         allunique(transitions) || throw(ArgumentError("duplicate stratum transitions in $transitions"))
         d = Demography(; demography...)
+        d.importation && throw(
+            ArgumentError(
+                "a contact stratification is passive for importation: list `:importation` in " *
+                    "`include_reflexives` instead"
+            )
+        )
         for stratum in (d.births..., d.deaths...)
             stratum in stratum_names ||
                 throw(ArgumentError("demography entry $stratum is not a declared stratum"))

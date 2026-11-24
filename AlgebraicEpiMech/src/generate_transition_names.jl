@@ -7,7 +7,8 @@ Generate transition names from UWD structure for compartmental models.
 For boxes with 2 ports (one input, one output), generates names in the format `input_to_output`.
 For boxes with 4 ports (two inputs, two outputs), generates names in the format `box_name_input1_input2`
 where inputs are sorted in reverse alphabetical order for consistency (e.g., `transmission_S_I`).
-Birth and death boxes have one port and are named `birth_S`, `death_I`.
+Birth and death boxes have one port and are named `birth_S`, `death_I`. An importation box is
+named `importation_S_to_E`.
 
 # Arguments
 - `uwd`: The undirected wiring diagram with species names in junction :variable attributes
@@ -32,6 +33,7 @@ function generate_transition_names(uwd, ::CompartmentalModel)
         vars = [uwd[junction(uwd, port), :variable] for port in ports(uwd, box)]
         name = uwd[box, :name]
         length(vars) == 1 && return Symbol(_kind_prefix(name), "_", only(vars))
+        name == :importation && return Symbol(name, "_", vars[1], "_to_", vars[2])
         length(vars) == 2 && return Symbol(vars[1], "_to_", vars[2])
         # The first two of four ports are the inputs, sorted so `S_I` never reads `I_S`.
         length(vars) == 4 && return Symbol(name, "_", join(sort(string.(vars[1:2]); rev = true), "_"))
@@ -131,10 +133,16 @@ the second component of the composed `typed_product` transition names.
 - **`:transmission`** (4-port) → `infect_<strain>_<susceptible-class>_by_<infector-class>`,
   exposing the infecting strain (recovered from the infector junction) so the composed
   name stays keyable per strain.
+- **`:waning` edges** (`waning = true`) → `wane_<strain>_<class>`: the strain forgotten, then
+  the class it is forgotten from, e.g. `wane_b_a_b` for `U_a_b → U_a`.
+- **`:importation`** (`U_h → (h,i)`) → `import_<strain>_<class>`, e.g. `import_b_naive`.
 - **reflexive / reversion boxes** (2–3 port) → the first junction's variable, mirroring
   `ContactStratification` — e.g. the `:disease` reflexives and the off-diagonal
-  `:reversion` on `(h,i)` are named by that `(h,i)`, and `:waning` by its
+  `:reversion` on `(h,i)` are named by that `(h,i)`, and a reflexive `:waning` by its
   `U_h`. Composition with the base disambiguates them (base name differs).
+
+Every name that changes stratum starts with its strain, so a per-strain rate is keyed by
+prefix in the composed name.
 
 # Examples
 ```julia
@@ -145,27 +153,20 @@ names = generate_transition_names(factor, ImmuneHistory([:current, :invader]))
 """
 function generate_transition_names(uwd, model::ImmuneHistory)
     strains = model.strain_names
-    transition_names = Symbol[]
-
-    for box_id in boxes(uwd)
-        box_ports = ports(uwd, box_id)
-        box_name = subpart(uwd, box_id, :name)
-        vars = [subpart(uwd, junction(uwd, port), :variable) for port in box_ports]
-
-        if length(box_ports) == 4 && box_name == :transmission
-            # Ports: [infectee U_h, infector (h',i), first-infected (h,i), infector].
-            strain = _strain_of(vars[2], strains)
-            susceptible = replace(string(vars[1]), r"^U_" => "")
+    class_of = Dict(_uninfected_name(h) => h for h in _immune_classes(model.mode, strains))
+    return map(boxes(uwd)) do box
+        vars = [uwd[junction(uwd, port), :variable] for port in ports(uwd, box)]
+        name = uwd[box, :name]
+        # Infection ports: [infectee U_h, infector (h',i), first-infected (h,i), infector].
+        if name == :transmission
             infector = replace(string(vars[2]), r"^.*_from_" => "")
-            push!(
-                transition_names,
-                Symbol("infect_", strain, "_", susceptible, "_by_", infector)
-            )
-        else
-            # Reflexive / reversion boxes: name by the first junction (ContactStratification style).
-            push!(transition_names, vars[1])
+            return Symbol("infect_", _strain_of(vars[2], strains), "_", _htag(class_of[vars[1]]), "_by_", infector)
+        elseif name == :importation
+            return Symbol("import_", _strain_of(vars[2], strains), "_", _htag(class_of[vars[1]]))
+        elseif name == :waning && vars[1] != vars[2]
+            from = class_of[vars[1]]
+            return Symbol("wane_", only(setdiff(from, class_of[vars[2]])), "_", _htag(from))
         end
+        return vars[1]
     end
-
-    return transition_names
 end

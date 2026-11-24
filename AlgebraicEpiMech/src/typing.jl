@@ -85,10 +85,11 @@ struct Waning <: TransitionKind end
 struct Movement <: TransitionKind end
 struct Birth <: TransitionKind end
 struct Death <: TransitionKind end
+struct Importation <: TransitionKind end
 
 const TRANSITION_KINDS = (
     transmission = Transmission(), disease = Disease(), reversion = Reversion(), waning = Waning(),
-    strata = Movement(), birth = Birth(), death = Death(),
+    strata = Movement(), birth = Birth(), death = Death(), importation = Importation(),
 )
 
 # Movement and death keep to one population type, so a typing with two populations has one box
@@ -112,6 +113,7 @@ signatures(::Waning, typing) = (:waning => (get_uninfected_type(typing) => get_u
 signatures(::Movement, typing) = _per_population(MOVEMENT_BOXES, typing, P -> P => P)
 signatures(::Birth, typing) = (:birth => (() => get_uninfected_type(typing)),)
 signatures(::Death, typing) = _per_population(DEATH_BOXES, typing, P -> P => ())
+signatures(::Importation, typing) = (:importation => (get_uninfected_type(typing) => get_infected_type(typing)),)
 
 box_names(kind::TransitionKind, typing) = first.(signatures(kind, typing))
 
@@ -138,9 +140,11 @@ population type and these transition types.
 | `:strata` (movement) | `P → P` | `:strata_U`: `U → U`, `:strata_I`: `I → I` |
 | `:birth` | `∅ → P` | `∅ → U` |
 | `:death` | `P → ∅` | `:death_U`: `U → ∅`, `:death_I`: `I → ∅` |
+| `:importation` | `P → P` | `U → I` |
 
 A birth has no input, so its mass-action rate is zero-order (births per unit time); a death has
-no output and a per-capita rate.
+no output and a per-capita rate. Importation is infection from outside the modelled population:
+it has no infector, so its rate is per capita.
 
 `extras` are further `name => (inputs => outputs)` transition types, appended for Petri-level
 experiments; [`create_model`](@ref) uses only the standard ones.
