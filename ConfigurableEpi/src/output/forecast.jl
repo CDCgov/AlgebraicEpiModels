@@ -4,17 +4,18 @@
 const DEFAULT_QS = (0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
 
 """
-    forecast_ensemble(filter, init_states, p; n_ahead, t0, dt = 1.0, u = Float64[], latent_range = 1:0, n_obs = 1)
-        -> (samples, latent_samples)
+    forecast_ensemble(filter, init_states, p; n_ahead, t0, dt = 1.0, u = Float64[], latent_range = 1:0,
+                      n_obs = 1, observe_state = Returns(nothing)) -> (samples, latent_samples)
 
 Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with
 `sample_measurement` (no `correct!`). `samples[h, j]` (or `[h, j, o]` for `n_obs > 1`) is the
-non-negative predictive observation; `latent_samples[h, j, l]` the requested latent slots in
-their unconstrained chart, the forecast-spread diagnostic.
+non-negative predictive observation; `latent_samples[h, j, l]` the requested slots (`latent_range`,
+any integer vector) in their unconstrained chart, the forecast-spread diagnostic.
+`observe_state(h, j, x)` sees draw `j`'s state at every horizon `h`, from the origin `h = 0`.
 """
 function forecast_ensemble(
         filter, init_states::AbstractVector, p; n_ahead::Int, t0::Real, dt::Real = 1.0, u = Float64[],
-        latent_range::AbstractUnitRange{<:Integer} = 1:0, n_obs::Int = 1,
+        latent_range::AbstractVector{<:Integer} = 1:0, n_obs::Int = 1, observe_state = Returns(nothing),
     )
     n_obs > 0 || throw(ArgumentError("n_obs must be positive, got $n_obs"))
     n = length(init_states)
@@ -23,10 +24,12 @@ function forecast_ensemble(
     for j in 1:n
         x = init_states[j]
         t = float(t0)
+        observe_state(0, j, x)
         for h in 1:n_ahead
             x = sample_state(filter, x, u, p, t)
             t += dt
             y = sample_measurement(filter, x, u, p, t)
+            observe_state(h, j, x)
             for o in 1:n_obs
                 samples[h, j, o] = max(0.0, float(y[o]))
             end
@@ -116,6 +119,40 @@ function append_latent_audit!(summary, latent_names, xt::AbstractVector, latent_
         push!(summary, (name, "is_drift", drift))
     end
     return summary
+end
+
+const _LATENT_PATH_Z = 1.6448536269514722   # the standard normal 95% quantile
+
+"""
+    latent_path_rows(stochastic, dates, latents) -> DataFrame
+
+Filtered latents `(; mean, sd)`, each `[slot, latent]` in the unconstrained chart the filter
+carries, as one row per date and latent: `unconstrained_mean`, `unconstrained_sd`, and `q05`,
+`median` and `q95` on the latent's own scale, the chart's Gaussian quantiles mapped through its
+constraint. `dates` are the dates of the slots. Empty for `latents === nothing`.
+"""
+function latent_path_rows(stochastic, dates::AbstractVector, latents)
+    rows = DataFrame(
+        date = eltype(dates)[], latent = String[], unconstrained_mean = Float64[], unconstrained_sd = Float64[],
+        q05 = Float64[], median = Float64[], q95 = Float64[],
+    )
+    latents === nothing && return rows
+    size(latents.mean, 1) == length(dates) ||
+        throw(DimensionMismatch("$(length(dates)) dates for latents over $(size(latents.mean, 1)) slots"))
+    for (l, spec) in enumerate(stochastic.coefficients)
+        constraint = ScalarConstraint(spec.init)
+        quantile_at(m, sd, z) = _to_constrained(constraint, m + z * sd)
+        for (k, date) in enumerate(dates)
+            m, sd = latents.mean[k, l], latents.sd[k, l]
+            push!(
+                rows, (
+                    date, string(spec.name), m, sd, quantile_at(m, sd, -_LATENT_PATH_Z),
+                    quantile_at(m, sd, 0.0), quantile_at(m, sd, _LATENT_PATH_Z),
+                ),
+            )
+        end
+    end
+    return rows
 end
 
 """

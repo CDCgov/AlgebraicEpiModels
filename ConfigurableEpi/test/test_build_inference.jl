@@ -63,6 +63,31 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError bad(; priors = (;))
         @test_throws ArgumentError bad(; observation = ())
         @test_throws DimensionMismatch bad(; initial_state = x0_state[1:3])
+
+        @test model.likelihood_warmup_days == 0.0
+        warm = with_likelihood_warmup(model, 14)
+        @test warm.likelihood_warmup_days == 14.0
+        @test all(getfield(warm, f) === getfield(model, f) for f in fieldnames(EpiModel) if f != :likelihood_warmup_days)
+        @test_throws ArgumentError with_likelihood_warmup(model, -1)
+        @test_throws ArgumentError bad(; likelihood_warmup_days = -0.5)
+    end
+
+    @testset "the engines start from the model's initial hooks" begin
+        hooked(; kwargs...) = EpiModel(;
+            vectorfield! = mock_inference_vf!, layout, stochastic, observation = obs_model,
+            hyperparams = base_hyperparams, priors = (R0_baseline = r0_prior,), initial_state = x0_state, kwargs...,
+        )
+        doubled = hooked(; initial_covariance = (hyper, x0, P) -> 2 .* P)
+        ukf_cov(m) = build_inference(UKF(), Optimise(), m; ukf_kwargs...).filter.R
+        @test ukf_cov(doubled) ≈ 2 .* ukf_cov(model)
+        ekp = EKP(n_ensemble = 6, iterations = 1, burnin_iterations = 1)
+        enkf_cov(m) = Matrix(build_inference(EnKF(n_ensemble = 10), ekp, m; ukf_kwargs...).filter.d0.Σ)
+        @test enkf_cov(doubled) ≈ 2 .* enkf_cov(model)
+
+        emptied = hooked(; initial_particle = (rng, hyper, x) -> (y = copy(x); y[2] = 0.0; y))
+        pf = build_inference(PF(n_particles = 20, threads = false), LiuWest(), emptied; ukf_kwargs..., rng = Random.Xoshiro(1))
+        @test all(p -> p[2] == 0.0, particles(pf.filter))
+        @test any(p -> p[1] != x0_state[1], particles(pf.filter))
     end
 
     @testset "config axes and pairings" begin

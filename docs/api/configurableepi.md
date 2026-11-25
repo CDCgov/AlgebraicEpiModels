@@ -341,10 +341,10 @@ Layout of the state vector `[core compartments (N); observation states (M); late
 
 ```julia
 StateLayout(core_names, obs_names, latent_names; signal_names = (:y,), accumulator_indices = nothing)
-StateLayout(petri_net, driver_specs; signal_names = nothing)
+StateLayout(petri_net, driver_specs; signal_names = nothing, observation_prefixes = (:O,))
 ```
 
-Without `accumulator_indices` the observation states are split evenly over the signals and each signal's last state is its accumulator. The second form reads the observation chains of a net built with `AlgebraicEpiMech.attach_observation`; only drivers with [`carries_state`](configurableepi.md#ConfigurableEpi.carries_state-Tuple{ParamSpec}) claim latent slots.
+Without `accumulator_indices` the observation states are split evenly over the signals and each signal's last state is its accumulator. The second form reads the observation chains of a net built with `AlgebraicEpiMech.attach_observation`, one chain namespace per entry of `observation_prefixes`: a net can carry several chains on one event under distinct prefixes (an incidence chain and a shedding chain, say), listed prefix by prefix. Only drivers with [`carries_state`](configurableepi.md#ConfigurableEpi.carries_state-Tuple{ParamSpec}) claim latent slots.
 
 <a id='ConfigurableEpi.extract_latent-Union{Tuple{L}, Tuple{M}, Tuple{N}, Tuple{AbstractVector, StateLayout{N, M, L}}} where {N, M, L}'></a>
 <a id='ConfigurableEpi.extract_latent-Union{Tuple{L}, Tuple{M}, Tuple{N}, Tuple{AbstractVector, StateLayout{N, M, L}}} where {N, M, L}-1'></a>
@@ -416,12 +416,13 @@ Driftless random walk in the unconstrained chart; a step of `dt` days has sd `si
 StochasticUpdate{L}
 ```
 
-The model's per-step stochastic driver over `L` coefficient latents, from [`build_stochastic_update`](configurableepi.md#ConfigurableEpi.build_stochastic_update-Union{Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L}):
+The model's per-step stochastic driver over `L` coefficient latents, from [`build_stochastic_update`](configurableepi.md#ConfigurableEpi.build_stochastic_update-Union{Tuple{SP}, Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L, SP}):
 
 - `advance(x, hyper, w, rng, t, dt)`: the pre-flow state after advancing each coefficient from unit noise `w[1:L]` and firing each jump driver on `rng` (`rng === nothing` skips jumps).
 - `extract(x)`: the coefficients' constrained values as a NamedTuple.
 - `extract_params(x, hyper)`: `merge(hyper, extract(x))`.
 - `to_unconstrained(constrained::NamedTuple)`: the coefficients as an unconstrained `SVector{L}`.
+- `coefficients`: the `L` state-carrying driver specs in layout order.
 
 <a id='ConfigurableEpi.advance_arrival!-Tuple{ArrivalProcess, Vararg{Any, 6}}'></a>
 <a id='ConfigurableEpi.advance_arrival!-Tuple{ArrivalProcess, Vararg{Any, 6}}-1'></a>
@@ -453,15 +454,17 @@ beta_mark(; mean_key = :mark_mean, concentration = 1.0, out_key = :mark)
 
 Mark sampler `(hyper, rng) -> (; out_key => Beta(μν, (1 - μ)ν))` with mean `μ = hyper[mean_key]`.
 
-<a id='ConfigurableEpi.build_stochastic_update-Union{Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L}'></a>
-<a id='ConfigurableEpi.build_stochastic_update-Union{Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L}-1'></a>
+<a id='ConfigurableEpi.build_stochastic_update-Union{Tuple{SP}, Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L, SP}'></a>
+<a id='ConfigurableEpi.build_stochastic_update-Union{Tuple{SP}, Tuple{L}, Tuple{M}, Tuple{N}, Tuple{StateLayout{N, M, L}, Tuple}} where {N, M, L, SP}-1'></a>
 **`ConfigurableEpi.build_stochastic_update`** &mdash; *Method*.
 
 ```julia
-build_stochastic_update(layout, driver_specs) -> StochasticUpdate
+build_stochastic_update(layout, driver_specs; state_params = Returns((;))) -> StochasticUpdate
 ```
 
 Split `driver_specs` into state-carrying coefficient drivers (which must match `layout.latent_names` in order) and stateless jump drivers, and build the step driver. Jumps read the pre-step coefficients; the flow then runs on the advanced ones.
+
+`state_params(x, hyper, t) -> NamedTuple` adds values computed from the pre-step state to the parameters each coefficient's process reads, so a `DerivedParam` noise scale, mean or correlation time can depend on the compartments.
 
 <a id='ConfigurableEpi.carries_state-Tuple{ParamSpec}'></a>
 <a id='ConfigurableEpi.carries_state-Tuple{ParamSpec}-1'></a>
@@ -534,6 +537,12 @@ update_single(spec, old_unc, w, params, dt[, constraint])
 
 Advance one latent's unconstrained coordinate over `dt` days given unit noise `w`. `params` merges the hyperparameters with every latent's constrained value at the start of the step; `constraint` is `spec.init`'s pre-resolved `ScalarConstraint`.
 
+<a id='ConfigurableEpi.STATE_FLOOR'></a>
+<a id='ConfigurableEpi.STATE_FLOOR-1'></a>
+**`ConfigurableEpi.STATE_FLOOR`** &mdash; *Constant*.
+
+The floor every ODE state is held at before and after a step of [`build_full_dynamics`](configurableepi.md#ConfigurableEpi.build_full_dynamics-Union{Tuple{S}, Tuple{L}, Tuple{M}, Tuple{N}, Tuple{Any, StochasticUpdate{L}, StateLayout{N, M, L, S}}} where {N, M, L, S}).
+
 <a id='ConfigurableEpi.build_R1-Tuple{StateLayout}'></a>
 <a id='ConfigurableEpi.build_R1-Tuple{StateLayout}-1'></a>
 **`ConfigurableEpi.build_R1`** &mdash; *Method*.
@@ -560,10 +569,10 @@ One filter step of the augmented state: apply the stochastic driver (coefficient
 **`ConfigurableEpi.build_petri_vf`** &mdash; *Method*.
 
 ```julia
-build_petri_vf(pn, rates; defaults = (;)) -> petri_vf!(du, u, (hyperparams, latent), t)
+build_petri_vf(pn, rates; defaults = (;), rate_class) -> petri_vf!(du, u, (hyperparams, latent), t)
 ```
 
-In-place mass-action vector field of `pn` whose transition rates are `merge(defaults, rates(latent, hyperparams, t))`: `defaults` holds the fixed rates and the rate function returns only the dynamic ones, keyed by flattened transition name.
+In-place mass-action vector field of `pn` whose rates are `merge(defaults, rates(latent, hyperparams, t))`: `defaults` holds the fixed rates and the rate function returns only the dynamic ones. Rates are keyed by the rate keys of `rate_class`, by default the flattened transition names; further keywords go to `AlgebraicEpiMech.kinetic_structure`.
 
 <a id='ConfigurableEpi.build_unified_vf-Union{Tuple{M}, Tuple{N}, Tuple{Any, StateLayout{N, M}}} where {N, M}'></a>
 <a id='ConfigurableEpi.build_unified_vf-Union{Tuple{M}, Tuple{N}, Tuple{Any, StateLayout{N, M}}} where {N, M}-1'></a>
@@ -1220,7 +1229,8 @@ Row-normalised contact matrix for `locations` (in order) from an `origin,destina
 EpiModel(; vectorfield!, layout, stochastic, observation, hyperparams, priors, initial_state,
          initial_latent_variance = (;), initial_learned_variance = (;),
          initial_accumulator_variance = (;), forgetting_memory_days = (;),
-         derived_hyperparameters = nothing)
+         derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
+         initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0)
 ```
 
 Everything [`build_inference`](configurableepi.md#ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}) needs to fit and forecast one model:
@@ -1234,6 +1244,9 @@ Everything [`build_inference`](configurableepi.md#ConfigurableEpi.build_inferenc
 - `initial_*_variance`: by-name overrides of the initial variance of latent coefficient slots, learned slots (PF) and reset accumulators (EnKF), in unconstrained space.
 - `forgetting_memory_days`: the model's default Liu-West forgetting memories (parameter => days), overridden per key by `LiuWest.forgetting_memory_days`.
 - `derived_hyperparameters`: optional `hyper -> NamedTuple` summarised alongside the learned parameters by the particle filter.
+- `initial_covariance(hyper, x0, P)`: the Gaussian filters' initial state covariance, given the default `P` built from the variances above.
+- `initial_particle(rng, hyper, x)`: a particle's initial model state, given `x`, the initial state with the per-slot noise added (to clamp or renormalise it, say).
+- `likelihood_warmup_days`: the first days of observations that the filter corrects on but that a marginal log-likelihood leaves out, so the transient from an approximate start does not inform the hyperparameters.
 
 <a id='ConfigurableEpi.initial_state'></a>
 <a id='ConfigurableEpi.initial_state-1'></a>
@@ -1250,6 +1263,16 @@ The model-state vector at `t = 0` under `hyperparams`.
 **`ConfigurableEpi.learned_names`** &mdash; *Method*.
 
 The names of the learned hyperparameters.
+
+<a id='ConfigurableEpi.with_likelihood_warmup-Tuple{EpiModel, Real}'></a>
+<a id='ConfigurableEpi.with_likelihood_warmup-Tuple{EpiModel, Real}-1'></a>
+**`ConfigurableEpi.with_likelihood_warmup`** &mdash; *Method*.
+
+```julia
+with_likelihood_warmup(model::EpiModel, days) -> EpiModel
+```
+
+`model` with its `likelihood_warmup_days` set to `days`.
 
 
 ## Inference {#Inference}
@@ -1502,11 +1525,11 @@ One row per (horizon, quantile) with columns `origin, horizon, target_date, quan
 **`ConfigurableEpi.forecast_ensemble`** &mdash; *Method*.
 
 ```julia
-forecast_ensemble(filter, init_states, p; n_ahead, t0, dt = 1.0, u = Float64[], latent_range = 1:0, n_obs = 1)
-    -> (samples, latent_samples)
+forecast_ensemble(filter, init_states, p; n_ahead, t0, dt = 1.0, u = Float64[], latent_range = 1:0,
+                  n_obs = 1, observe_state = Returns(nothing)) -> (samples, latent_samples)
 ```
 
-Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with `sample_measurement` (no `correct!`). `samples[h, j]` (or `[h, j, o]` for `n_obs > 1`) is the non-negative predictive observation; `latent_samples[h, j, l]` the requested latent slots in their unconstrained chart, the forecast-spread diagnostic.
+Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with `sample_measurement` (no `correct!`). `samples[h, j]` (or `[h, j, o]` for `n_obs > 1`) is the non-negative predictive observation; `latent_samples[h, j, l]` the requested slots (`latent_range`, any integer vector) in their unconstrained chart, the forecast-spread diagnostic. `observe_state(h, j, x)` sees draw `j`'s state at every horizon `h`, from the origin `h = 0`.
 
 <a id='ConfigurableEpi.forecast_quantiles-Tuple{AbstractMatrix}'></a>
 <a id='ConfigurableEpi.forecast_quantiles-Tuple{AbstractMatrix}-1'></a>
@@ -1527,6 +1550,16 @@ forecast_states(kf, x0, R0; n_ahead, t0, dt = 1.0, u = Float64[], p) -> (means, 
 ```
 
 Analytic Kalman forecast: seed a copy of `kf` at the filtered Gaussian `(x0, R0)` and roll `n_ahead` steps with `predict!` only, returning each horizon's state mean and covariance.
+
+<a id='ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any}'></a>
+<a id='ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any}-1'></a>
+**`ConfigurableEpi.latent_path_rows`** &mdash; *Method*.
+
+```julia
+latent_path_rows(stochastic, dates, latents) -> DataFrame
+```
+
+Filtered latents `(; mean, sd)`, each `[slot, latent]` in the unconstrained chart the filter carries, as one row per date and latent: `unconstrained_mean`, `unconstrained_sd`, and `q05`, `median` and `q95` on the latent's own scale, the chart's Gaussian quantiles mapped through its constraint. `dates` are the dates of the slots. Empty for `latents === nothing`.
 
 <a id='ConfigurableEpi.forecast_sample_rows-Tuple{AbstractMatrix, Any}'></a>
 <a id='ConfigurableEpi.forecast_sample_rows-Tuple{AbstractMatrix, Any}-1'></a>

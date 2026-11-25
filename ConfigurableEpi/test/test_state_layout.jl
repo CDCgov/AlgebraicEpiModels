@@ -141,3 +141,44 @@ using Catlab: dom
         @test layout.accumulator_indices == ()
     end
 end
+
+# A net can carry several observation chains on one event under distinct prefixes (an incidence
+# chain and a shedding chain); the layout reads them prefix by prefix and lists their
+# accumulators in that order.
+@testset "StateLayout reads several chain prefixes on one event" begin
+    base = dom(create_model(OnePopulationTyping(), SEIR()))
+    pn = attach_observation(
+        attach_observation(base, AtEvent(:transmission); n_stages = 2),
+        AtEvent(:transmission); n_stages = 3, prefix = :W,
+    )
+    latent_specs = (
+        AR1ParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.2), mu = 1.0, tau = 10.0, sigma = 0.1),
+    )
+    layout = StateLayout(
+        pn, latent_specs; signal_names = (:reports, :wastewater), observation_prefixes = (:O, :W),
+    )
+    @test layout.core_names == (:S, :I, :E, :R)     # the net's own species order
+    @test layout.obs_names == (
+        :O_transmission_1, :O_transmission_2,
+        :W_transmission_1, :W_transmission_2, :W_transmission_3,
+    )
+    @test layout.signal_names == (:reports, :wastewater)
+    @test layout.accumulator_indices == (6, 9)
+    @test layout.latent_names == (:Rt,)
+    @test layout.total_dim == 10
+
+    # The default prefix alone leaves the W chain looking like core state (seven core slots, the
+    # O accumulator in ninth place): the pre-existing single-namespace reading, unchanged.
+    single = StateLayout(pn, latent_specs; signal_names = (:reports,))
+    @test :W_transmission_1 in single.core_names
+    @test length(single.core_names) == 7
+    @test single.accumulator_indices == (9,)
+
+    @test_throws ArgumentError StateLayout(
+        pn, latent_specs; signal_names = (:reports,), observation_prefixes = (:O, :W),
+    )
+    @test_throws ArgumentError StateLayout(
+        pn, latent_specs; signal_names = (:a, :b), observation_prefixes = (:O, :O),
+    )
+    @test_throws ArgumentError StateLayout(pn, latent_specs; signal_names = (), observation_prefixes = ())
+end

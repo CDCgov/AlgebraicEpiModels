@@ -358,28 +358,36 @@ The model's per-step stochastic driver over `L` coefficient latents, from
 - `extract(x)`: the coefficients' constrained values as a NamedTuple.
 - `extract_params(x, hyper)`: `merge(hyper, extract(x))`.
 - `to_unconstrained(constrained::NamedTuple)`: the coefficients as an unconstrained `SVector{L}`.
+- `coefficients`: the `L` state-carrying driver specs in layout order.
 """
-struct StochasticUpdate{L, A, E, EP, U}
+struct StochasticUpdate{L, A, E, EP, U, C <: Tuple}
     advance::A
     extract::E
     extract_params::EP
     to_unconstrained::U
     n_jumps::Int
+    coefficients::C
 end
 
-StochasticUpdate{L}(advance, extract, extract_params, to_unconstrained, n_jumps::Integer) where {L} =
-    StochasticUpdate{L, typeof(advance), typeof(extract), typeof(extract_params), typeof(to_unconstrained)}(
-    advance, extract, extract_params, to_unconstrained, n_jumps
+StochasticUpdate{L}(advance, extract, extract_params, to_unconstrained, n_jumps::Integer, coefficients::Tuple) where {L} =
+    StochasticUpdate{L, typeof(advance), typeof(extract), typeof(extract_params), typeof(to_unconstrained), typeof(coefficients)}(
+    advance, extract, extract_params, to_unconstrained, n_jumps, coefficients
 )
 
 """
-    build_stochastic_update(layout, driver_specs) -> StochasticUpdate
+    build_stochastic_update(layout, driver_specs; state_params = Returns((;))) -> StochasticUpdate
 
 Split `driver_specs` into state-carrying coefficient drivers (which must match
 `layout.latent_names` in order) and stateless jump drivers, and build the step driver. Jumps read
 the pre-step coefficients; the flow then runs on the advanced ones.
+
+`state_params(x, hyper, t) -> NamedTuple` adds values computed from the pre-step state to the
+parameters each coefficient's process reads, so a `DerivedParam` noise scale, mean or
+correlation time can depend on the compartments.
 """
-function build_stochastic_update(layout::StateLayout{N, M, L}, driver_specs::Tuple) where {N, M, L}
+function build_stochastic_update(
+        layout::StateLayout{N, M, L}, driver_specs::Tuple; state_params::SP = Returns((;)),
+    ) where {N, M, L, SP}
     coeffs = Tuple(s for s in driver_specs if carries_state(s))
     jumps = Tuple(s for s in driver_specs if !carries_state(s))
     names = Tuple(s.name for s in coeffs)
@@ -402,7 +410,7 @@ function build_stochastic_update(layout::StateLayout{N, M, L}, driver_specs::Tup
             out[i] = x[i]
         end
         latent = extract(x)
-        params = merge(hyper, latent)
+        params = merge(hyper, latent, state_params(x, hyper, t))
         advanced = ntuple(
             i -> update_single(coeffs[i], x[start + i - 1], w[i], params, dt, constraints[i]), Val(L)
         )
@@ -419,5 +427,5 @@ function build_stochastic_update(layout::StateLayout{N, M, L}, driver_specs::Tup
         ntuple(i -> _to_unconstrained(constraints[i], constrained[names[i]]), Val(L))
     )
 
-    return StochasticUpdate{L}(advance, extract, extract_params, to_unconstrained, length(jumps))
+    return StochasticUpdate{L}(advance, extract, extract_params, to_unconstrained, length(jumps), coeffs)
 end

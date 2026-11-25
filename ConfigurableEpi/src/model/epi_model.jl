@@ -4,7 +4,8 @@
     EpiModel(; vectorfield!, layout, stochastic, observation, hyperparams, priors, initial_state,
              initial_latent_variance = (;), initial_learned_variance = (;),
              initial_accumulator_variance = (;), forgetting_memory_days = (;),
-             derived_hyperparameters = nothing)
+             derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
+             initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0)
 
 Everything [`build_inference`](@ref) needs to fit and forecast one model:
 
@@ -23,8 +24,15 @@ Everything [`build_inference`](@ref) needs to fit and forecast one model:
   overridden per key by `LiuWest.forgetting_memory_days`.
 - `derived_hyperparameters`: optional `hyper -> NamedTuple` summarised alongside the learned
   parameters by the particle filter.
+- `initial_covariance(hyper, x0, P)`: the Gaussian filters' initial state covariance, given the
+  default `P` built from the variances above.
+- `initial_particle(rng, hyper, x)`: a particle's initial model state, given `x`, the initial
+  state with the per-slot noise added (to clamp or renormalise it, say).
+- `likelihood_warmup_days`: the first days of observations that the filter corrects on but that
+  a marginal log-likelihood leaves out, so the transient from an approximate start does not
+  inform the hyperparameters.
 """
-struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: NamedTuple, P <: NamedTuple, X, D}
+struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: NamedTuple, P <: NamedTuple, X, D, C, Q}
     vectorfield!::VF
     layout::L
     stochastic::SU
@@ -37,6 +45,9 @@ struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: N
     initial_accumulator_variance::NamedTuple
     forgetting_memory_days::NamedTuple
     derived_hyperparameters::D
+    initial_covariance::C
+    initial_particle::Q
+    likelihood_warmup_days::Float64
 end
 
 function EpiModel(;
@@ -44,7 +55,8 @@ function EpiModel(;
         observation::Tuple{Vararg{ObservationSpec}}, hyperparams::NamedTuple, priors::NamedTuple,
         initial_state, initial_latent_variance::NamedTuple = (;), initial_learned_variance::NamedTuple = (;),
         initial_accumulator_variance::NamedTuple = (;), forgetting_memory_days::NamedTuple = (;),
-        derived_hyperparameters = nothing,
+        derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
+        initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days::Real = 0,
     )
     isempty(observation) && throw(ArgumentError("observation must hold at least one spec"))
     isempty(priors) && throw(ArgumentError("priors must name at least one hyperparameter to learn"))
@@ -61,9 +73,22 @@ function EpiModel(;
     return EpiModel(
         vectorfield!, layout, stochastic, observation, hyperparams, priors, build_x0,
         initial_latent_variance, initial_learned_variance, initial_accumulator_variance,
-        forgetting_memory_days, derived_hyperparameters,
+        forgetting_memory_days, derived_hyperparameters, initial_covariance, initial_particle,
+        _warmup_days(likelihood_warmup_days),
     )
 end
+
+_warmup_days(days::Real) = days >= 0 ? Float64(days) : throw(ArgumentError("likelihood_warmup_days must not be negative, got $days"))
+
+# `model` with the named fields replaced.
+_rebuild(model::EpiModel; replaced...) = EpiModel((get(replaced, f, getfield(model, f)) for f in fieldnames(EpiModel))...)
+
+"""
+    with_likelihood_warmup(model::EpiModel, days) -> EpiModel
+
+`model` with its `likelihood_warmup_days` set to `days`.
+"""
+with_likelihood_warmup(model::EpiModel, days::Real) = _rebuild(model; likelihood_warmup_days = _warmup_days(days))
 
 """
     initial_state(model::EpiModel, hyperparams = model.hyperparams) -> Vector

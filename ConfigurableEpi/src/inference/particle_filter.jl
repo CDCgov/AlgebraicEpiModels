@@ -79,14 +79,16 @@ function _weighted_sample_indices(weights, n_draws::Integer, rng)
 end
 
 # Initial particle distribution whose model state is a function of the particle's own sampled
-# parameters: draw the tail from `tail_prior`, rebuild the state through `build_x0`, and add the
-# per-compartment noise the shared `P0` would have applied.
-struct ParameterDependentInitial{F, D, L, H, S}
+# parameters: draw the tail from `tail_prior`, rebuild the state through `build_x0`, add the
+# per-compartment noise the shared `P0` would have applied, and pass it to the model's
+# `initial_particle`.
+struct ParameterDependentInitial{F, D, L, H, S, Q}
     build_x0::F
     tail_prior::D
     learned::L
     base_hyperparams::H
     model_sd::S
+    initial_particle::Q
 end
 
 Base.length(d::ParameterDependentInitial) = length(d.model_sd) + length(d.tail_prior)
@@ -95,7 +97,7 @@ function Base.rand(rng::Random.AbstractRNG, d::ParameterDependentInitial)
     θ = rand(rng, d.tail_prior)
     hyperparams = merge(d.base_hyperparams, d.learned.extract(vcat(zeros(length(d.model_sd)), θ)))
     x0 = d.build_x0(hyperparams)
-    return vcat(x0 .+ d.model_sd .* randn(rng, length(x0)), θ)
+    return vcat(d.initial_particle(rng, hyperparams, x0 .+ d.model_sd .* randn(rng, length(x0))), θ)
 end
 
 """
@@ -146,6 +148,7 @@ function build_inference(
     d = layout.total_dim
     d0 = ParameterDependentInitial(
         model.build_x0, MvNormal(θ0, Matrix(Diagonal(diag(P0)[(d + 1):end]))), learned, base, sqrt.(diag(P0)[1:d]),
+        model.initial_particle,
     )
     pf = AdvancedParticleFilter(
         filter.n_particles, pf_dynamics, pf_measure, logpdf, nothing, d0;

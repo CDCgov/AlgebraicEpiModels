@@ -63,7 +63,7 @@ export ParamSpec, ProcessParamSpec, FixedParam, HyperParam, DerivedParam, AR1Par
     assert_gaussian_filter_compatible, advance_arrival!, ou_step, update_single, StochasticUpdate,
     build_stochastic_update
 export StateLayout, all_names, ode_names, n_ode_states, n_latent, n_signals, extract_latent
-export build_petri_vf, build_unified_vf, make_lvector_constructor, build_R1, build_full_dynamics
+export build_petri_vf, build_unified_vf, make_lvector_constructor, build_R1, build_full_dynamics, STATE_FLOOR
 export ObservationNoiseSpec, NegBinomialNoise, PoissonNoise, LogNormalNoise, SignalObservationSpec,
     AggregatedSignalSpec, ObservationSpec, n_noise_terms, apply_noise, observation_logpdf,
     sample_observation, observation_mean, observation_scale, observation_baseline,
@@ -86,7 +86,7 @@ export RK4_STABILITY_LIMIT, RK4_WARN_LAMBDA_H, max_transition_rate, required_sup
     assert_integration_stable, initial_infection_state, reporting_delay_days, prevalence_peak_lag_days,
     anchor_is_exact, find_observed_peak, carry_susceptible, peak_anchored_susceptible_fraction
 export load_radiation_matrix, contact_matrix
-export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names
+export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likelihood_warmup
 
 # Inference
 export AugmentedEnsembleKalmanFilter
@@ -98,7 +98,7 @@ export InferenceEngine, EngineSettings, UKFOptimiseEngine, PFLiuWestEngine, EnKF
 
 # Output
 export DEFAULT_QS, forecast_ensemble, forecast_states, forecast_quantiles, append_latent_spread!,
-    append_latent_audit!, asof_series, backtest_forecast_rows
+    append_latent_audit!, latent_path_rows, asof_series, backtest_forecast_rows
 export FORECAST_SAMPLE_COLUMNS, forecast_sample_rows, write_forecast_samples
 export ObservationSchema, n_observations, observation_names, build_observation_schema, DataLink,
     pivot_to_wide, require_complete_grid, build_observations, reindex_to_grid
