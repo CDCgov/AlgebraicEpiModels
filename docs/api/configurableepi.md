@@ -653,7 +653,7 @@ Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian a
 ObservationSpec{R <: RawMean}
 ```
 
-One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is read from the state as the [`RawMean`](configurableepi.md#ConfigurableEpi.RawMean) kind says, and `mean_modifier` and `baseline` are each `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say). Built by [`SignalObservationSpec`](configurableepi.md#ConfigurableEpi.SignalObservationSpec-Tuple{Integer, ObservationNoiseSpec}), [`AggregatedSignalSpec`](configurableepi.md#ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector{<:Integer}, ObservationNoiseSpec}), [`WeightedStateSpec`](configurableepi.md#ConfigurableEpi.WeightedStateSpec-Tuple{Any, Any, ObservationNoiseSpec}), [`ShareSignalSpec`](configurableepi.md#ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector{<:Integer}, AbstractVector{<:Integer}, ObservationNoiseSpec}) or [`LatentObservationSpec`](configurableepi.md#ConfigurableEpi.LatentObservationSpec-Tuple{Any, ObservationNoiseSpec}).
+One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is read from the state as the [`RawMean`](configurableepi.md#ConfigurableEpi.RawMean) kind says, and `mean_modifier` and `baseline` are each `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say). Built by [`SignalObservationSpec`](configurableepi.md#ConfigurableEpi.SignalObservationSpec-Tuple{Integer, ObservationNoiseSpec}), [`AggregatedSignalSpec`](configurableepi.md#ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}), [`WeightedStateSpec`](configurableepi.md#ConfigurableEpi.WeightedStateSpec-Tuple{Any, Any, ObservationNoiseSpec}), [`ShareSignalSpec`](configurableepi.md#ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}) or [`LatentObservationSpec`](configurableepi.md#ConfigurableEpi.LatentObservationSpec-Tuple{Any, ObservationNoiseSpec}).
 
 <a id='ConfigurableEpi.PoissonNoise'></a>
 <a id='ConfigurableEpi.PoissonNoise-1'></a>
@@ -696,8 +696,8 @@ SlotSeries(values; step = 1.0)
 
 Mean modifier returning `values[k]` at the grid slot `t = (k - 1) * step`, and the last value beyond the series (forecast horizons). A time between slots is an error.
 
-<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector{<:Integer}, ObservationNoiseSpec}'></a>
-<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector{<:Integer}, ObservationNoiseSpec}-1'></a>
+<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}-1'></a>
 **`ConfigurableEpi.AggregatedSignalSpec`** &mdash; *Method*.
 
 ```julia
@@ -717,8 +717,8 @@ LatentObservationSpec(mean, noise; name)
 
 An observation that reads no compartment: its mean is `mean(latent, hyper, t)`.
 
-<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector{<:Integer}, AbstractVector{<:Integer}, ObservationNoiseSpec}'></a>
-<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector{<:Integer}, AbstractVector{<:Integer}, ObservationNoiseSpec}-1'></a>
+<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}-1'></a>
 **`ConfigurableEpi.ShareSignalSpec`** &mdash; *Method*.
 
 ```julia

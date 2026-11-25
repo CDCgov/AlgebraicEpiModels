@@ -59,7 +59,7 @@ end
 # The sum of several signals' reset accumulators.
 struct SignalSum <: RawMean
     indices::Vector{Int}
-    function SignalSum(indices::AbstractVector{<:Integer})
+    function SignalSum(indices::AbstractVector)
         isempty(indices) && throw(ArgumentError("signal_indices must have at least one element"))
         all(>=(1), indices) || throw(ArgumentError("all signal_indices must be >= 1"))
         return new(collect(Int, indices))
@@ -91,7 +91,7 @@ end
 struct SignalShare <: RawMean
     numerator::Vector{Int}
     denominator::Vector{Int}
-    function SignalShare(numerator::AbstractVector{<:Integer}, denominator::AbstractVector{<:Integer})
+    function SignalShare(numerator::AbstractVector, denominator::AbstractVector)
         isempty(numerator) && throw(ArgumentError("a share needs at least one numerator signal"))
         allunique(numerator) && allunique(denominator) || throw(ArgumentError("share signal indices must be distinct"))
         issubset(numerator, denominator) ||
@@ -138,7 +138,7 @@ SignalObservationSpec(
 An observation of the sum of several signals' reset accumulators.
 """
 AggregatedSignalSpec(
-    signal_indices::AbstractVector{<:Integer}, noise::ObservationNoiseSpec;
+    signal_indices::AbstractVector, noise::ObservationNoiseSpec;
     mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_aggregated,
 ) = ObservationSpec(SignalSum(signal_indices), noise, mean_modifier, baseline, name)
 
@@ -164,7 +164,7 @@ infections, say), usually scaled to counts by a known per-slot total ([`SlotSeri
 numerator signals must be a subset of the denominator's.
 """
 ShareSignalSpec(
-    numerator::AbstractVector{<:Integer}, denominator::AbstractVector{<:Integer}, noise::ObservationNoiseSpec;
+    numerator::AbstractVector, denominator::AbstractVector, noise::ObservationNoiseSpec;
     mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_share,
 ) = ObservationSpec(SignalShare(numerator, denominator), noise, mean_modifier, baseline, name)
 
