@@ -643,7 +643,7 @@ Multiplicative noise `y = μ exp(σ v)`.
 NegBinomialNoise(; phi, sigma_mult = 0.0)
 ```
 
-Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one unit-normal term. A simulated draw is `NegativeBinomial(φ, φ/(φ+μ'))` about the mean perturbed by a mean-one log-normal, `μ' = μ exp(σz − σ²/2)`. That mixture has no closed-form density, so the particle filter refuses `σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
+Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one unit-normal term. A simulated draw is `NegativeBinomial(φ, φ/(φ+μ'))` about the mean perturbed by a mean-one log-normal, `μ' = μ exp(sz − s²/2)`, with `s² = log(1 + σ²φ/(φ+1))` so that the draw has exactly that variance. The mixture has no closed-form density, so the particle filter refuses `σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
 
 <a id='ConfigurableEpi.ObservationSpec'></a>
 <a id='ConfigurableEpi.ObservationSpec-1'></a>

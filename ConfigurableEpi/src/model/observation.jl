@@ -12,8 +12,9 @@ abstract type ObservationNoiseSpec end
 
 Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one
 unit-normal term. A simulated draw is `NegativeBinomial(φ, φ/(φ+μ'))` about the mean perturbed by
-a mean-one log-normal, `μ' = μ exp(σz − σ²/2)`. That mixture has no closed-form density, so the
-particle filter refuses `σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
+a mean-one log-normal, `μ' = μ exp(sz − s²/2)`, with `s² = log(1 + σ²φ/(φ+1))` so that the draw
+has exactly that variance. The mixture has no closed-form density, so the particle filter refuses
+`σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
 """
 struct NegBinomialNoise{S, P} <: ObservationNoiseSpec
     sigma_mult::S
@@ -365,7 +366,10 @@ function sample_observation(spec::NegBinomialNoise, true_mean, latent, hyper, t,
     phi = _obs_value(spec.phi, latent, hyper, t)
     sigma = _obs_value(spec.sigma_mult, latent, hyper, t)
     mu = max(true_mean, 1.0e-6)
-    iszero(sigma) || (mu *= exp(sigma * randn(rng) - sigma^2 / 2))
+    if !iszero(sigma)
+        s = sqrt(log1p(sigma^2 * phi / (phi + 1)))
+        mu *= exp(s * randn(rng) - s^2 / 2)
+    end
     return float(rand(rng, _nb_dist(mu, phi)))
 end
 function sample_observation(spec::PoissonNoise, true_mean, latent, hyper, t, rng)

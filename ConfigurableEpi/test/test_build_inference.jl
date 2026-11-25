@@ -102,6 +102,16 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError build_inference(PF(n_particles = 0), LiuWest(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 0.0, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = Inf, n_ahead = 2)
+        # The analytic UKF forecast reads the accumulator, so it refuses any other raw mean.
+        observed(spec) = EpiModel(;
+            vectorfield! = mock_inference_vf!, layout, stochastic, observation = (spec,),
+            hyperparams = base_hyperparams, priors = (R0_baseline = r0_prior,), initial_state = x0_state,
+        )
+        nb = NegBinomialNoise(phi = 50.0)
+        for spec in (WeightedStateSpec([:I], [1.0], nb), LatentObservationSpec((l, h, t) -> 5.0, nb; name = :latent))
+            @test_throws ArgumentError build_inference(UKF(), Optimise(), observed(spec); ukf_kwargs...)
+        end
+        @test build_inference(UKF(), Optimise(), observed(AggregatedSignalSpec(nb)); ukf_kwargs...) isa UKFOptimiseEngine
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, supersample = 0, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, n_ahead = 0)
         unsupported = try
