@@ -34,19 +34,23 @@ struct EngineSettings
 end
 
 # A model's dynamics and measurement assembled at one `(dt, supersample, obs_jitter)`.
-struct Assembly{D, H}
+# `forecast_dynamics` is the step at `obs_jitter = 0`: the jitter keeps a Gaussian filter's
+# covariance full-rank and is not process noise, so a forecast leaves it out.
+struct Assembly{D, F, H}
     dynamics::D
+    forecast_dynamics::F
     measure::H
     n_obs::Int
     n_noise::Int
 end
 
 function Assembly(model::EpiModel, s::EngineSettings, obs_jitter::Real)
-    dynamics = build_full_dynamics(
-        model.vectorfield!, model.stochastic, model.layout; dt = s.dt, supersample = s.supersample, obs_jitter,
+    build(jitter) = build_full_dynamics(
+        model.vectorfield!, model.stochastic, model.layout; dt = s.dt, supersample = s.supersample, obs_jitter = jitter,
     )
+    dynamics = build(obs_jitter)
     measure, n_obs, n_noise = build_measurement_model(model.layout, model.observation, model.stochastic)
-    return Assembly(dynamics, measure, n_obs, n_noise)
+    return Assembly(dynamics, iszero(obs_jitter) ? dynamics : build(0.0), measure, n_obs, n_noise)
 end
 
 const _NO_INPUT = Float64[]
@@ -322,11 +326,6 @@ _fitted_observation_means(specs, accumulators, extract, xt, hyper, dt, range) = 
         for k in range, spec in specs
 ]
 
-function _symmetrize_covariance(R)
-    M = Matrix(R)
-    return (M .+ M') ./ 2 + 1.0e-8 * Diagonal(ones(eltype(M), size(M, 1)))
-end
-
 _cloud_sd(values) = length(values) < 2 ? 0.0 : Float64(std(values))
 
 # Per-horizon predictive sd of each latent slot over the forecast draws, `[horizon, latent]`.
@@ -382,8 +381,9 @@ and `update_range` must start at the slot after the last one it assimilated (the
 replay is `reset!(engine.filter)` followed by the full range.
 
 `fitted_means` covers `update_range` (a nowcast at a `missing` slot). For one observation it is a
-vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them,
-`nothing` for the analytic UKF) is `[horizon, draw]`; several observations add an observation axis:
+vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them, each
+simulated through the model's own process and observation noise) is `[horizon, draw]`; several
+observations add an observation axis:
 `[slot, observation]`, `[horizon, observation, quantile]` and `[horizon, draw, observation]`.
 `quantiles` and `samples` are `nothing` when `emit_forecast = false`. `summary` is a
 `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered

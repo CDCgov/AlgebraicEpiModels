@@ -1,5 +1,6 @@
 # UKF + Optimise: replay the complete series each origin; every `reopt_interval` origins maximise
-# the differentiable filter marginal log-posterior over the learned hyperparameters.
+# the differentiable filter marginal log-posterior over the learned hyperparameters. The forecast
+# samples the filtered origin Gaussian and simulates the shared stochastic model forward.
 
 mutable struct UKFOptimiseEngine{C <: EngineCore, S <: Tuple, AD, F} <: InferenceEngine
     const core::C
@@ -9,6 +10,7 @@ mutable struct UKFOptimiseEngine{C <: EngineCore, S <: Tuple, AD, F} <: Inferenc
     hyperparams::NamedTuple
     filter::F
     const checkpoint::WindowCheckpoint
+    const rng_forecast::Random.Xoshiro
 end
 
 # The UKF at element type `T` (Dual when differentiating) and hyperparameters `hp`; the filter
@@ -25,29 +27,73 @@ function _ukf(::Type{T}, a::Assembly, model::EpiModel, hp, dt) where {T}
 end
 
 """
-    build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, n_ahead, n_draws = 2000,
-                    rng = nothing, optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
+    SharedModelSimulator(dynamics, measurement)
 
-`optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs; `rng` is unused.
+The shared stochastic model as a [`forecast_ensemble`](@ref) simulator: the particle filter's
+adapters over the jitter-free dynamics and the exact observation sampler.
+"""
+struct SharedModelSimulator{D, M}
+    dynamics::D
+    measurement::M
+end
+
+LLPF.sample_state(sim::SharedModelSimulator, x, u, p, t; noise = true) = sim.dynamics(x, u, p, t, noise)
+LLPF.sample_measurement(sim::SharedModelSimulator, x, u, p, t; noise = true) = sim.measurement(x, u, p, t, noise)
+
+_forecast_simulator(a::Assembly, model::EpiModel, rng::Random.AbstractRNG) = SharedModelSimulator(
+    build_pf_dynamics(a.forecast_dynamics, model.layout; rng),
+    build_pf_measurement(model.layout, model.observation, model.stochastic; rng),
+)
+
+"A negative origin-covariance eigenvalue below this fraction of the largest is warned about, not only clamped."
+const ORIGIN_COVARIANCE_INDEFINITE_TOL = 1.0e-6
+
+"""
+Joint draws from the origin Gaussian `(x, R)`, with negative eigenvalues of `R` clamped to zero and
+the `ode_range` slots floored at `STATE_FLOOR`; returns the draws and the repair diagnostics.
+"""
+function _draw_origin_states(rng::Random.AbstractRNG, x, R, n_draws::Integer; ode_range::AbstractUnitRange{<:Integer})
+    E = eigen(Symmetric((R .+ R') ./ 2))
+    lo, hi = extrema(E.values)
+    lo < -ORIGIN_COVARIANCE_INDEFINITE_TOL * max(hi, 0.0) && @warn(
+        "UKF: origin covariance is materially indefinite; its negative directions are clamped to zero variance",
+        min_eigenvalue = lo, max_eigenvalue = hi,
+    )
+    factor = E.vectors * Diagonal(sqrt.(max.(E.values, 0.0)))
+    mu = Vector{Float64}(x)
+    floored = 0
+    states = map(1:n_draws) do _
+        draw = mu .+ factor * randn(rng, length(mu))
+        ode = view(draw, ode_range)
+        floored += any(<(STATE_FLOOR), ode)
+        ode .= max.(ode, STATE_FLOOR)
+        draw
+    end
+    return (; states, min_eigenvalue = lo, n_clamped = count(<(0), E.values), floored_fraction = floored / n_draws)
+end
+
+"""
+    build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, n_ahead, n_draws = 2000,
+                    rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
+
+`optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs. `rng` seeds the
+forecast draws; the filter and the optimiser are deterministic.
 """
 function build_inference(
         filter::UKF, hyper::Optimise, model::EpiModel;
-        dt, supersample = 2, n_ahead, n_draws = 2000, rng = nothing,
+        dt, supersample = 2, n_ahead, n_draws = 2000, rng = Random.default_rng(),
         optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff(),
     )
     _validate(filter)
     _validate(hyper)
     core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), filter.obs_jitter)
-    # The analytic forecast maps the Gaussian moments of each observation's accumulators.
-    for spec in model.observation
-        spec.raw isa Union{Signal, SignalSum, AllSignals} || throw(
-            ArgumentError("UKF + Optimise forecasts signal accumulators, so it cannot forecast the $(nameof(typeof(spec.raw))) observation `$(spec.name)`; use PF + Liu-West")
-        )
-    end
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
     ukf = _ukf(Float64, core.assembly, model, model.hyperparams, core.settings.dt)
-    return UKFOptimiseEngine(core, hyper, optimiser_stages(optimiser), adtype, model.hyperparams, ukf, WindowCheckpoint())
+    return UKFOptimiseEngine(
+        core, hyper, optimiser_stages(optimiser), adtype, model.hyperparams, ukf, WindowCheckpoint(),
+        Random.Xoshiro(rand(rng, UInt64)),
+    )
 end
 
 function fit_forecast!(
@@ -114,27 +160,17 @@ function fit_forecast!(
     latents = _latent_moments(solution.xt, solution.Rt, layout.latent_range, update_range)
     emit_forecast || return ForecastResult(; fitted_means = fitted, summary, latents)
 
-    @info "UKF: generating forecast" forecast_number horizons = s.n_ahead
-    t0 = (T - 1) * s.dt
-    means, covs = forecast_states(
-        kf, solution.xt[end], _symmetrize_covariance(solution.Rt[end]); n_ahead = s.n_ahead, t0, dt = s.dt, p = hp,
+    @info "UKF: generating forecast" forecast_number draws = s.n_draws horizons = s.n_ahead
+    rng = Random.Xoshiro(rand(e.rng_forecast, UInt64))
+    draws = _draw_origin_states(rng, solution.xt[end], solution.Rt[end], s.n_draws; ode_range = 1:n_ode_states(layout))
+    samples, latent_samples = forecast_ensemble(
+        _forecast_simulator(assembly, model, rng), draws.states, hp;
+        n_ahead = s.n_ahead, t0 = (T - 1) * s.dt, dt = s.dt, latent_range = layout.latent_range, n_obs = assembly.n_obs,
     )
-    quantiles = Array{Float64, 3}(undef, s.n_ahead, length(specs), length(DEFAULT_QS))
-    for h in 1:s.n_ahead, (o, spec) in enumerate(specs)
-        slots = _accumulator_slots(spec.raw, layout.accumulator_indices)
-        raw_var = sum(view(covs[h], slots, slots))
-        m = observation_gaussian_moments(spec, sum(means[h][slots]), raw_var, extract(means[h]), hp, t0 + h * s.dt)
-        dist = Normal(m.mean, sqrt(max(m.var, 1.0e-12)))
-        for (k, q) in enumerate(DEFAULT_QS)
-            quantiles[h, o, k] = max(0.0, quantile(dist, q))
-        end
-    end
-    latent_sd = [sqrt(max(covs[h][i, i], 0.0)) for h in 1:s.n_ahead, i in layout.latent_range]
-    append_latent_spread!(summary, layout.latent_names, latent_sd)
+    append_latent_spread!(summary, layout.latent_names, _latent_sd(latent_samples))
+    push!(summary, ("ukf", "origin_cov_min_eigenvalue", draws.min_eigenvalue))
+    push!(summary, ("ukf", "origin_cov_clamped_dims", draws.n_clamped))
+    push!(summary, ("ukf", "origin_draws_floored_frac", draws.floored_fraction))
     append_latent_audit!(summary, layout.latent_names, solution.xt, layout.latent_range; dt = s.dt)
-    return ForecastResult(; quantiles, fitted_means = fitted, summary, latents)
+    return ForecastResult(; quantiles = forecast_quantiles(samples), fitted_means = fitted, summary, samples, latents)
 end
-
-# The accumulator slots whose sum is a signal observation's raw mean.
-_accumulator_slots(r::Signal, acc) = [acc[r.index]]
-_accumulator_slots(r::SignalSum, acc) = [acc[i] for i in r.indices]

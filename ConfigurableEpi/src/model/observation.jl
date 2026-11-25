@@ -459,28 +459,6 @@ function _resolve_specs(specs::Tuple{Vararg{ObservationSpec}}, layout::StateLayo
     return map(s -> resolve_observation(s, layout), specs)
 end
 
-"""
-    observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) -> (; mean, var)
-
-Gaussian moments of a NegBinomial observation given Gaussian moments of its accumulator (the UKF
-forecast mapping): `mean = observation_mean(max(raw_mean, 0))` and
-`var = scale² raw_var + mean + mean²/φ + (σ mean)²`, with the spec's scale and noise at `t`.
-"""
-observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) =
-    _gaussian_moments(spec.noise_spec, spec, raw_mean, raw_var, latent, hyper, t)
-
-function _gaussian_moments(noise::NegBinomialNoise, spec, raw_mean, raw_var, latent, hyper, t)
-    raw = max(raw_mean, zero(raw_mean))
-    scale = observation_scale(spec, latent, hyper, t)
-    mu = observation_mean(spec, raw, latent, hyper, t)
-    phi = _obs_value(noise.phi, latent, hyper, t)
-    sigma = _obs_value(noise.sigma_mult, latent, hyper, t)
-    return (; mean = mu, var = scale^2 * raw_var + mu + mu^2 / phi + (sigma * mu)^2)
-end
-_gaussian_moments(noise, args...) = throw(
-    ArgumentError("only NegBinomialNoise has a closed-form Gaussian forecast mapping; got $(typeof(noise))")
-)
-
 # Every observation's mean at `(x, t)`; `specs` is a tuple so the loop unrolls over spec types.
 @inline _observation_means(specs::Tuple, x, latent, p, t, accumulators, ::Val{K}) where {K} =
     ntuple(i -> observation_mean(specs[i], compute_true_mean(specs[i], x, accumulators), latent, p, t), Val(K))

@@ -110,12 +110,12 @@ vcat([insertcols(filter(:parameter => ==("R0"), r.summary), 1, :engine => name) 
  Row │ engine          parameter  statistic  value
      │ String          String     String     Float64
 ─────┼────────────────────────────────────────────────
-   1 │ UKF + Optimise  R0         estimate   1.82554
-   2 │ PF + Liu-West   R0         q05        1.42002
-   3 │ PF + Liu-West   R0         q50        1.65792
-   4 │ PF + Liu-West   R0         q95        2.07769
-   5 │ PF + Liu-West   R0         mean       1.69565
-   6 │ PF + Liu-West   R0         sd_ratio   0.377461
+   1 │ UKF + Optimise  R0         estimate   1.8233
+   2 │ PF + Liu-West   R0         q05        1.44409
+   3 │ PF + Liu-West   R0         q50        1.66642
+   4 │ PF + Liu-West   R0         q95        2.11559
+   5 │ PF + Liu-West   R0         mean       1.70631
+   6 │ PF + Liu-West   R0         sd_ratio   0.362037
    7 │ EnKF + EKP      R0         estimate   1.78449
    8 │ EnKF + EKP      R0         ekp_q05    1.4495
    9 │ EnKF + EKP      R0         ekp_q50    1.73216
@@ -133,8 +133,10 @@ axes = map(enumerate(results)) do (row, (name, r))
     lines!(ax, horizon, q[:, qi(0.5)]; linewidth = 2, color = :purple, label = "forecast (95%)")
     lines!(ax, 1:fit_weeks, r.fitted_means; linewidth = 2, color = :steelblue, label = "fitted mean")
     scatter!(ax, 1:fit_weeks, observed; color = :black, markersize = 7, label = "observed")
-    scatter!(ax, horizon, cases[horizon]; color = :white, strokecolor = :black, strokewidth = 1.5,
-        markersize = 8, label = "held out")
+    scatter!(
+        ax, horizon, cases[horizon]; color = :white, strokecolor = :black, strokewidth = 1.5,
+        markersize = 8, label = "held out"
+    )
     axislegend(ax; position = :lt)
     ax
 end
@@ -142,6 +144,7 @@ linkxaxes!(axes...)
 foreach(ax -> hidexdecorations!(ax; grid = false), axes[1:(end - 1)])
 fig
 ```
+
 ![](inference_engines-14.png)
 
 ## From an inference config

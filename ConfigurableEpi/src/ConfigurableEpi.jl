@@ -13,7 +13,7 @@ Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Three lay
 """
 module ConfigurableEpi
 
-using LinearAlgebra: BLAS, Diagonal, I, diag, cholesky, Symmetric, dot, isdiag, issuccess, logdet, mul!
+using LinearAlgebra: BLAS, Diagonal, I, diag, cholesky, eigen, Symmetric, dot, isdiag, issuccess, logdet, mul!
 using Dates, Random
 import TOML
 import Configurations
@@ -68,7 +68,7 @@ export ObservationNoiseSpec, NegBinomialNoise, PoissonNoise, LogNormalNoise, Raw
     SignalObservationSpec, AggregatedSignalSpec, WeightedStateSpec, ShareSignalSpec, LatentObservationSpec,
     SlotSeries, ReportingFractionModifier, FullReporting, set_reporting_fractions!, build_reporting_observation,
     LinearScale, n_noise_terms, apply_noise, observation_logpdf, sample_observation, observation_mean,
-    observation_scale, observation_baseline, observation_gaussian_moments, resolve_observation,
+    observation_scale, observation_baseline, resolve_observation,
     build_measurement_model, build_measurement_logpdf
 export SeasonalForcing, UnitForcing, CosineForcing, IndoorActivityForcing, N_SEASON_KNOTS,
     build_periodic_curve, year_fraction, load_indoor_activity_climatology,
@@ -99,7 +99,7 @@ export InferenceEngine, EngineSettings, ForecastResult, UKFOptimiseEngine, PFLiu
     DEFAULT_LATENT_VARIANCE, DEFAULT_MODEL_RELATIVE_SD
 
 # Output
-export DEFAULT_QS, forecast_ensemble, forecast_states, forecast_quantiles, append_latent_spread!,
+export DEFAULT_QS, forecast_ensemble, forecast_quantiles, append_latent_spread!,
     append_latent_audit!, latent_path_rows, asof_series, backtest_forecast_rows
 export FORECAST_SAMPLE_COLUMNS, forecast_sample_rows, write_forecast_samples
 export ObservationSchema, n_observations, observation_names, build_observation_schema, DataLink,

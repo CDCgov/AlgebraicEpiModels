@@ -42,26 +42,6 @@ function forecast_ensemble(
 end
 
 """
-    forecast_states(kf, x0, R0; n_ahead, t0, dt = 1.0, u = Float64[], p) -> (means, covs)
-
-Analytic Kalman forecast: seed a copy of `kf` at the filtered Gaussian `(x0, R0)` and roll
-`n_ahead` steps with `predict!` only, returning each horizon's state mean and covariance.
-"""
-function forecast_states(kf, x0, R0; n_ahead::Int, t0::Real, dt::Real = 1.0, u = Float64[], p)
-    fkf = deepcopy(kf)
-    fkf.x = x0
-    fkf.R .= R0
-    means = Vector{Vector{Float64}}(undef, n_ahead)
-    covs = Vector{Matrix{Float64}}(undef, n_ahead)
-    for h in 1:n_ahead
-        predict!(fkf, u, p, t0 + (h - 1) * dt)
-        means[h] = Vector{Float64}(fkf.x)
-        covs[h] = Matrix{Float64}(fkf.R)
-    end
-    return means, covs
-end
-
-"""
     forecast_quantiles(samples; qs = DEFAULT_QS)
 
 Per-horizon quantiles over draws: `[horizon, quantile]` from `samples[h, j]`, or

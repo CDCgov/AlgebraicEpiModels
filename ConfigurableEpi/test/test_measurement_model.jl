@@ -731,11 +731,10 @@ _sto(layout) = build_stochastic_update(
 end
 
 # ============================================================================
-# observation_scale / observation_baseline / observation_gaussian_moments — the helpers the
-# reporting paths (UKF fitted means and forecast quantiles, EnKF fitted means) go through so a
+# observation_scale / observation_baseline — the helpers the reporting paths go through so a
 # time-varying modifier is evaluated at each observation's own time, never read as a constant.
 # ============================================================================
-@testset "observation_scale, observation_baseline and the Gaussian forecast moments" begin
+@testset "observation_scale and observation_baseline" begin
     latent = (Rt = 1.2, ascertainment = 0.75)
     hyper = (detect = 0.3, phi = 40.0, ascertainment = 0.005, ascertainment_decline_rate = 0.5)
     path = AscertainmentPath(0.2, 10.0)
@@ -764,37 +763,6 @@ end
             latent, hyper, 5.0,
         ) == 7.0
         @test observation_baseline(SignalObservationSpec(1, PoissonNoise()), latent, hyper, 5.0) == 0.0
-    end
-
-    @testset "Gaussian moments of a NegBinomial signal, at the requested time" begin
-        nb = SignalObservationSpec(
-            1, NegBinomialNoise(sigma_mult = 0.1, phi = (l, h, t) -> h.phi); mean_modifier = path
-        )
-        raw_mean, raw_var = 150.0, 900.0
-        t = 375.25
-        m = observation_gaussian_moments(nb, raw_mean, raw_var, latent, hyper, t)
-        scale = path(hyper, t)
-        mu = scale * raw_mean
-        @test m.mean ≈ mu
-        @test m.var ≈ scale^2 * raw_var + mu + mu^2 / 40.0 + (0.1 * mu)^2
-        # The path declines, so the same accumulator maps to a smaller count later on.
-        @test observation_gaussian_moments(nb, raw_mean, raw_var, latent, hyper, 0.0).mean > m.mean
-        # A negative accumulator mean is floored at zero, as `compute_true_mean` floors the state.
-        @test observation_gaussian_moments(nb, -5.0, raw_var, latent, hyper, 0.0).mean == 0.0
-
-        # With a constant modifier and no multiplicative noise this IS the historical
-        # `ascertainment·accumulator ± NB` formula, bit for bit.
-        constant = SignalObservationSpec(
-            1, NegBinomialNoise(phi = (l, h, t) -> h.phi);
-            mean_modifier = (l, h, t) -> h.ascertainment,
-        )
-        mc = observation_gaussian_moments(constant, raw_mean, raw_var, latent, hyper, 0.0)
-        @test mc.mean == hyper.ascertainment * raw_mean
-        @test mc.var == hyper.ascertainment^2 * raw_var + mc.mean + mc.mean^2 / hyper.phi
-
-        @test_throws ArgumentError observation_gaussian_moments(
-            SignalObservationSpec(1, PoissonNoise()), raw_mean, raw_var, latent, hyper, 0.0
-        )
     end
 end
 

@@ -15,9 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - ConfigurableEpi: `config.jl` moved to `src/model/config.jl`.
 - ConfigurableEpi: `forecast_ensemble` always returns `samples[horizon, draw, observation]`, keeping the observation axis for one observation.
   `ForecastResult` still drops it for a one-observation model.
+- ConfigurableEpi: UKF + Optimise forecasts by drawing `n_draws` states jointly from the filtered origin Gaussian and simulating each through the model's own process and observation noise, as the PF and EnKF engines do.
+  `samples` is no longer `nothing` for the UKF, the quantiles are those of the draws, and any observation kind can be forecast.
+  The `rng` keyword now seeds these draws.
 
 ### Removed
 
+- ConfigurableEpi: `observation_gaussian_moments` and `forecast_states`, the analytic UKF forecast.
 - ConfigurableEpi: `RunConfig`, `RunIO`, `InputConfig`, `CountInput`, `PercentInput`, `validate_run_config` and `submodel_name`.
   Use `validate_inference_config` for the inference settings; run settings (data paths, input scale, burn-in, origin mode, schedule) belong to the run script.
 
