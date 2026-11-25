@@ -36,11 +36,28 @@ Minimum Liu-West jitter variance per parameter as a fraction of the prior's unco
 
 The concrete hyperparameter options, for `@option` fields.
 
+<a id='ConfigurableEpi.ReportingModeConfig'></a>
+<a id='ConfigurableEpi.ReportingModeConfig-1'></a>
+**`ConfigurableEpi.ReportingModeConfig`** &mdash; *Type*.
+
+The concrete reporting modes, for `@option` fields.
+
 <a id='ConfigurableEpi.StateFilterConfig'></a>
 <a id='ConfigurableEpi.StateFilterConfig-1'></a>
 **`ConfigurableEpi.StateFilterConfig`** &mdash; *Type*.
 
 The concrete filter options, for `@option` fields: Configurations.jl parses an aliased block into a `Union`.
+
+<a id='ConfigurableEpi.CorrectedObservations'></a>
+<a id='ConfigurableEpi.CorrectedObservations-1'></a>
+**`ConfigurableEpi.CorrectedObservations`** &mdash; *Type*.
+
+```julia
+CorrectedObservations()                               # [observation.corrected]
+ThinnedObservations()                                 # [observation.thinned]
+```
+
+`corrected` fits a nowcast-adjusted count against the model's expected count; `thinned` fits the raw count against the expected count times that day's reporting fraction.
 
 <a id='ConfigurableEpi.Durations'></a>
 <a id='ConfigurableEpi.Durations-1'></a>
@@ -143,6 +160,12 @@ PriorSpec(; mean, std, constraint = "positive")
 ```
 
 One parameter's prior as written in TOML; `constraint` is `positive`, `unit_interval` or `unconstrained`. [`build_prior`](configurableepi.md#ConfigurableEpi.build_prior-Tuple{Any, PriorSpec}) turns it into an EKP `ParameterDistribution`.
+
+<a id='ConfigurableEpi.ReportingMode'></a>
+<a id='ConfigurableEpi.ReportingMode-1'></a>
+**`ConfigurableEpi.ReportingMode`** &mdash; *Type*.
+
+Supertype of how a partially reported count enters the likelihood (see [`build_reporting_observation`](configurableepi.md#ConfigurableEpi.build_reporting_observation-Tuple{CorrectedObservations, Any, Any})).
 
 <a id='ConfigurableEpi.SeasonalityConfig'></a>
 <a id='ConfigurableEpi.SeasonalityConfig-1'></a>
@@ -592,16 +615,15 @@ Out-of-place form of the Petri vector field for `SeeToDee.Rk4`, naming the ODE s
 make_lvector_constructor(names) -> x -> LArray{names}(collect(x))
 ```
 
-<a id='ConfigurableEpi.AggregatedSignalSpec'></a>
-<a id='ConfigurableEpi.AggregatedSignalSpec-1'></a>
-**`ConfigurableEpi.AggregatedSignalSpec`** &mdash; *Type*.
+<a id='ConfigurableEpi.LinearScale'></a>
+<a id='ConfigurableEpi.LinearScale-1'></a>
+**`ConfigurableEpi.LinearScale`** &mdash; *Type*.
 
 ```julia
-AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
-AggregatedSignalSpec(noise; ...) # the sum of every signal
+LinearScale(latent::Symbol, inner; link = identity)
 ```
 
-One observation formed by summing several signal reset accumulators. Its mean is `raw * mean_modifier + baseline`, with the same modifier and baseline conventions as [`SignalObservationSpec`](configurableepi.md#ConfigurableEpi.SignalObservationSpec).
+Mean modifier `link(latent[name]) * inner(latent, hyper, t)`: linear in the linked, constrained value of the named latent. `inner` is a `Real` or a `(latent, hyper, t)` function that must not read `latent[name]`.
 
 <a id='ConfigurableEpi.LogNormalNoise'></a>
 <a id='ConfigurableEpi.LogNormalNoise-1'></a>
@@ -621,7 +643,17 @@ Multiplicative noise `y = μ exp(σ v)`.
 NegBinomialNoise(; phi, sigma_mult = 0.0)
 ```
 
-Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one unit-normal term; the particle filter uses the exact `NegativeBinomial(φ, φ/(φ+μ))`, which drops the `(σμ)²` reporting term. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
+Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one unit-normal term. A simulated draw is `NegativeBinomial(φ, φ/(φ+μ'))` about the mean perturbed by a mean-one log-normal, `μ' = μ exp(sz − s²/2)`, with `s² = log(1 + σ²φ/(φ+1))` so that the draw has exactly that variance. The mixture has no closed-form density, so the particle filter refuses `σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
+
+<a id='ConfigurableEpi.ObservationSpec'></a>
+<a id='ConfigurableEpi.ObservationSpec-1'></a>
+**`ConfigurableEpi.ObservationSpec`** &mdash; *Type*.
+
+```julia
+ObservationSpec{R <: RawMean}
+```
+
+One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is read from the state as the [`RawMean`](configurableepi.md#ConfigurableEpi.RawMean) kind says, and `mean_modifier` and `baseline` are each `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say). Built by [`SignalObservationSpec`](configurableepi.md#ConfigurableEpi.SignalObservationSpec-Tuple{Integer, ObservationNoiseSpec}), [`AggregatedSignalSpec`](configurableepi.md#ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}), [`WeightedStateSpec`](configurableepi.md#ConfigurableEpi.WeightedStateSpec-Tuple{Any, Any, ObservationNoiseSpec}), [`ShareSignalSpec`](configurableepi.md#ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}) or [`LatentObservationSpec`](configurableepi.md#ConfigurableEpi.LatentObservationSpec-Tuple{Any, ObservationNoiseSpec}).
 
 <a id='ConfigurableEpi.PoissonNoise'></a>
 <a id='ConfigurableEpi.PoissonNoise-1'></a>
@@ -633,15 +665,87 @@ PoissonNoise(sigma_mult = nothing)
 
 Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by `exp(σ v₁)` (UKF only: the particle filter rejects the mixture).
 
-<a id='ConfigurableEpi.SignalObservationSpec'></a>
-<a id='ConfigurableEpi.SignalObservationSpec-1'></a>
-**`ConfigurableEpi.SignalObservationSpec`** &mdash; *Type*.
+<a id='ConfigurableEpi.RawMean'></a>
+<a id='ConfigurableEpi.RawMean-1'></a>
+**`ConfigurableEpi.RawMean`** &mdash; *Type*.
+
+```julia
+RawMean
+```
+
+What an observation's mean is read from, before its modifier and baseline. `raw_mean(r, x, accumulators)` gives it for a resolved kind; [`resolve_observation`](configurableepi.md#ConfigurableEpi.resolve_observation-Tuple{ObservationSpec, StateLayout}) resolves a kind against the layout.
+
+<a id='ConfigurableEpi.ReportingFractionModifier'></a>
+<a id='ConfigurableEpi.ReportingFractionModifier-1'></a>
+**`ConfigurableEpi.ReportingFractionModifier`** &mdash; *Type*.
+
+```julia
+ReportingFractionModifier(inner, fractions)
+FullReporting(inner)
+```
+
+Mean modifiers for a partially reported daily count. `ReportingFractionModifier` multiplies `inner` by the reporting fraction of each fitted day from `t = 0` (`missing` counts as one); later days, the forecast horizons, are fully reported. `FullReporting` is `inner` unchanged. [`set_reporting_fractions!`](configurableepi.md#ConfigurableEpi.set_reporting_fractions!-Tuple{ReportingFractionModifier, AbstractVector}) gives either a new report vintage in place.
+
+<a id='ConfigurableEpi.SlotSeries'></a>
+<a id='ConfigurableEpi.SlotSeries-1'></a>
+**`ConfigurableEpi.SlotSeries`** &mdash; *Type*.
+
+```julia
+SlotSeries(values; step = 1.0)
+```
+
+Mean modifier returning `values[k]` at the grid slot `t = (k - 1) * step`, and the last value beyond the series (forecast horizons). A time between slots is an error.
+
+<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.AggregatedSignalSpec-Tuple{AbstractVector, ObservationNoiseSpec}-1'></a>
+**`ConfigurableEpi.AggregatedSignalSpec`** &mdash; *Method*.
+
+```julia
+AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
+AggregatedSignalSpec(noise; ...)   # the sum of every signal
+```
+
+An observation of the sum of several signals' reset accumulators.
+
+<a id='ConfigurableEpi.LatentObservationSpec-Tuple{Any, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.LatentObservationSpec-Tuple{Any, ObservationNoiseSpec}-1'></a>
+**`ConfigurableEpi.LatentObservationSpec`** &mdash; *Method*.
+
+```julia
+LatentObservationSpec(mean, noise; name)
+```
+
+An observation that reads no compartment: its mean is `mean(latent, hyper, t)`.
+
+<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.ShareSignalSpec-Tuple{AbstractVector, AbstractVector, ObservationNoiseSpec}-1'></a>
+**`ConfigurableEpi.ShareSignalSpec`** &mdash; *Method*.
+
+```julia
+ShareSignalSpec(numerator, denominator, noise; mean_modifier = nothing, baseline = nothing, name = :obs_share)
+```
+
+An observation of a share of incidence, `Σ_numerator acc / Σ_denominator acc` (the H3 fraction of infections, say), usually scaled to counts by a known per-slot total ([`SlotSeries`](configurableepi.md#ConfigurableEpi.SlotSeries)). The numerator signals must be a subset of the denominator's.
+
+<a id='ConfigurableEpi.SignalObservationSpec-Tuple{Integer, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.SignalObservationSpec-Tuple{Integer, ObservationNoiseSpec}-1'></a>
+**`ConfigurableEpi.SignalObservationSpec`** &mdash; *Method*.
 
 ```julia
 SignalObservationSpec(signal_idx, noise; mean_modifier = nothing, baseline = nothing, name)
 ```
 
-One observation from a signal's reset accumulator. Its mean is `raw * mean_modifier + baseline`, where each of the two is `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say).
+An observation of one signal's reset accumulator.
+
+<a id='ConfigurableEpi.WeightedStateSpec-Tuple{Any, Any, ObservationNoiseSpec}'></a>
+<a id='ConfigurableEpi.WeightedStateSpec-Tuple{Any, Any, ObservationNoiseSpec}-1'></a>
+**`ConfigurableEpi.WeightedStateSpec`** &mdash; *Method*.
+
+```julia
+WeightedStateSpec(state_names, weights, noise; mean_modifier = nothing, baseline = nothing, name = :obs_weighted)
+```
+
+An observation of `Σ_i weights[i] * max(x[state_names[i]], 0)` over named ODE states: the stages of a shedding chain, say, or several signals' accumulators each with its own ascertainment.
 
 <a id='ConfigurableEpi.apply_noise-Tuple{NegBinomialNoise, Vararg{Any, 5}}'></a>
 <a id='ConfigurableEpi.apply_noise-Tuple{NegBinomialNoise, Vararg{Any, 5}}-1'></a>
@@ -674,6 +778,16 @@ build_measurement_model(layout, noise::ObservationNoiseSpec, stochastic)
 
 The UKF measurement `measure(x, u, p, t, v) -> SVector{n_obs}` with unit noise `v` of length `n_noise` (so `R2 = I`). The second form observes the single signal of a one-signal layout.
 
+<a id='ConfigurableEpi.build_reporting_observation-Tuple{CorrectedObservations, Any, Any}'></a>
+<a id='ConfigurableEpi.build_reporting_observation-Tuple{CorrectedObservations, Any, Any}-1'></a>
+**`ConfigurableEpi.build_reporting_observation`** &mdash; *Method*.
+
+```julia
+build_reporting_observation(mode::ReportingMode, inner, fractions)
+```
+
+The mean modifier for a reporting mode: `FullReporting` for [`CorrectedObservations`](configurableepi.md#ConfigurableEpi.CorrectedObservations), or a [`ReportingFractionModifier`](configurableepi.md#ConfigurableEpi.ReportingFractionModifier) for `ThinnedObservations`, which needs the fractions.
+
 <a id='ConfigurableEpi.observation_gaussian_moments-NTuple{6, Any}'></a>
 <a id='ConfigurableEpi.observation_gaussian_moments-NTuple{6, Any}-1'></a>
 **`ConfigurableEpi.observation_gaussian_moments`** &mdash; *Method*.
@@ -683,17 +797,6 @@ observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) -> (; me
 ```
 
 Gaussian moments of a NegBinomial observation given Gaussian moments of its accumulator (the UKF forecast mapping): `mean = observation_mean(max(raw_mean, 0))` and `var = scale² raw_var + mean + mean²/φ + (σ mean)²`, with the spec's scale and noise at `t`.
-
-<a id='ConfigurableEpi.observation_logpdf-Tuple{NegBinomialNoise, Vararg{Any, 5}}'></a>
-<a id='ConfigurableEpi.observation_logpdf-Tuple{NegBinomialNoise, Vararg{Any, 5}}-1'></a>
-**`ConfigurableEpi.observation_logpdf`** &mdash; *Method*.
-
-```julia
-observation_logpdf(noise, y, mean, latent, hyper, t)
-sample_observation(noise, mean, latent, hyper, t, rng)
-```
-
-Exact log-density and draw of an observation (particle weighting and simulation).
 
 <a id='ConfigurableEpi.observation_mean-NTuple{5, Any}'></a>
 <a id='ConfigurableEpi.observation_mean-NTuple{5, Any}-1'></a>
@@ -707,15 +810,25 @@ observation_baseline(spec, latent, hyper, t)       # the baseline at `t`
 
 Reporting code must map accumulators to counts through these, never through a hyperparameter read directly, so a time-varying or latent-driven ascertainment is honoured.
 
-<a id='ConfigurableEpi.resolve_signal_indices-Tuple{SignalObservationSpec, Integer}'></a>
-<a id='ConfigurableEpi.resolve_signal_indices-Tuple{SignalObservationSpec, Integer}-1'></a>
-**`ConfigurableEpi.resolve_signal_indices`** &mdash; *Method*.
+<a id='ConfigurableEpi.resolve_observation-Tuple{ObservationSpec, StateLayout}'></a>
+<a id='ConfigurableEpi.resolve_observation-Tuple{ObservationSpec, StateLayout}-1'></a>
+**`ConfigurableEpi.resolve_observation`** &mdash; *Method*.
 
 ```julia
-resolve_signal_indices(spec, n_signals) -> spec
+resolve_observation(spec, layout) -> spec
 ```
 
-Check a spec's signal indices against the layout, expanding an all-signals aggregate.
+`spec` checked against `layout`: signal indices in range, an all-signals sum expanded and state names turned into slots. The measurement builders resolve every spec.
+
+<a id='ConfigurableEpi.set_reporting_fractions!-Tuple{ReportingFractionModifier, AbstractVector}'></a>
+<a id='ConfigurableEpi.set_reporting_fractions!-Tuple{ReportingFractionModifier, AbstractVector}-1'></a>
+**`ConfigurableEpi.set_reporting_fractions!`** &mdash; *Method*.
+
+```julia
+set_reporting_fractions!(modifier, fractions) -> modifier
+```
+
+Replace a [`ReportingFractionModifier`](configurableepi.md#ConfigurableEpi.ReportingFractionModifier)'s fractions in place, so a persistent engine sees a new report vintage; the identity for `FullReporting`.
 
 <a id='ConfigurableEpi.N_SEASON_KNOTS'></a>
 <a id='ConfigurableEpi.N_SEASON_KNOTS-1'></a>

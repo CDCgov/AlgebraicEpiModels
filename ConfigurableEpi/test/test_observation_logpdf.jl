@@ -67,6 +67,33 @@ import Random
         end
     end
 
+    @testset "NegBinomialNoise with sigma_mult: simulated, never scored" begin
+        # The (σμ)² term is drawn as a mean-one log-normal perturbation of the mean; the mixture
+        # has no closed-form density, so the PF refuses to weight with it. With σ = 0 no extra
+        # randomness is consumed.
+        rng = Random.MersenneTwister(20261030)
+        n = 50_000
+        μ, φ, σ = 50.0, 20.0, 0.1
+        spec = NegBinomialNoise(σ, φ)
+        s = [sample_observation(spec, μ, latent, hyper, 0.0, rng) for _ in 1:n]
+        @test mean(s) ≈ μ rtol = 0.02
+        @test var(s) ≈ μ + μ^2 / φ + (σ * μ)^2 rtol = 0.05
+        @test var(s) > 1.05 * (μ + μ^2 / φ)
+        # The log-normal spread is calibrated so the variance is exact, not first order in σ.
+        wide = NegBinomialNoise(1.0, φ)
+        w = [sample_observation(wide, μ, latent, hyper, 0.0, rng) for _ in 1:200_000]
+        @test mean(w) ≈ μ rtol = 0.02
+        @test var(w) ≈ μ + μ^2 / φ + μ^2 rtol = 0.05
+        @test_throws ArgumentError observation_logpdf(spec, 50, μ, latent, hyper, 0.0)
+        resolved = NegBinomialNoise((l, h, t) -> h.sigma, (l, h, t) -> h.phi)
+        @test_throws ArgumentError observation_logpdf(resolved, 50, μ, latent, (phi = φ, sigma = σ), 0.0)
+        @test observation_logpdf(resolved, 50, μ, latent, (phi = φ, sigma = 0.0), 0.0) ≈ logpdf(NegativeBinomial(φ, φ / (φ + μ)), 50)
+        a, b = Random.MersenneTwister(1), Random.MersenneTwister(1)
+        @test sample_observation(NegBinomialNoise(0.0, φ), μ, latent, hyper, 0.0, a) ==
+            sample_observation(NegBinomialNoise(phi = φ), μ, latent, hyper, 0.0, b)
+        @test rand(a) == rand(b)
+    end
+
     @testset "PoissonNoise with sigma_mult is rejected by the PF" begin
         # Over-dispersed Poisson has no closed-form exact density/sampler — the PF
         # rejects it rather than silently scoring/sampling a pure Poisson.

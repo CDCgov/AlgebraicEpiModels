@@ -41,6 +41,11 @@ function build_inference(
     core.assembly.n_obs == 1 || throw(
         ArgumentError("UKF + Optimise produces one count-forecast matrix and needs exactly one observation signal; got $(core.assembly.n_obs)")
     )
+    # The analytic forecast maps the accumulator's Gaussian moments to the observation.
+    raw = only(model.observation).raw
+    raw isa Union{Signal, SignalSum, AllSignals} || throw(
+        ArgumentError("UKF + Optimise forecasts a signal's accumulator, so it cannot forecast a $(nameof(typeof(raw))) observation; use PF + Liu-West")
+    )
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
     ukf = _ukf(Float64, core.assembly, model, model.hyperparams, core.settings.dt)
