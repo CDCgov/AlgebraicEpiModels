@@ -3,12 +3,17 @@
 
 abstract type ObservationNoiseSpec end
 
+# A noise or modifier parameter: a constant or a `(latent, hyper, t)` function.
+@inline _obs_value(x::Real, latent, hyper, t) = x
+@inline _obs_value(f, latent, hyper, t) = f(latent, hyper, t)
+
 """
     NegBinomialNoise(; phi, sigma_mult = 0.0)
 
 Count noise with `Var(y) = μ + μ²/φ + (σμ)²`. The UKF uses the Gaussian approximation with one
-unit-normal term; the particle filter uses the exact `NegativeBinomial(φ, φ/(φ+μ))`, which drops
-the `(σμ)²` reporting term. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
+unit-normal term. A simulated draw is `NegativeBinomial(φ, φ/(φ+μ'))` about the mean perturbed by
+a mean-one log-normal, `μ' = μ exp(σz − σ²/2)`. That mixture has no closed-form density, so the
+particle filter refuses `σ ≠ 0`. Each parameter is a `Real` or a function `(latent, hyper, t) -> Real`.
 """
 struct NegBinomialNoise{S, P} <: ObservationNoiseSpec
     sigma_mult::S
@@ -37,72 +42,250 @@ struct LogNormalNoise{S} <: ObservationNoiseSpec
 end
 
 """
-    SignalObservationSpec(signal_idx, noise; mean_modifier = nothing, baseline = nothing, name)
+    RawMean
 
-One observation from a signal's reset accumulator. Its mean is
-`raw * mean_modifier + baseline`, where each of the two is `nothing`, a `Real` or a function
-`(latent, hyper, t) -> Real` (an [`AscertainmentPath`](@ref), say).
+What an observation's mean is read from, before its modifier and baseline. `raw_mean(r, x,
+accumulators)` gives it for a resolved kind; [`resolve_observation`](@ref) resolves a kind against
+the layout.
 """
-struct SignalObservationSpec{N <: ObservationNoiseSpec, M, B}
-    signal_idx::Int
+abstract type RawMean end
+
+# One signal's reset accumulator.
+struct Signal <: RawMean
+    index::Int
+    Signal(index::Integer) = index >= 1 ? new(index) : throw(ArgumentError("signal_idx must be >= 1"))
+end
+
+# The sum of several signals' reset accumulators.
+struct SignalSum <: RawMean
+    indices::Vector{Int}
+    function SignalSum(indices::AbstractVector{<:Integer})
+        isempty(indices) && throw(ArgumentError("signal_indices must have at least one element"))
+        all(>=(1), indices) || throw(ArgumentError("all signal_indices must be >= 1"))
+        return new(collect(Int, indices))
+    end
+end
+
+# Every signal, expanded to a `SignalSum` once the layout is known.
+struct AllSignals <: RawMean end
+
+# A weighted sum of named ODE states, `Σ weights[i] * max(x[names[i]], 0)`; `WeightedSlots` once resolved.
+struct WeightedStates <: RawMean
+    names::Vector{Symbol}
+    weights::Vector{Float64}
+    function WeightedStates(names::AbstractVector, weights::AbstractVector)
+        isempty(names) && throw(ArgumentError("a weighted state observation needs at least one state"))
+        length(weights) == length(names) || throw(DimensionMismatch("$(length(weights)) weights for $(length(names)) states"))
+        allunique(names) || throw(ArgumentError("state_names must be distinct; got $names"))
+        all(w -> isfinite(w) && w >= 0, weights) || throw(ArgumentError("weights must be finite and non-negative; got $weights"))
+        return new(Vector{Symbol}(names), Vector{Float64}(weights))
+    end
+end
+
+struct WeightedSlots <: RawMean
+    indices::Vector{Int}
+    weights::Vector{Float64}
+end
+
+# A share of incidence, `Σ_numerator acc / Σ_denominator acc`.
+struct SignalShare <: RawMean
+    numerator::Vector{Int}
+    denominator::Vector{Int}
+    function SignalShare(numerator::AbstractVector{<:Integer}, denominator::AbstractVector{<:Integer})
+        isempty(numerator) && throw(ArgumentError("a share needs at least one numerator signal"))
+        allunique(numerator) && allunique(denominator) || throw(ArgumentError("share signal indices must be distinct"))
+        issubset(numerator, denominator) ||
+            throw(ArgumentError("share numerator $numerator is not a subset of denominator $denominator"))
+        all(>=(1), denominator) || throw(ArgumentError("all signal indices must be >= 1"))
+        return new(collect(Int, numerator), collect(Int, denominator))
+    end
+end
+
+# No compartment at all: the mean is the modifier alone.
+struct LatentOnly <: RawMean end
+
+"""
+    ObservationSpec{R <: RawMean}
+
+One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is read from the
+state as the [`RawMean`](@ref) kind says, and `mean_modifier` and `baseline` are each `nothing`, a
+`Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](@ref), say). Built by
+[`SignalObservationSpec`](@ref), [`AggregatedSignalSpec`](@ref), [`WeightedStateSpec`](@ref),
+[`ShareSignalSpec`](@ref) or [`LatentObservationSpec`](@ref).
+"""
+struct ObservationSpec{R <: RawMean, N <: ObservationNoiseSpec, M, B}
+    raw::R
     noise_spec::N
     mean_modifier::M
     baseline::B
     name::Symbol
-    function SignalObservationSpec(
-            signal_idx::Int, noise_spec::N;
-            mean_modifier::M = nothing, baseline::B = nothing, name::Symbol = Symbol("obs_", signal_idx),
-        ) where {N <: ObservationNoiseSpec, M, B}
-        signal_idx >= 1 || throw(ArgumentError("signal_idx must be >= 1"))
-        return new{N, M, B}(signal_idx, noise_spec, mean_modifier, baseline, name)
-    end
 end
+
+"""
+    SignalObservationSpec(signal_idx, noise; mean_modifier = nothing, baseline = nothing, name)
+
+An observation of one signal's reset accumulator.
+"""
+SignalObservationSpec(
+    signal_idx::Integer, noise::ObservationNoiseSpec;
+    mean_modifier = nothing, baseline = nothing, name::Symbol = Symbol("obs_", signal_idx),
+) = ObservationSpec(Signal(signal_idx), noise, mean_modifier, baseline, name)
 
 """
     AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
-    AggregatedSignalSpec(noise; ...) # the sum of every signal
+    AggregatedSignalSpec(noise; ...)   # the sum of every signal
 
-One observation formed by summing several signal reset accumulators. Its mean is
-`raw * mean_modifier + baseline`, with the same modifier and baseline conventions as
-[`SignalObservationSpec`](@ref).
+An observation of the sum of several signals' reset accumulators.
 """
-struct AggregatedSignalSpec{N <: ObservationNoiseSpec, M, B}
-    signal_indices::Vector{Int}
-    noise_spec::N
-    mean_modifier::M
-    baseline::B
-    name::Symbol
-    is_all_signals::Bool
-    function AggregatedSignalSpec(
-            signal_indices::Vector{Int}, noise_spec::N, mean_modifier::M, baseline::B,
-            name::Symbol, is_all_signals::Bool,
-        ) where {N <: ObservationNoiseSpec, M, B}
-        is_all_signals || !isempty(signal_indices) ||
-            throw(ArgumentError("signal_indices must have at least one element"))
-        all(>=(1), signal_indices) || throw(ArgumentError("all signal_indices must be >= 1"))
-        return new{N, M, B}(signal_indices, noise_spec, mean_modifier, baseline, name, is_all_signals)
+AggregatedSignalSpec(
+    signal_indices::AbstractVector{<:Integer}, noise::ObservationNoiseSpec;
+    mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_aggregated,
+) = ObservationSpec(SignalSum(signal_indices), noise, mean_modifier, baseline, name)
+
+AggregatedSignalSpec(noise::ObservationNoiseSpec; mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_total) =
+    ObservationSpec(AllSignals(), noise, mean_modifier, baseline, name)
+
+"""
+    WeightedStateSpec(state_names, weights, noise; mean_modifier = nothing, baseline = nothing, name = :obs_weighted)
+
+An observation of `Σ_i weights[i] * max(x[state_names[i]], 0)` over named ODE states: the stages
+of a shedding chain, say, or several signals' accumulators each with its own ascertainment.
+"""
+WeightedStateSpec(
+    state_names, weights, noise::ObservationNoiseSpec;
+    mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_weighted,
+) = ObservationSpec(WeightedStates(state_names, weights), noise, mean_modifier, baseline, name)
+
+"""
+    ShareSignalSpec(numerator, denominator, noise; mean_modifier = nothing, baseline = nothing, name = :obs_share)
+
+An observation of a share of incidence, `Σ_numerator acc / Σ_denominator acc` (the H3 fraction of
+infections, say), usually scaled to counts by a known per-slot total ([`SlotSeries`](@ref)). The
+numerator signals must be a subset of the denominator's.
+"""
+ShareSignalSpec(
+    numerator::AbstractVector{<:Integer}, denominator::AbstractVector{<:Integer}, noise::ObservationNoiseSpec;
+    mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_share,
+) = ObservationSpec(SignalShare(numerator, denominator), noise, mean_modifier, baseline, name)
+
+"""
+    LatentObservationSpec(mean, noise; name)
+
+An observation that reads no compartment: its mean is `mean(latent, hyper, t)`.
+"""
+LatentObservationSpec(mean, noise::ObservationNoiseSpec; name::Symbol) =
+    ObservationSpec(LatentOnly(), noise, mean, nothing, name)
+
+"""
+    SlotSeries(values; step = 1.0)
+
+Mean modifier returning `values[k]` at the grid slot `t = (k - 1) * step`, and the last value
+beyond the series (forecast horizons). A time between slots is an error.
+"""
+struct SlotSeries
+    values::Vector{Float64}
+    step::Float64
+    function SlotSeries(values::AbstractVector; step::Real = 1.0)
+        isempty(values) && throw(ArgumentError("a slot series needs at least one value"))
+        step > 0 || throw(ArgumentError("slot step must be positive, got $step"))
+        vals = Float64.(values)
+        all(v -> isfinite(v) && v >= 0, vals) || throw(ArgumentError("slot series values must be finite and non-negative"))
+        return new(vals, Float64(step))
     end
 end
 
-AggregatedSignalSpec(
-    signal_indices::Vector{Int}, noise_spec::ObservationNoiseSpec;
-    mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_aggregated,
-) = AggregatedSignalSpec(signal_indices, noise_spec, mean_modifier, baseline, name, false)
+const _SLOT_TOLERANCE = 1.0e-6
 
-AggregatedSignalSpec(
-    noise_spec::ObservationNoiseSpec; mean_modifier = nothing, baseline = nothing, name::Symbol = :obs_total,
-) = AggregatedSignalSpec(Int[], noise_spec, mean_modifier, baseline, name, true)
+@inline function (series::SlotSeries)(latent, hyper, t)
+    slot = t / series.step
+    k = round(Int, slot)
+    abs(slot - k) <= _SLOT_TOLERANCE || _off_slot_grid(t, series.step)
+    return series.values[clamp(k + 1, 1, length(series.values))]
+end
 
-const ObservationSpec = Union{SignalObservationSpec, AggregatedSignalSpec}
+@noinline _off_slot_grid(t, step) =
+    throw(ArgumentError("a slot series with step $step has no value at t = $t, between its slots"))
+
+function _validated_reporting_fractions(fractions::AbstractVector)
+    values = Float64[ismissing(f) ? 1.0 : Float64(f) for f in fractions]
+    all(f -> isfinite(f) && 0.0 <= f <= 1.0, values) || throw(ArgumentError("reporting fractions must be finite and lie in [0, 1]"))
+    return values
+end
+
+"""
+    ReportingFractionModifier(inner, fractions)
+    FullReporting(inner)
+
+Mean modifiers for a partially reported daily count. `ReportingFractionModifier` multiplies
+`inner` by the reporting fraction of each fitted day from `t = 0` (`missing` counts as one); later
+days, the forecast horizons, are fully reported. `FullReporting` is `inner` unchanged.
+[`set_reporting_fractions!`](@ref) gives either a new report vintage in place.
+"""
+struct ReportingFractionModifier{M}
+    inner::M
+    fractions::Vector{Float64}
+    ReportingFractionModifier(inner::M, fractions::AbstractVector) where {M} = new{M}(inner, _validated_reporting_fractions(fractions))
+end
+
+struct FullReporting{M}
+    inner::M
+end
+
+@inline function _reporting_fraction(modifier::ReportingFractionModifier, t)
+    slot = round(Int, t) + 1
+    return 1 <= slot <= length(modifier.fractions) ? modifier.fractions[slot] : 1.0
+end
+
+@inline (modifier::ReportingFractionModifier)(latent, hyper, t) =
+    modifier.inner(latent, hyper, t) * _reporting_fraction(modifier, t)
+@inline (modifier::FullReporting)(latent, hyper, t) = modifier.inner(latent, hyper, t)
+
+"""
+    set_reporting_fractions!(modifier, fractions) -> modifier
+
+Replace a [`ReportingFractionModifier`](@ref)'s fractions in place, so a persistent engine sees a
+new report vintage; the identity for `FullReporting`.
+"""
+function set_reporting_fractions!(modifier::ReportingFractionModifier, fractions::AbstractVector)
+    values = _validated_reporting_fractions(fractions)
+    empty!(modifier.fractions)
+    append!(modifier.fractions, values)
+    return modifier
+end
+set_reporting_fractions!(modifier::FullReporting, ::Any) = modifier
+
+"""
+    build_reporting_observation(mode::ReportingMode, inner, fractions)
+
+The mean modifier for a reporting mode: `FullReporting` for [`CorrectedObservations`](@ref), or a
+[`ReportingFractionModifier`](@ref) for `ThinnedObservations`, which needs the fractions.
+"""
+build_reporting_observation(::CorrectedObservations, inner, fractions) = FullReporting(inner)
+build_reporting_observation(::ThinnedObservations, inner, fractions::AbstractVector) = ReportingFractionModifier(inner, fractions)
+build_reporting_observation(::ThinnedObservations, inner, ::Nothing) =
+    throw(ArgumentError("thinned observations need the reporting fraction of every fitted slot"))
+
+"""
+    LinearScale(latent::Symbol, inner; link = identity)
+
+Mean modifier `link(latent[name]) * inner(latent, hyper, t)`: linear in the linked, constrained
+value of the named latent. `inner` is a `Real` or a `(latent, hyper, t)` function that must not
+read `latent[name]`.
+"""
+struct LinearScale{M, F}
+    latent::Symbol
+    inner::M
+    link::F
+end
+
+LinearScale(latent::Symbol, inner; link = identity) = LinearScale(latent, inner, link)
+
+@inline (m::LinearScale)(latent, hyper, t) = m.link(latent[m.latent]) * _obs_value(m.inner, latent, hyper, t)
 
 n_noise_terms(::NegBinomialNoise) = 1
 n_noise_terms(spec::PoissonNoise) = spec.sigma_mult === nothing ? 1 : 2
 n_noise_terms(::LogNormalNoise) = 1
 n_noise_terms(spec::ObservationSpec) = n_noise_terms(spec.noise_spec)
-
-# A noise parameter: a constant or a `(latent, hyper, t)` function.
-@inline _obs_value(x::Real, latent, hyper, t) = x
-@inline _obs_value(f, latent, hyper, t) = f(latent, hyper, t)
 
 """
     apply_noise(noise, mean, v, latent, hyper, t)
@@ -153,7 +336,18 @@ end
 
 Exact log-density and draw of an observation (particle weighting and simulation).
 """
+@inline function _check_pure_negbin(sigma)
+    iszero(sigma) || throw(
+        ArgumentError(
+            "NegBinomialNoise with sigma_mult has no closed-form likelihood for the particle filter; " *
+                "the (σμ)² term is simulated but never scored",
+        )
+    )
+    return nothing
+end
+
 function observation_logpdf(spec::NegBinomialNoise, y, true_mean, latent, hyper, t)
+    _check_pure_negbin(_obs_value(spec.sigma_mult, latent, hyper, t))
     phi = _obs_value(spec.phi, latent, hyper, t)
     return logpdf(_nb_dist(max(true_mean, 1.0e-6), phi), round(Int, y))
 end
@@ -166,9 +360,13 @@ function observation_logpdf(spec::LogNormalNoise, y, true_mean, latent, hyper, t
     return logpdf(LogNormal(log(max(true_mean, 1.0e-6)), sigma), max(y, 1.0e-6))
 end
 
+# With `sigma_mult = 0` no extra randomness is drawn, so a seeded path is unchanged.
 function sample_observation(spec::NegBinomialNoise, true_mean, latent, hyper, t, rng)
     phi = _obs_value(spec.phi, latent, hyper, t)
-    return float(rand(rng, _nb_dist(max(true_mean, 1.0e-6), phi)))
+    sigma = _obs_value(spec.sigma_mult, latent, hyper, t)
+    mu = max(true_mean, 1.0e-6)
+    iszero(sigma) || (mu *= exp(sigma * randn(rng) - sigma^2 / 2))
+    return float(rand(rng, _nb_dist(mu, phi)))
 end
 function sample_observation(spec::PoissonNoise, true_mean, latent, hyper, t, rng)
     _check_pure_poisson(spec)
@@ -179,16 +377,32 @@ function sample_observation(spec::LogNormalNoise, true_mean, latent, hyper, t, r
     return rand(rng, LogNormal(log(max(true_mean, 1.0e-6)), sigma))
 end
 
-# This step's incidence, read from the reset accumulator(s) and floored at zero.
-@inline compute_true_mean(spec::SignalObservationSpec, x, accumulators) =
-    max(x[accumulators[spec.signal_idx]], zero(eltype(x)))
-@inline function compute_true_mean(spec::AggregatedSignalSpec, x, accumulators)
+# This step's raw mean, read from the state and floored at zero.
+@inline _floored(v) = max(v, zero(v))
+@inline function _signal_total(indices, x, accumulators)
     total = zero(eltype(x))
-    for s in spec.signal_indices
-        total += max(x[accumulators[s]], zero(eltype(x)))
+    for s in indices
+        total += _floored(x[accumulators[s]])
     end
     return total
 end
+
+@inline raw_mean(r::Signal, x, accumulators) = _floored(x[accumulators[r.index]])
+@inline raw_mean(r::SignalSum, x, accumulators) = _signal_total(r.indices, x, accumulators)
+@inline function raw_mean(r::WeightedSlots, x, accumulators)
+    total = zero(eltype(x))
+    @inbounds for (k, i) in enumerate(r.indices)
+        total += r.weights[k] * _floored(x[i])
+    end
+    return total
+end
+@inline raw_mean(r::SignalShare, x, accumulators) =
+    _signal_total(r.numerator, x, accumulators) / max(_signal_total(r.denominator, x, accumulators), eltype(x)(1.0e-12))
+@inline raw_mean(::LatentOnly, x, accumulators) = one(eltype(x))
+raw_mean(r::Union{AllSignals, WeightedStates}, x, accumulators) =
+    throw(ArgumentError("a $(nameof(typeof(r))) observation must be resolved against a layout first (`resolve_observation`)"))
+
+@inline compute_true_mean(spec::ObservationSpec, x, accumulators) = raw_mean(spec.raw, x, accumulators)
 
 @inline _modify(::Nothing, raw, latent, hyper, t) = raw
 @inline _modify(m::Real, raw, latent, hyper, t) = raw * m
@@ -210,26 +424,35 @@ read directly, so a time-varying or latent-driven ascertainment is honoured.
 @inline observation_scale(spec, latent, hyper, t) = _modify(spec.mean_modifier, 1.0, latent, hyper, t)
 @inline observation_baseline(spec, latent, hyper, t) = _offset(spec.baseline, 0.0, latent, hyper, t)
 
-"""
-    resolve_signal_indices(spec, n_signals) -> spec
+_check_signals(indices, n) = all(i -> 1 <= i <= n, indices) || throw(ArgumentError("signal indices $indices out of range [1, $n]"))
 
-Check a spec's signal indices against the layout, expanding an all-signals aggregate.
+_resolve(r::Signal, layout) = (_check_signals((r.index,), n_signals(layout)); r)
+_resolve(r::SignalSum, layout) = (_check_signals(r.indices, n_signals(layout)); r)
+_resolve(::AllSignals, layout) = SignalSum(1:n_signals(layout))
+_resolve(r::SignalShare, layout) = (_check_signals(r.denominator, n_signals(layout)); r)
+_resolve(r::Union{WeightedSlots, LatentOnly}, layout) = r
+function _resolve(r::WeightedStates, layout)
+    names = ode_names(layout)
+    indices = map(r.names) do name
+        i = findfirst(==(name), names)
+        i === nothing && throw(ArgumentError("a weighted state observation names `$name`, which is not an ODE state of the layout $names"))
+        i
+    end
+    return WeightedSlots(indices, r.weights)
+end
+
 """
-function resolve_signal_indices(spec::SignalObservationSpec, n_signals::Integer)
-    1 <= spec.signal_idx <= n_signals ||
-        throw(ArgumentError("signal_idx $(spec.signal_idx) out of range [1, $n_signals]"))
-    return spec
-end
-function resolve_signal_indices(spec::AggregatedSignalSpec, n_signals::Integer)
-    indices = spec.is_all_signals ? collect(1:n_signals) : spec.signal_indices
-    all(i -> 1 <= i <= n_signals, indices) ||
-        throw(ArgumentError("signal indices $indices out of range [1, $n_signals]"))
-    return AggregatedSignalSpec(indices, spec.noise_spec, spec.mean_modifier, spec.baseline, spec.name, false)
-end
+    resolve_observation(spec, layout) -> spec
+
+`spec` checked against `layout`: signal indices in range, an all-signals sum expanded and state
+names turned into slots. The measurement builders resolve every spec.
+"""
+resolve_observation(spec::ObservationSpec, layout::StateLayout) =
+    ObservationSpec(_resolve(spec.raw, layout), spec.noise_spec, spec.mean_modifier, spec.baseline, spec.name)
 
 function _resolve_specs(specs::Tuple{Vararg{ObservationSpec}}, layout::StateLayout)
     isempty(specs) && throw(ArgumentError("obs_specs must have at least one element"))
-    return map(s -> resolve_signal_indices(s, n_signals(layout)), specs)
+    return map(s -> resolve_observation(s, layout), specs)
 end
 
 """

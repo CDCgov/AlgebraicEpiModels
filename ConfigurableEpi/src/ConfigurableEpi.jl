@@ -48,7 +48,7 @@ using DuckDB: DB, register_data_frame, unregister_data_frame
 export @option, from_dict, from_toml, from_kwargs, option_alias
 export PriorSpec, build_prior, build_priors, load_prior_specs, load_priors, prior_upper, prior_R_eff_bound
 export Durations, SeasonalityConfig, DayOfWeekConfig, NoDayOfWeekConfig, PluginDayOfWeekConfig,
-    LearnedDayOfWeekConfig
+    LearnedDayOfWeekConfig, ReportingMode, CorrectedObservations, ThinnedObservations, ReportingModeConfig
 export StateFilter, StateFilterConfig, UKF, PF, EnKF, HyperMethod, HyperMethodConfig, Optimise, LiuWest, EKP,
     DEFAULT_JITTER_FLOOR_FRACTION
 export InferenceConfig, validate_inference_config, resolve_priors, resolve_prior_specs
@@ -64,10 +64,12 @@ export ParamSpec, ProcessParamSpec, FixedParam, HyperParam, DerivedParam, AR1Par
     build_stochastic_update
 export StateLayout, all_names, ode_names, n_ode_states, n_latent, n_signals, extract_latent
 export build_petri_vf, build_unified_vf, make_lvector_constructor, build_R1, build_full_dynamics, STATE_FLOOR
-export ObservationNoiseSpec, NegBinomialNoise, PoissonNoise, LogNormalNoise, SignalObservationSpec,
-    AggregatedSignalSpec, ObservationSpec, n_noise_terms, apply_noise, observation_logpdf,
-    sample_observation, observation_mean, observation_scale, observation_baseline,
-    observation_gaussian_moments, resolve_signal_indices, build_measurement_model, build_measurement_logpdf
+export ObservationNoiseSpec, NegBinomialNoise, PoissonNoise, LogNormalNoise, RawMean, ObservationSpec,
+    SignalObservationSpec, AggregatedSignalSpec, WeightedStateSpec, ShareSignalSpec, LatentObservationSpec,
+    SlotSeries, ReportingFractionModifier, FullReporting, set_reporting_fractions!, build_reporting_observation,
+    LinearScale, n_noise_terms, apply_noise, observation_logpdf, sample_observation, observation_mean,
+    observation_scale, observation_baseline, observation_gaussian_moments, resolve_observation,
+    build_measurement_model, build_measurement_logpdf
 export SeasonalForcing, UnitForcing, CosineForcing, IndoorActivityForcing, N_SEASON_KNOTS,
     build_periodic_curve, year_fraction, load_indoor_activity_climatology,
     validate_indoor_activity_climatology, validate_seasonality, default_seasonal_learned,

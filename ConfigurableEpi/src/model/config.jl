@@ -132,6 +132,23 @@ end
 
 const DayOfWeekConfig = Union{NoDayOfWeekConfig, PluginDayOfWeekConfig, LearnedDayOfWeekConfig}
 
+"Supertype of how a partially reported count enters the likelihood (see [`build_reporting_observation`](@ref))."
+abstract type ReportingMode end
+
+"""
+    CorrectedObservations()                               # [observation.corrected]
+    ThinnedObservations()                                 # [observation.thinned]
+
+`corrected` fits a nowcast-adjusted count against the model's expected count; `thinned` fits the
+raw count against the expected count times that day's reporting fraction.
+"""
+@option "corrected" struct CorrectedObservations <: ReportingMode end
+
+@option "thinned" struct ThinnedObservations <: ReportingMode end
+
+"The concrete reporting modes, for `@option` fields."
+const ReportingModeConfig = Union{CorrectedObservations, ThinnedObservations}
+
 # --- inference axis 1: the state filter -------------------------------------------------------
 
 "Supertype of the state-filter options, the `[filter.<name>]` axis."

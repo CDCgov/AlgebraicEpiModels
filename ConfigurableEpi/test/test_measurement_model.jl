@@ -11,6 +11,32 @@ _sto(layout) = build_stochastic_update(
 
 @testset "Measurement Model" begin
 
+    @testset "Reporting fractions scale only fitted observation times" begin
+        modifier = ReportingFractionModifier((latent, hyper, t) -> 2.0, [1.0, 0.5, missing])
+        spec = SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); mean_modifier = modifier)
+        @test observation_mean(spec, 100.0, nothing, nothing, 0.0) == 200.0
+        @test observation_mean(spec, 100.0, nothing, nothing, 1.0) == 100.0
+        @test observation_mean(spec, 100.0, nothing, nothing, 2.0) == 200.0
+        @test observation_mean(spec, 100.0, nothing, nothing, 3.0) == 200.0
+
+        set_reporting_fractions!(modifier, [0.25, 1.0])
+        @test observation_mean(spec, 100.0, nothing, nothing, 0.0) == 50.0
+        @test observation_mean(spec, 100.0, nothing, nothing, 2.0) == 200.0
+        @test_throws ArgumentError set_reporting_fractions!(modifier, [1.1])
+        @test_throws ArgumentError ReportingFractionModifier((l, h, t) -> 1.0, [-0.1])
+
+        inner = (latent, hyper, t) -> 3.0
+        full = build_reporting_observation(CorrectedObservations(), inner, [0.5, 0.5])
+        @test full isa FullReporting
+        @test full(nothing, nothing, 0.0) == 3.0
+        @test set_reporting_fractions!(full, [0.1]) === full
+        thinned = build_reporting_observation(ThinnedObservations(), inner, [0.5, 1.0])
+        @test thinned isa ReportingFractionModifier
+        @test thinned(nothing, nothing, 0.0) == 1.5
+        @test_throws ArgumentError build_reporting_observation(ThinnedObservations(), inner, nothing)
+        @test option_alias(ThinnedObservations()) == "thinned" && ThinnedObservations() isa ReportingMode
+    end
+
     # ========================================================================
     # ObservationNoiseSpec types
     #
@@ -94,7 +120,8 @@ _sto(layout) = build_stochastic_update(
         @testset "basic construction" begin
             noise = NegBinomialNoise(0.1, 10.0)
             spec = SignalObservationSpec(1, noise)
-            @test spec.signal_idx == 1
+            @test spec isa ObservationSpec{ConfigurableEpi.Signal}
+            @test spec.raw.index == 1
             @test spec.noise_spec === noise
             @test spec.name == :obs_1  # default name
         end
@@ -102,7 +129,7 @@ _sto(layout) = build_stochastic_update(
         @testset "custom name" begin
             noise = PoissonNoise()
             spec = SignalObservationSpec(2, noise; name = :hospitalizations)
-            @test spec.signal_idx == 2
+            @test spec.raw.index == 2
             @test spec.name == :hospitalizations
         end
 
@@ -120,7 +147,7 @@ _sto(layout) = build_stochastic_update(
         @testset "basic construction" begin
             noise = NegBinomialNoise(0.1, 10.0)
             spec = AggregatedSignalSpec([1, 2, 3], noise; name = :total_hosp)
-            @test spec.signal_indices == [1, 2, 3]
+            @test spec.raw.indices == [1, 2, 3]
             @test spec.noise_spec === noise
             @test spec.name == :total_hosp
         end
@@ -134,23 +161,17 @@ _sto(layout) = build_stochastic_update(
         @testset "empty indices for 'all signals'" begin
             noise = PoissonNoise()
             spec = AggregatedSignalSpec(noise; name = :obs_total)
-            @test isempty(spec.signal_indices)  # resolved at build time
+            @test spec.raw isa ConfigurableEpi.AllSignals  # expanded at build time
             @test spec.name == :obs_total
-            @test spec.is_all_signals == true
-        end
-
-        @testset "explicit construction sets is_all_signals false" begin
-            noise = PoissonNoise()
-            spec = AggregatedSignalSpec([1, 2], noise; name = :explicit)
-            @test spec.is_all_signals == false
+            layout = StateLayout((:S,), (:O_a, :O_b), (); signal_names = (:a, :b))
+            @test resolve_observation(spec, layout).raw.indices == [1, 2]
+            @test_throws ArgumentError ConfigurableEpi.compute_true_mean(spec, zeros(3), layout.accumulator_indices)
         end
 
         @testset "invalid indices throw" begin
             noise = PoissonNoise()
-            # Explicit empty (not "all signals") should throw via inner constructor
-            @test_throws ArgumentError AggregatedSignalSpec(
-                Int[], noise, nothing, nothing, :x, false
-            )
+            # An explicit empty list is not "all signals".
+            @test_throws ArgumentError AggregatedSignalSpec(Int[], noise)
             @test_throws ArgumentError AggregatedSignalSpec([0], noise)
             @test_throws ArgumentError AggregatedSignalSpec([-1, 2], noise)
         end
@@ -691,15 +712,14 @@ _sto(layout) = build_stochastic_update(
         dynamic = SignalObservationSpec(1, noise; baseline = (l, h, t) -> h.obs_floor)
         @test observation_mean(dynamic, 10.0, (;), (obs_floor = 3.0,), 0.0) ≈ 13.0
 
-        # REGRESSION. `resolve_signal_indices` rebuilds an `AggregatedSignalSpec` to turn "all
-        # signals" into concrete indices. That rebuild used to be duplicated verbatim at three call
-        # sites, and adding `baseline` dropped it at all three — silently, and only on the
-        # aggregated path, which is the one `two_strain_escape` uses.
+        # Resolving "all signals" into concrete indices rebuilds the spec, and must keep its
+        # modifier, baseline and name.
         aggregated = AggregatedSignalSpec(
             noise; mean_modifier = (l, h, t) -> 0.005, baseline = 7.0, name = :total
         )
-        resolved = ConfigurableEpi.resolve_signal_indices(aggregated, 4)
-        @test resolved.signal_indices == [1, 2, 3, 4]
+        four = StateLayout((:S,), (:O_a, :O_b, :O_c, :O_d), (); signal_names = (:a, :b, :c, :d))
+        resolved = resolve_observation(aggregated, four)
+        @test resolved.raw.indices == [1, 2, 3, 4]
         @test resolved.baseline == 7.0
         @test resolved.name == :total
         @test observation_mean(resolved, 1000.0, (;), (;), 0.0) ≈ 12.0
@@ -796,4 +816,115 @@ end
     flat = (ascertainment = 0.005, ascertainment_decline_rate = 0.0)
     @test result.measure(x, SVector(0.0), flat, 365.25, [0.0])[1] ==
         result.measure(x, SVector(0.0), flat, 0.0, [0.0])[1]
+end
+
+# A `WeightedStateSpec` observes a linear functional of occupancy (a shedding chain's stages),
+# resolved by name against the layout, beside an ordinary accumulator signal.
+@testset "WeightedStateSpec observes a weighted occupancy" begin
+    layout = StateLayout(
+        (:S, :I), (:O_1, :W_1, :W_2, :W_3), (:Rt,);
+        signal_names = (:reports, :wastewater), accumulator_indices = (1, 4),
+    )
+    spec = WeightedStateSpec([:W_1, :W_2], [0.25, 0.75], LogNormalNoise(0.5); mean_modifier = 2.0, name = :wastewater)
+    @test n_noise_terms(spec) == 1
+    resolved = resolve_observation(spec, layout)
+    @test resolved.raw.indices == [4, 5]
+    @test resolved.name == :wastewater
+    x = [100.0, 10.0, 3.0, 8.0, -2.0, 1.0, 0.0]
+    # A negative occupancy is floored at zero, as an accumulator is.
+    @test ConfigurableEpi.compute_true_mean(resolved, x, layout.accumulator_indices) == 0.25 * 8.0
+    @test observation_mean(resolved, 2.0, (Rt = 1.0,), (;), 0.0) == 4.0
+    @test_throws ArgumentError WeightedStateSpec([:W_1, :W_1], [1.0, 1.0], LogNormalNoise(0.5))
+    @test_throws DimensionMismatch WeightedStateSpec([:W_1], [1.0, 1.0], LogNormalNoise(0.5))
+    @test_throws ArgumentError WeightedStateSpec([:W_1], [-1.0], LogNormalNoise(0.5))
+    @test_throws ArgumentError WeightedStateSpec(Symbol[], Float64[], LogNormalNoise(0.5))
+    @test_throws ArgumentError resolve_observation(WeightedStateSpec([:nope], [1.0], LogNormalNoise(0.5)), layout)
+    # An unresolved spec cannot be read: the measurement builders resolve every spec first.
+    @test_throws ArgumentError ConfigurableEpi.compute_true_mean(spec, x, layout.accumulator_indices)
+
+    specs = (SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); name = :reports), spec)
+    @test observation_names(build_observation_schema(specs)) == (:reports, :wastewater)
+    measure, n_obs, n_noise = build_measurement_model(layout, specs, _sto(layout))
+    @test (n_obs, n_noise) == (2, 2)
+    y = measure(x, nothing, (;), 0.0, zeros(2))
+    @test y[1] ≈ 3.0                                  # the count accumulator
+    @test y[2] ≈ 4.0                                  # 2 × (0.25 × 8 + 0.75 × 0)
+end
+
+# A share of incidence scaled to counts by a known per-slot total: the typed specimens of one
+# subtype out of all typed that week.
+@testset "ShareSignalSpec and SlotSeries" begin
+    layout = StateLayout((:S, :I), (:O_a, :O_b, :O_c), (:Rt,); signal_names = (:a, :b, :c))
+    noise = NegBinomialNoise(phi = 50.0)
+    acc = layout.accumulator_indices
+    x = [100.0, 10.0, 6.0, 3.0, 1.0, 0.0]   # S, I, three accumulators, one latent
+
+    share = ShareSignalSpec([1], [1, 2, 3], noise; name = :share_a)
+    @test share.name == :share_a
+    @test n_noise_terms(share) == 1
+    true_mean(spec, x) = ConfigurableEpi.compute_true_mean(spec, x, acc)
+    @test true_mean(share, x) ≈ 0.6
+    @test true_mean(ShareSignalSpec([1, 2], [1, 2, 3], noise), x) ≈ 0.9
+    @test true_mean(ShareSignalSpec([2], [2, 3], noise), x) ≈ 0.75
+    # Negative accumulators count as empty, and an empty denominator gives a zero share.
+    @test true_mean(share, [100.0, 10.0, -2.0, 3.0, 1.0, 0.0]) == 0.0
+    @test true_mean(share, [100.0, 10.0, 0.0, 0.0, 0.0, 0.0]) == 0.0
+
+    @test_throws ArgumentError ShareSignalSpec(Int[], [1, 2], noise)
+    @test_throws ArgumentError ShareSignalSpec([1, 1], [1, 2], noise)
+    @test_throws ArgumentError ShareSignalSpec([3], [1, 2], noise)
+    @test_throws ArgumentError ShareSignalSpec([0], [0, 1], noise)
+    @test_throws ArgumentError resolve_observation(ShareSignalSpec([1], [1, 4], noise), layout)
+    @test resolve_observation(share, layout).raw === share.raw
+
+    totals = SlotSeries([200.0, 50.0, 0.0]; step = 7.0)
+    @test totals(nothing, nothing, 0.0) == 200.0
+    @test totals(nothing, nothing, 7.0) == 50.0
+    @test totals(nothing, nothing, 14.0) == 0.0
+    # Beyond the series (a forecast horizon) the last value holds; before it, the first.
+    @test totals(nothing, nothing, 70.0) == 0.0
+    @test totals(nothing, nothing, -7.0) == 200.0
+    # On the grid up to rounding (0.7 / 0.1 is just under 7), and an error between slots.
+    @test SlotSeries(collect(0.0:9.0); step = 0.1)(nothing, nothing, 0.7) == 7.0
+    @test_throws ArgumentError totals(nothing, nothing, 3.5)
+    @test_throws ArgumentError totals(nothing, nothing, 6.0)
+    @test_throws ArgumentError SlotSeries(Float64[])
+    @test_throws ArgumentError SlotSeries([1.0]; step = 0.0)
+    @test_throws ArgumentError SlotSeries([1.0, -1.0])
+    @test_throws ArgumentError SlotSeries([1.0, NaN])
+
+    typed = ShareSignalSpec([1], [1, 2, 3], noise; mean_modifier = totals, name = :typed_a)
+    @test observation_mean(typed, 0.6, nothing, nothing, 0.0) ≈ 120.0
+    @test observation_mean(typed, 0.6, nothing, nothing, 7.0) ≈ 30.0
+
+    specs = (
+        SignalObservationSpec(1, noise; name = :count_a), typed,
+        ShareSignalSpec([2], [1, 2, 3], noise; mean_modifier = totals, name = :typed_b),
+    )
+    @test observation_names(build_observation_schema(specs)) == (:count_a, :typed_a, :typed_b)
+    measure, n_obs, n_noise = build_measurement_model(layout, specs, _sto(layout))
+    @test (n_obs, n_noise) == (3, 3)
+    @test collect(measure(x, nothing, (;), 0.0, zeros(3))) ≈ [6.0, 120.0, 60.0]
+    @test collect(measure(x, nothing, (;), 7.0, zeros(3))) ≈ [6.0, 30.0, 15.0]
+    @test isfinite(build_measurement_logpdf(layout, specs, _sto(layout))(x, nothing, [6.0, 120.0, 60.0], (;), 0.0))
+end
+
+# An observation that reads no compartment, with its mean scaled linearly by a latent.
+@testset "LatentObservationSpec and LinearScale" begin
+    layout = StateLayout((:S, :I), (:O_1,), (:scale,))
+    stochastic = _sto(layout)
+    scaled = LinearScale(:scale, (l, h, t) -> h.base; link = exp)
+    @test scaled((scale = log(2.0),), (base = 10.0,), 0.0) ≈ 20.0
+    @test LinearScale(:scale, 3.0)((scale = 2.0,), (;), 0.0) == 6.0
+
+    spec = LatentObservationSpec(scaled, LogNormalNoise(0.2); name = :clade)
+    @test spec.raw isa ConfigurableEpi.LatentOnly && spec.baseline === nothing
+    x = [100.0, 10.0, 4.0, log(2.0)]
+    @test ConfigurableEpi.compute_true_mean(spec, x, layout.accumulator_indices) == 1.0
+    measure, n_obs, n_noise = build_measurement_model(layout, (spec,), stochastic)
+    @test (n_obs, n_noise) == (1, 1)
+    @test only(measure(x, nothing, (base = 10.0,), 0.0, zeros(1))) ≈ 20.0
+    g = build_measurement_logpdf(layout, (spec,), stochastic)
+    @test g(x, nothing, [18.0], (base = 10.0,), 0.0) ≈
+        observation_logpdf(LogNormalNoise(0.2), 18.0, 20.0, stochastic.extract(x), (base = 10.0,), 0.0)
 end
