@@ -145,7 +145,8 @@ end
 
 Stochastic EnKF update in noisy-predicted-observation form: each member's predicted observation
 carries its own `vᵢ ~ N(0, R2)`, so the innovation covariance is the sample covariance of that
-ensemble with no second `R2` term, and members are updated against the unperturbed `y`.
+ensemble with no second `R2` term, and members are updated against the unperturbed `y`. `NaN`
+components of `y` are absent signals: the update uses the observed components only.
 """
 function LLPF.correct!(
         f::AugmentedEnsembleKalmanFilter, u::AbstractVector, y::AbstractVector, p = LLPF.parameters(f),
@@ -164,6 +165,8 @@ function LLPF.correct!(
             Y[:, i] = f.measurement(X[i], u, p, t, V[i])
         end
     end
+    observed = findall(!isnan, y)
+    length(observed) < ny && ((Y, y, ny) = (Y[observed, :], y[observed], length(observed)))
     x̄ = _ensemble_mean(X)
     ȳ = vec(sum(Y, dims = 2)) ./ N
     Xa = Matrix{T}(undef, nx, N)

@@ -138,6 +138,9 @@ import Random
             ll = g(x, nothing, [12.0, 18.0], NamedTuple(), 0.0)
             @test ll ≈ logpdf(Poisson(10.0), 12) +
                 logpdf(NegativeBinomial(30.0, 30.0 / (30.0 + 20.0)), 18)
+            # An absent (NaN) component contributes nothing.
+            @test g(x, nothing, [12.0, NaN], NamedTuple(), 0.0) ≈ logpdf(Poisson(10.0), 12)
+            @test g(x, nothing, [NaN, NaN], NamedTuple(), 0.0) == 0.0
         end
 
         @testset "mean_modifier scales the mean" begin

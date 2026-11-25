@@ -74,9 +74,6 @@ function build_inference(
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
     core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
-    length(model.layout.accumulator_indices) == core.assembly.n_obs || throw(
-        ArgumentError("the ensemble path maps one accumulator per observation; the layout has $(length(model.layout.accumulator_indices)) for $(core.assembly.n_obs) observations")
-    )
     _check_ensemble_rank(filter, hyper, model)
     # Three streams off the caller's rng: the outer ensemble, the inner replays (a seed re-used
     # per candidate) and forecast simulation.

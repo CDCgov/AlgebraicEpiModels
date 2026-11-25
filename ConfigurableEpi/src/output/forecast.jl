@@ -8,9 +8,9 @@ const DEFAULT_QS = (0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
                       n_obs = 1, observe_state = Returns(nothing)) -> (samples, latent_samples)
 
 Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with
-`sample_measurement` (no `correct!`). `samples[h, j]` (or `[h, j, o]` for `n_obs > 1`) is the
-non-negative predictive observation; `latent_samples[h, j, l]` the requested slots (`latent_range`,
-any integer vector) in their unconstrained chart, the forecast-spread diagnostic.
+`sample_measurement` (no `correct!`). `samples[h, j, o]` is the non-negative predictive draw of
+observation `o`; `latent_samples[h, j, l]` the requested slots (`latent_range`, any integer
+vector) in their unconstrained chart, the forecast-spread diagnostic.
 `observe_state(h, j, x)` sees draw `j`'s state at every horizon `h`, from the origin `h = 0`.
 """
 function forecast_ensemble(
@@ -38,7 +38,7 @@ function forecast_ensemble(
             end
         end
     end
-    return (n_obs == 1 ? samples[:, :, 1] : samples), latent_samples
+    return samples, latent_samples
 end
 
 """

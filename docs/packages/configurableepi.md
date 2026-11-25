@@ -67,6 +67,7 @@ result.summary       # (parameter, statistic, value) estimates and diagnostics
   `StateLayout` places compartments, observation accumulators and latents in one state vector, and `build_stochastic_update` builds their noise update.
 - **Observation.** `SignalObservationSpec` reads a signal's accumulator, scales it by `mean_modifier` and adds noise (`NegBinomialNoise`, `PoissonNoise` and others).
   Ascertainment trends, day-of-week effects and seasonal forcing plug in here.
+  With several observations each slot is a vector, and a `missing` component (a signal absent that slot) is skipped by every filter.
 - **Hyperparameters.** `hyperparams` holds every fixed value and the starting value of each learned one; `priors` names the learned subset.
 
 [Inference engines](../examples/inference_engines.md) runs all three engines on simulated data, and [Low-level filtering](../examples/low_level_filtering.md) wires the same building blocks into LowLevelParticleFilters directly.
