@@ -8,12 +8,14 @@ coefficients (L)]` observed through `S` signals. `accumulator_indices` are the a
 the reset accumulators, one per signal.
 
     StateLayout(core_names, obs_names, latent_names; signal_names = (:y,), accumulator_indices = nothing)
-    StateLayout(petri_net, driver_specs; signal_names = nothing)
+    StateLayout(petri_net, driver_specs; signal_names = nothing, observation_prefixes = (:O,))
 
 Without `accumulator_indices` the observation states are split evenly over the signals and each
 signal's last state is its accumulator. The second form reads the observation chains of a net
-built with `AlgebraicEpiMech.attach_observation`; only drivers with [`carries_state`](@ref) claim
-latent slots.
+built with `AlgebraicEpiMech.attach_observation`, one chain namespace per entry of
+`observation_prefixes`: a net can carry several chains on one event under distinct prefixes (an
+incidence chain and a shedding chain, say), listed prefix by prefix. Only drivers with
+[`carries_state`](@ref) claim latent slots.
 """
 struct StateLayout{N, M, L, S}
     core_names::NTuple{N, Symbol}
@@ -57,20 +59,26 @@ function StateLayout(
     )
 end
 
-function StateLayout(petri_net, driver_specs::Tuple; signal_names = nothing)
-    obs = observation_layout(petri_net)
-    obs_set = Set(obs.obs_names)
+function StateLayout(petri_net, driver_specs::Tuple; signal_names = nothing, observation_prefixes = (:O,))
+    prefixes = Tuple(Symbol.(observation_prefixes))
+    isempty(prefixes) && throw(ArgumentError("observation_prefixes must name at least one chain prefix"))
+    allunique(prefixes) || throw(ArgumentError("observation_prefixes must be distinct; got $prefixes"))
+    layouts = map(prefix -> observation_layout(petri_net; prefix), prefixes)
+    obs_names = Tuple(n for l in layouts for n in l.obs_names)
+    cumulative_names = Tuple(n for l in layouts for n in l.cumulative_names)
+    allunique(obs_names) || throw(ArgumentError("observation prefixes $prefixes claim a species twice: $obs_names"))
+    obs_set = Set(obs_names)
     core_names = Tuple(n for n in flatten_symbols.(snames(petri_net)) if n ∉ obs_set)
     latent_names = Tuple(spec.name for spec in driver_specs if carries_state(spec))
-    n_chains = length(obs.chains)
+    n_chains = length(cumulative_names)
     signals = signal_names === nothing ? _default_signal_names(n_chains) : Tuple(signal_names)
     length(signals) == n_chains ||
         throw(ArgumentError("$(length(signals)) signal names for $n_chains observation chains"))
-    position = Dict(name => i for (i, name) in enumerate(obs.obs_names))
+    position = Dict(name => i for (i, name) in enumerate(obs_names))
     return StateLayout(
-        core_names, obs.obs_names, latent_names;
+        core_names, obs_names, latent_names;
         signal_names = signals,
-        accumulator_indices = Tuple(position[name] for name in obs.cumulative_names),
+        accumulator_indices = Tuple(position[name] for name in cumulative_names),
     )
 end
 

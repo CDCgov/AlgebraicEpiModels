@@ -38,6 +38,7 @@ function _enkf(a::Assembly, model::EpiModel, hp, dt, cfg::EnKF, seed)
         model.layout, x0;
         latent_variance = model.initial_latent_variance, accumulator_variance = model.initial_accumulator_variance,
     )
+    P0 = model.initial_covariance(hp, x0, P0)
     return AugmentedEnsembleKalmanFilter(
         a.dynamics, a.measure, build_R1(model.layout), Diagonal(ones(a.n_noise)), MvNormal(collect(float.(x0)), P0), cfg.n_ensemble;
         nu = 0, ny = a.n_obs, p = hp, Ts = dt, inflation = cfg.inflation, threads = cfg.threads, rng = Random.Xoshiro(seed),

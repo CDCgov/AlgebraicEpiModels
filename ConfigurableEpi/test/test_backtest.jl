@@ -290,6 +290,35 @@ end
         @test all(s1 .>= 0.0)
         @test var(s1[4, :]) > var(s1[1, :])  # predictive spread widens with horizon
         @test size(lat1) == (4, length(cloud), 0)  # latent capture is opt-in
+
+        # `observe_state` sees every draw from the origin on and leaves the draws unchanged; any
+        # integer vector selects the latent slots.
+        seen = Dict{Tuple{Int, Int}, Vector{Float64}}()
+        Random.seed!(7)
+        s_seen, lat_vector = forecast_ensemble(
+            deepcopy(pf), cloud, hyper; n_ahead = 3, t0 = 0.0, latent_range = [4],
+            observe_state = (h, j, x) -> (seen[(h, j)] = copy(x)),
+        )
+        Random.seed!(7)
+        s_plain, lat_range = forecast_ensemble(deepcopy(pf), cloud, hyper; n_ahead = 3, t0 = 0.0, latent_range = 4:4)
+        @test s_seen == s_plain && lat_vector == lat_range
+        @test length(seen) == 4 * length(cloud)
+        @test seen[(0, 1)] == cloud[1]
+        @test seen[(3, 2)][4] == lat_vector[3, 2, 1]
+    end
+
+    @testset "latent_path_rows — one row per date and latent, quantiles on the latent's scale" begin
+        dates = Date.(["2024-01-01", "2024-01-08"])
+        latents = (mean = reshape([0.0, log(2.0)], 2, 1), sd = reshape([0.0, 0.1], 2, 1))
+        rows = latent_path_rows(ld, dates, latents)
+        @test nrow(rows) == 2 && rows.latent == ["Rt", "Rt"] && rows.date == dates
+        @test rows.unconstrained_sd == [0.0, 0.1]
+        constrained(m) = ld.extract([900.0, 50.0, 0.0, m]).Rt
+        @test rows.median ≈ [constrained(0.0), constrained(log(2.0))]
+        @test rows.q05[1] ≈ rows.median[1] ≈ rows.q95[1]
+        @test rows.q05[2] < rows.median[2] < rows.q95[2]
+        @test isempty(latent_path_rows(ld, dates, nothing))
+        @test_throws DimensionMismatch latent_path_rows(ld, dates[1:1], latents)
     end
 
     @testset "forecast_ensemble — latent capture: a shorter memory forecasts tighter" begin

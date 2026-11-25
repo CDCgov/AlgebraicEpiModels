@@ -116,6 +116,26 @@ using StaticArrays
         @test extracted.Rt ≈ exp(expected_unc)
     end
 
+    @testset "state_params lets a noise scale read the compartments" begin
+        layout = StateLayout((:S, :I), (:O,), (:z,))
+        specs = (
+            RWParamSpec(
+                :z; init = unconstrained_gaussian(:z, 0.0, 1.0),
+                sigma_rate = DerivedParam(:z_sigma, p -> p.base * p.scarcity),
+            ),
+        )
+        scarcity(x, hyper, t) = (; scarcity = (x[2] / hyper.reference)^(-hyper.eta))
+        latent = build_stochastic_update(layout, specs; state_params = scarcity)
+        li = first(layout.latent_range)
+        hyper = (base = 0.1, reference = 100.0, eta = 0.5)
+        step(i) = latent.advance([1000.0, i, 0.0, 0.0], hyper, [1.0], nothing, 0.0, 1.0)[li]
+        @test step(100.0) ≈ 0.1
+        @test step(25.0) ≈ 0.2
+        @test step(400.0) ≈ 0.05
+        @test latent.advance([1000.0, 25.0, 0.0, 0.0], merge(hyper, (; eta = 0.0)), [1.0], nothing, 0.0, 1.0)[li] ≈ 0.1
+        @test (@inferred latent.advance([1000.0, 25.0, 0.0, 0.0], hyper, [1.0], nothing, 0.0, 1.0)) isa Vector{Float64}
+    end
+
     @testset "update AR1 in unconstrained space" begin
         layout = StateLayout((:S,), (:O,), (:rho,))
         specs = (

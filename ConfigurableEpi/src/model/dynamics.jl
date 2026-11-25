@@ -10,21 +10,20 @@ end
 @inline _zero_lvector(::Val{names}, ::Val{N}, ::Type{T}) where {names, N, T} = LArray{names}(zeros(T, N))
 
 """
-    build_petri_vf(pn, rates; defaults = (;)) -> petri_vf!(du, u, (hyperparams, latent), t)
+    build_petri_vf(pn, rates; defaults = (;), rate_class) -> petri_vf!(du, u, (hyperparams, latent), t)
 
-In-place mass-action vector field of `pn` whose transition rates are
-`merge(defaults, rates(latent, hyperparams, t))`: `defaults` holds the fixed rates and the rate
-function returns only the dynamic ones, keyed by flattened transition name.
+In-place mass-action vector field of `pn` whose rates are `merge(defaults, rates(latent,
+hyperparams, t))`: `defaults` holds the fixed rates and the rate function returns only the
+dynamic ones. Rates are keyed by the rate keys of `rate_class`, by default the flattened
+transition names; further keywords go to `AlgebraicEpiMech.kinetic_structure`.
 """
-function build_petri_vf(pn, rates; defaults::NamedTuple = (;))
-    vf! = vectorfield_flat(pn)
-    transitions = Set(flatten_symbols(n) for n in AlgebraicPetri.tnames(pn))
+function build_petri_vf(pn, rates; defaults::NamedTuple = (;), structure_kwargs...)
+    structure = kinetic_structure(pn; structure_kwargs...)
+    vf! = vectorfield_factored(structure)
+    rate_keys = Set(structure.rate_keys)
     for k in keys(defaults)
-        k in transitions || throw(
-            ArgumentError(
-                "rate default `$k` is not a transition of the Petri net; transitions are " *
-                    "$(sort!(collect(transitions)))",
-            )
+        k in rate_keys || throw(
+            ArgumentError("rate default `$k` is not a rate key of the Petri net; rate keys are $(sort!(collect(rate_keys)))")
         )
     end
     function petri_vf!(du, u, p, t)
@@ -57,6 +56,9 @@ function make_lvector_constructor(names::NTuple{N, Symbol}) where {N}
     @inline to_lvector(x) = _named_lvector(names_val, n_val, collect(x))
     return to_lvector
 end
+
+"The floor every ODE state is held at before and after a step of [`build_full_dynamics`](@ref)."
+const STATE_FLOOR = 1.0e-6
 
 """
     build_R1(layout) -> Diagonal
@@ -94,11 +96,11 @@ function build_full_dynamics(
         )
         xa = stochastic.advance(x, p, w, rng, t, dt)
         latent = stochastic.extract(xa)
-        x_ode = max.(view(xa, ode_range), T(1.0e-6))
+        x_ode = max.(view(xa, ode_range), T(STATE_FLOOR))
         @inbounds for i in accumulators
             x_ode[i] = zero(T)
         end
-        x_next = max.(step(x_ode, u, (p, latent), t), T(1.0e-6))
+        x_next = max.(step(x_ode, u, (p, latent), t), T(STATE_FLOOR))
         @inbounds for (s, i) in enumerate(accumulators)
             x_next[i] += T(jitter) * w[L + s]
         end

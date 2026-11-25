@@ -19,6 +19,7 @@ end
 function _ukf(::Type{T}, a::Assembly, model::EpiModel, hp, dt) where {T}
     x0 = initial_state(model, hp)
     P0 = _initial_state_covariance(model.layout, x0; latent_variance = model.initial_latent_variance)
+    P0 = model.initial_covariance(hp, x0, P0)
     return UnscentedKalmanFilter{false, false, true, true}(
         a.dynamics, a.measure, T.(Matrix(build_R1(model.layout))), Matrix{T}(I, a.n_noise, a.n_noise),
         MvNormal(T.(x0), T.(P0));

@@ -2,6 +2,7 @@ using Test
 using LabelledArrays
 using AlgebraicPetri: LabelledPetriNet
 using ConfigurableEpi
+import AlgebraicEpiMech
 
 @testset "Core Dynamics" begin
     @testset "make_lvector_constructor" begin
@@ -101,5 +102,47 @@ using ConfigurableEpi
                 pn, empty_rates; defaults = (infection = 0.1, nonsense = 0.2)
             )
         end
+    end
+
+    @testset "build_petri_vf agrees with the flat field" begin
+        # `build_petri_vf` as it was before the factored field, kept as the reference.
+        function flat_petri_vf(pn, rates; defaults = (;))
+            vf! = AlgebraicEpiMech.vectorfield_flat(pn)
+            return (du, u, p, t) -> vf!(du, u, merge(defaults, rates(p[2], p[1], t)), t)
+        end
+        pn = LabelledPetriNet(
+            [:S, :I1, :I2, :R],
+            :infection1 => ((:S, :I1) => (:I1, :I1)),
+            :infection2 => ((:S, :I2) => (:I1, :I2)),
+            :progression => (:I1 => :I2),
+            :recovery => (:I2 => :R),
+        )
+        defaults = (progression = 0.4, recovery = 0.5)
+        per_transition(latent, hyper, t) = (infection1 = hyper.beta * latent.Rt, infection2 = 0.5 * hyper.beta * latent.Rt)
+        per_key(latent, hyper, t) = (beta = hyper.beta * latent.Rt,)
+        rate_class(name) = name == :infection1 ? (:beta, 1.0) : name == :infection2 ? (:beta, 0.5) : (name, 1.0)
+
+        u = LVector(S = 990.0, I1 = 7.0, I2 = 3.0, R = 0.0)
+        p = ((beta = 0.001,), (Rt = 1.2,))
+        du_reference = LVector(S = 0.0, I1 = 0.0, I2 = 0.0, R = 0.0)
+        flat_petri_vf(pn, per_transition; defaults)(du_reference, u, p, 0.0)
+        function evaluate(vf!, u, p)
+            out = LVector(S = NaN, I1 = NaN, I2 = NaN, R = NaN)
+            vf!(out, u, p, 0.0)
+            return out, @allocated(vf!(out, u, p, 0.0))
+        end
+
+        du, allocations = evaluate(build_petri_vf(pn, per_transition; defaults), u, p)
+        @test du ≈ du_reference rtol = 1.0e-13
+        @test allocations == 0
+
+        du, allocations = evaluate(build_petri_vf(pn, per_key; rate_class, defaults), u, p)
+        @test du ≈ du_reference rtol = 1.0e-13
+        @test allocations == 0
+
+        # With rate classes the defaults are keyed by rate key, not by transition.
+        @test_throws ArgumentError build_petri_vf(
+            pn, per_key; rate_class, defaults = (infection1 = 0.2,)
+        )
     end
 end
