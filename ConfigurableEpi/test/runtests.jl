@@ -23,6 +23,7 @@ const TEST_FILES = [
     "test_redistribute_jumps.jl",
     "test_backtest.jl",
     "test_augmented_enkf.jl",
+    "test_ukf_covariance_factor.jl",
     "test_build_inference.jl",
     "test_data_linkage.jl",
     "test_closure_boxing.jl",

@@ -1,6 +1,14 @@
 # Shared machinery of the inference engines: model assembly, the initial covariance, the replay
 # log-likelihood, the rolling window checkpoint, fitted means and the summary table.
 
+"""
+    InferenceEngine
+
+A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or ensemble and its
+random streams) and the hyperparameter state (learned values, warm-start ensembles, the window
+checkpoint). Passing it to [`fit_forecast!`](@ref) again continues inference; a `deepcopy` is an
+isolated fork.
+"""
 abstract type InferenceEngine end
 
 """
@@ -40,6 +48,35 @@ function Assembly(model::EpiModel, s::EngineSettings, obs_jitter::Real)
 end
 
 const _NO_INPUT = Float64[]
+
+# What an engine fixes at build time: the model, its assembly, the run settings and the priors of
+# the learned parameters.
+struct EngineCore{M <: EpiModel, A <: Assembly, B <: ParameterPriorBundle}
+    model::M
+    assembly::A
+    settings::EngineSettings
+    bundle::B
+end
+
+EngineCore(model::EpiModel, settings::EngineSettings, obs_jitter::Real) =
+    EngineCore(model, Assembly(model, settings, obs_jitter), settings, ParameterPriorBundle(model))
+
+"""
+    ForecastResult
+
+What [`fit_forecast!`](@ref) returns: `quantiles`, `fitted_means`, `summary`, `samples` and
+`latents`.
+"""
+struct ForecastResult{Q, F, S, L}
+    quantiles::Q
+    fitted_means::F
+    summary::DataFrame
+    samples::S
+    latents::L
+end
+
+ForecastResult(; quantiles = nothing, fitted_means, summary, samples = nothing, latents) =
+    ForecastResult(quantiles, fitted_means, summary, samples, latents)
 
 "Default initial variance of a latent coefficient slot (unconstrained space): in a log chart, sd 0.45."
 const DEFAULT_LATENT_VARIANCE = 0.2
@@ -82,25 +119,39 @@ end
     positive_cholesky!(R)
 
 Positive-definite Cholesky via `PositiveFactorizations.ldlt!`, which unlike its `cholesky!`
-wrapper accepts `ForwardDiff.Dual` matrices.
+wrapper accepts `ForwardDiff.Dual` matrices. It factors in correlation coordinates, so the repair
+tolerance does not overwrite small latent variances beside large compartment ones, and scales the
+lower factor back to state units. Only an exactly zero diagonal takes `MIN_MODEL_VARIANCE` as its
+scale.
 """
 function positive_cholesky!(R)
     A = Matrix(R)
     T = eltype(A)
-    return ldlt!(Positive{T}, A; tol = default_tol(A), blocksize = default_blocksize(floattype(T)))[1]
+    n = size(A, 1)
+    scale = [sqrt(iszero(A[i, i]) ? T(MIN_MODEL_VARIANCE) : abs(A[i, i])) for i in 1:n]
+    @inbounds for j in 1:n, i in 1:n
+        A[i, j] /= scale[i] * scale[j]
+    end
+    F = ldlt!(Positive{T}, A; tol = default_tol(A), blocksize = default_blocksize(floattype(T)))[1]
+    L = F.factors
+    @inbounds for j in 1:n, i in j:n
+        L[i, j] *= scale[i]
+    end
+    return F
 end
 
 """
-    marginal_loglik(filter, ys, p) -> Real
+    marginal_loglik(filter, ys, p; warmup = 0) -> Real
 
 Filter marginal log-likelihood of the observation vectors `ys` under hyperparameters `p` after
 `reset!`, accumulated at the promoted element type so it differentiates
 (`forward_trajectory(...).ll` sizes its buffers as Float64). A `missing` entry is a grid slot
-without an observation: the filter predicts through it without correcting.
+without an observation: the filter predicts through it without correcting. The filter corrects on
+the first `warmup` slots without counting their terms.
 """
-function marginal_loglik(filter, ys, p)
+function marginal_loglik(filter, ys, p; warmup::Integer = 0)
     reset!(filter)
-    return _filter_loglik!(filter, ys, p, eachindex(ys))
+    return _filter_loglik!(filter, ys, p, eachindex(ys); warmup)
 end
 
 _loglik_zero(kf::AbstractKalmanFilter) = zero(eltype(state(kf)))
@@ -108,11 +159,14 @@ _loglik_zero(pf::LLPF.AbstractParticleFilter) = zero(eltype(LLPF.weights(pf)))
 
 # Advance an initialised filter through the grid slots in `range` at absolute model time,
 # correcting on present observations and predicting through every slot.
-function _filter_loglik!(filter, ys, p, range)
+function _filter_loglik!(filter, ys, p, range; warmup::Integer = 0)
     ll = _loglik_zero(filter)
     for k in range
         t = (k - 1) * filter.Ts
-        ys[k] === missing || (ll += first(correct!(filter, _NO_INPUT, ys[k], p, t)))
+        if ys[k] !== missing
+            term = first(correct!(filter, _NO_INPUT, ys[k], p, t))
+            k > warmup && (ll += term)
+        end
         predict!(filter, _NO_INPUT, p, t)
     end
     return ll
@@ -139,8 +193,38 @@ function _filter_pass!(kf, ys, p; at_origin = Returns(nothing))
     return (; xt, Rt, ll, origin)
 end
 
-_loss_range(T::Integer, ::Nothing) = 1:Int(T)
-_loss_range(T::Integer, window::Integer) = max(1, Int(T) - Int(window) + 1):Int(T)
+# Filtered latents `(; mean, sd)` over `slots` in the unconstrained chart, each `[slot, latent]`.
+_latent_moments(xt, Rt, latent_range, slots) = (;
+    mean = Float64[xt[k][s] for k in slots, s in latent_range],
+    sd = Float64[sqrt(max(Rt[k][s, s], 0.0)) for k in slots, s in latent_range],
+)
+
+function _cloud_latent_moments(cloud, weights, latent_range)
+    wsum = sum(weights)
+    mean = [sum(weights[i] * cloud[i][slot] for i in eachindex(cloud)) / wsum for slot in latent_range]
+    sd = [
+        sqrt(max(sum(weights[i] * (cloud[i][slot] - mean[l])^2 for i in eachindex(cloud)) / wsum, 0.0))
+            for (l, slot) in enumerate(latent_range)
+    ]
+    return mean, sd
+end
+
+_stack_latents(means, sds, n_latent) = isempty(means) ? (; mean = zeros(0, n_latent), sd = zeros(0, n_latent)) :
+    (; mean = permutedims(reduce(hcat, means)), sd = permutedims(reduce(hcat, sds)))
+
+# The slots a marginal log-likelihood counts: the trailing `window` (all for `nothing`), never the
+# model's first `warmup`.
+_loss_range(T::Integer, ::Nothing, warmup::Integer = 0) = (Int(warmup) + 1):Int(T)
+_loss_range(T::Integer, window::Integer, warmup::Integer = 0) = max(Int(warmup) + 1, Int(T) - Int(window) + 1):Int(T)
+
+_warmup_steps(model::EpiModel, dt) = ceil(Int, model.likelihood_warmup_days / dt - 1.0e-9)
+
+_require_past_warmup(T::Integer, warmup::Integer, what) = T > warmup || throw(
+    ArgumentError(
+        "$what has $T observations and the model's likelihood warm-up covers the first $warmup: " *
+            "there is nothing to score yet. Start the first calibration later."
+    )
+)
 
 # A complete filter stopped just before the first scored observation of a rolling window. It is
 # built once and only ever advanced forward; rebuilding the prefix at new parameters would
@@ -152,10 +236,12 @@ mutable struct WindowCheckpoint
 end
 WindowCheckpoint() = WindowCheckpoint(nothing, 1)
 
-# Returns `(filter_or_nothing, mode, steps_advanced)` with mode `:full_history`, `:anchored` or `:advanced`.
-function _prepare_window_checkpoint!(cp::WindowCheckpoint, build_anchor, p, ys, loss_range)
+# Returns `(filter_or_nothing, mode, steps_advanced)` with mode `:full_history`, `:anchored` or
+# `:advanced`. A window starting inside the warm-up is the full history, so every candidate replays
+# the warm-up from its own starting state; a later window's checkpoint includes the warm-up.
+function _prepare_window_checkpoint!(cp::WindowCheckpoint, build_anchor, p, ys, loss_range; warmup::Integer = 0)
     new_start = first(loss_range)
-    if new_start == 1
+    if new_start <= warmup + 1
         cp.filter, cp.start = nothing, 1
         return nothing, :full_history, 0
     end
@@ -216,6 +302,10 @@ end
 
 _cloud_sd(values) = length(values) < 2 ? 0.0 : Float64(std(values))
 
+# Per-horizon predictive sd of each latent slot over the forecast draws, `[horizon, latent]`.
+_latent_sd(latent_samples::AbstractArray{<:Real, 3}) =
+    [_cloud_sd(view(latent_samples, h, :, l)) for h in axes(latent_samples, 1), l in axes(latent_samples, 3)]
+
 _summary() = DataFrame(parameter = String[], statistic = String[], value = Float64[])
 
 function _validate_fit(observations, update_range, forecast_number)
@@ -253,7 +343,7 @@ build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng(
 
 """
     fit_forecast!(engine, observations, forecast_number; update_range = eachindex(observations),
-                  emit_forecast = true) -> (; quantiles, fitted_means, summary, samples)
+                  emit_forecast = true) -> ForecastResult
 
 Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or
 `missing` where there is no observation: the filter then predicts through the slot without
@@ -264,6 +354,8 @@ at the slot after the last one it assimilated (the default), so a replay is `res
 followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a
 multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF);
 both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)`
-table of estimates and diagnostics.
+table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in
+their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see
+[`latent_path_rows`](@ref)).
 """
 function fit_forecast! end

@@ -240,6 +240,24 @@ estimate(df, name, statistic = "estimate") =
         @test CE._loss_range(6, 2) == 5:6
         @test CE._loss_range(6, 6) == 1:6
         @test CE._loss_range(3, 10) == 1:3
+
+        # A likelihood warm-up corrects on its slots without counting them, so the filter ends
+        # where the full replay does and scores the tail only.
+        warm = build_ukf(Float64, base_hyperparams)
+        @test marginal_loglik(warm, ys, base_hyperparams; warmup = 2) ≈ tail_ll
+        @test state(warm) == state(continuous)
+        @test CE._loss_range(6, nothing, 2) == 3:6
+        @test CE._loss_range(6, 2, 2) == 5:6
+        @test CE._loss_range(6, 5, 2) == 3:6
+        # A window that starts inside the warm-up is the full history: each candidate replays its
+        # own warm-up from its own starting state, not a checkpoint at the current parameters.
+        _, mode, _ = CE._prepare_window_checkpoint!(CE.WindowCheckpoint(), build_anchor, base_hyperparams, ys, 3:6; warmup = 2)
+        @test mode == :full_history
+        _, mode, _ = CE._prepare_window_checkpoint!(CE.WindowCheckpoint(), build_anchor, base_hyperparams, ys, 5:6; warmup = 2)
+        @test mode == :anchored
+        @test_throws ArgumentError CE._require_past_warmup(2, 2, "a test engine")
+        warmed = with_likelihood_warmup(model, 2.0)
+        @test (CE._warmup_steps(warmed, 1.0), CE._warmup_steps(warmed, 7.0), CE._warmup_steps(model, 1.0)) == (2, 1, 0)
     end
 
     @testset "UKF + Optimise replays the complete window" begin
@@ -269,6 +287,18 @@ estimate(df, name, statistic = "estimate") =
         @test engine.hyperparams.R0_baseline == previous
         reoptimized = fit_forecast!(engine, counts3, 3)
         @test engine.hyperparams.R0_baseline == estimate(reoptimized.summary, "R0_baseline")
+        @test reoptimized isa ForecastResult
+        @test size(reoptimized.latents.mean) == size(reoptimized.latents.sd) == (3, 1)
+        @test all(>(0), reoptimized.latents.sd)
+        @test size(suppressed.latents.mean) == (3, 1)
+
+        @testset "a likelihood warm-up leaves the first observations out of the objective" begin
+            brief = Optimise(maxiters = 1, maxiters_burnin = 1)
+            warmed = build_inference(UKF(), brief, with_likelihood_warmup(model, 2.0); ukf_kwargs...)
+            @test size(fit_forecast!(warmed, counts3, 1).quantiles) == (2, length(DEFAULT_QS))
+            covered = build_inference(UKF(), brief, with_likelihood_warmup(model, 3.0); ukf_kwargs...)
+            @test_throws ArgumentError fit_forecast!(covered, counts3, 1)
+        end
 
         @testset "window length is independent of re-optimization cadence" begin
             @test_throws ArgumentError build_inference(UKF(), Optimise(window_length = 0), model; ukf_kwargs...)
@@ -315,7 +345,7 @@ estimate(df, name, statistic = "estimate") =
             )
             from_cfg = build_inference(validate_inference_config(cfg), model)
             @test from_cfg isa UKFOptimiseEngine
-            @test (from_cfg.settings.dt, from_cfg.settings.supersample, from_cfg.settings.n_ahead, from_cfg.settings.n_draws) == (1.0, 1, 2, 7)
+            @test (from_cfg.core.settings.dt, from_cfg.core.settings.supersample, from_cfg.core.settings.n_ahead, from_cfg.core.settings.n_draws) == (1.0, 1, 2, 7)
         end
     end
 
@@ -418,6 +448,7 @@ estimate(df, name, statistic = "estimate") =
         @test all(result.quantiles .>= 0.0)
         @test all(isfinite, result.quantiles)
         @test length(result.fitted_means) == 3
+        @test size(result.latents.mean) == (3, 1) && all(>(0), result.latents.sd)
         @test names(result.summary) == ["parameter", "statistic", "value"]
         @test engine.hyperparams.R0_baseline == estimate(result.summary, "R0_baseline")
         @test engine.filter.p.R0_baseline == engine.hyperparams.R0_baseline
@@ -529,6 +560,10 @@ estimate(df, name, statistic = "estimate") =
         # An online continuation and a from-scratch replay are identical under threading (for
         # this thread count): the per-thread RNG pool's guarantee.
         @test vcat(r2.fitted_means, r_online.fitted_means) == r_direct.fitted_means
+        # The latent path covers the slots each call assimilated, from the weighted cloud.
+        @test size(r2.latents.mean) == (2, 1) && size(r_online.latents.mean) == (1, 1)
+        @test vcat(r2.latents.mean, r_online.latents.mean) == r_direct.latents.mean
+        @test all(>(0), r_direct.latents.sd)
         @test r_online.quantiles == r_direct.quantiles
         @test size(r_direct.samples) == (2, 60)
         @test forecast_quantiles(r_direct.samples) == r_direct.quantiles
@@ -667,7 +702,7 @@ end
 
     # Replay the same deterministic filter at the fitted parameters.
     hp = engine.hyperparams
-    kf = CE._ukf(Float64, CE.Assembly(model, engine.settings, UKF().obs_jitter), model, hp, dt)
+    kf = CE._ukf(Float64, CE.Assembly(model, engine.core.settings, UKF().obs_jitter), model, hp, dt)
     solution = forward_trajectory(kf, fill(Float64[], 4), CE._observation_vectors(counts4), hp)
     spec = only(obs_model)
     acc = only(layout.accumulator_indices)

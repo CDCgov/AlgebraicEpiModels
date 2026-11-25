@@ -92,7 +92,7 @@ export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likeli
 export AugmentedEnsembleKalmanFilter
 export LearnedHyperparams, build_learned_hyperparams, build_hyperparam_updater, n_learned, hyper_range
 export DEFAULT_OPTIMISER_STAGES, optimiser_stages, optimize_hyperparams, positive_cholesky!, marginal_loglik
-export InferenceEngine, EngineSettings, UKFOptimiseEngine, PFLiuWestEngine, EnKFEKPEngine,
+export InferenceEngine, EngineSettings, ForecastResult, UKFOptimiseEngine, PFLiuWestEngine, EnKFEKPEngine,
     build_inference, fit_forecast!, build_pf_dynamics, build_pf_measurement,
     DEFAULT_LATENT_VARIANCE, DEFAULT_MODEL_RELATIVE_SD
 

@@ -97,5 +97,7 @@ The model-state vector at `t = 0` under `hyperparams`.
 """
 initial_state(model::EpiModel, hyperparams = model.hyperparams) = model.build_x0(hyperparams)
 
+ParameterPriorBundle(model::EpiModel) = ParameterPriorBundle(model.priors)
+
 "The names of the learned hyperparameters."
 learned_names(model::EpiModel) = keys(model.priors)
