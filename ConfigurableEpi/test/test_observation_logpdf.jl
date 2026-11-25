@@ -94,14 +94,19 @@ import Random
         @test rand(a) == rand(b)
     end
 
-    @testset "PoissonNoise with sigma_mult is rejected by the PF" begin
-        # Over-dispersed Poisson has no closed-form exact density/sampler — the PF
-        # rejects it rather than silently scoring/sampling a pure Poisson.
+    @testset "PoissonNoise with sigma_mult: simulated, never scored" begin
+        # The mean is perturbed by exp(σz) as in the UKF measurement; with σ = 0 no extra
+        # randomness is consumed.
+        rng = Random.MersenneTwister(20261125)
+        μ, σ = 50.0, 0.2
+        s = [sample_observation(PoissonNoise(σ), μ, latent, hyper, 0.0, rng) for _ in 1:200_000]
+        m = μ * exp(σ^2 / 2)
+        @test mean(s) ≈ m rtol = 0.02
+        @test var(s) ≈ m + μ^2 * exp(σ^2) * (exp(σ^2) - 1) rtol = 0.05
         @test_throws ArgumentError observation_logpdf(PoissonNoise(0.1), 5, 5.0, latent, hyper, 0.0)
-        @test_throws ArgumentError sample_observation(
-            PoissonNoise(0.1), 5.0, latent, hyper, 0.0, Random.MersenneTwister(0)
-        )
-        # pure Poisson still works
+        a, b = Random.MersenneTwister(1), Random.MersenneTwister(1)
+        @test sample_observation(PoissonNoise(0.0), μ, latent, hyper, 0.0, a) == sample_observation(PoissonNoise(), μ, latent, hyper, 0.0, b)
+        @test rand(a) == rand(b)
         @test observation_logpdf(PoissonNoise(), 5, 5.0, latent, hyper, 0.0) ≈ logpdf(Poisson(5.0), 5)
     end
 

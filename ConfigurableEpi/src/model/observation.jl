@@ -26,7 +26,8 @@ NegBinomialNoise(; sigma_mult = 0.0, phi) = NegBinomialNoise(sigma_mult, phi)
     PoissonNoise(sigma_mult = nothing)
 
 Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by
-`exp(σ v₁)` (UKF only: the particle filter rejects the mixture).
+`exp(σ v₁)`. A simulated draw is that mixture, `Poisson(μ exp(σz))`; it has no closed-form density,
+so the particle filter refuses it.
 """
 struct PoissonNoise{S} <: ObservationNoiseSpec
     sigma_mult::S
@@ -373,8 +374,10 @@ function sample_observation(spec::NegBinomialNoise, true_mean, latent, hyper, t,
     return float(rand(rng, _nb_dist(mu, phi)))
 end
 function sample_observation(spec::PoissonNoise, true_mean, latent, hyper, t, rng)
-    _check_pure_poisson(spec)
-    return float(rand(rng, Poisson(max(true_mean, 1.0e-6))))
+    sigma = spec.sigma_mult === nothing ? 0.0 : _obs_value(spec.sigma_mult, latent, hyper, t)
+    mu = max(true_mean, 1.0e-6)
+    iszero(sigma) || (mu *= exp(sigma * randn(rng)))
+    return float(rand(rng, Poisson(mu)))
 end
 function sample_observation(spec::LogNormalNoise, true_mean, latent, hyper, t, rng)
     sigma = _obs_value(spec.sigma, latent, hyper, t)

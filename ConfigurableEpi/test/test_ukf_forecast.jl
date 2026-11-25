@@ -206,6 +206,17 @@ ukf_forecast_stat(df, parameter, statistic) =
         @test isfinite(ukf_forecast_stat(result.summary, "ukf", "origin_cov_min_eigenvalue"))
     end
 
+    @testset "a log-normal-perturbed Poisson observation forecasts" begin
+        poisson = EpiModel(;
+            vectorfield! = ukf_forecast_rt_vf!, layout = layout_b, stochastic = model_b.stochastic, hyperparams = hp_b,
+            observation = (SignalObservationSpec(1, PoissonNoise(0.1); mean_modifier = (_l, h, _t) -> h.ascertainment),),
+            priors = model_b.priors, initial_state = initial_state(model_b),
+        )
+        result = fit_forecast!(optimise(15; model = poisson), counts3, 1)
+        @test size(result.samples) == (2, 100)
+        @test all(isfinite, result.samples) && all(isinteger, result.samples)
+    end
+
     @testset "seeded, isolated forecast streams" begin
         a, b, c = optimise(5), optimise(5), optimise(6)
         ra, rb, rc = fit_forecast!(a, counts3, 1), fit_forecast!(b, counts3, 1), fit_forecast!(c, counts3, 1)

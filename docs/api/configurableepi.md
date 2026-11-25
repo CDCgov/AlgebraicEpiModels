@@ -663,7 +663,7 @@ One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is re
 PoissonNoise(sigma_mult = nothing)
 ```
 
-Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by `exp(σ v₁)` (UKF only: the particle filter rejects the mixture).
+Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by `exp(σ v₁)`. A simulated draw is that mixture, `Poisson(μ exp(σz))`; it has no closed-form density, so the particle filter refuses it.
 
 <a id='ConfigurableEpi.RawMean'></a>
 <a id='ConfigurableEpi.RawMean-1'></a>
