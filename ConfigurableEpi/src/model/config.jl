@@ -1,4 +1,4 @@
-# TOML-backed run configuration: Configurations.jl `@option` types, read strictly with `from_toml`.
+# TOML-backed model and inference options: Configurations.jl `@option` types, read strictly with `from_toml`.
 
 # --- priors -----------------------------------------------------------------------------------
 
@@ -132,24 +132,10 @@ end
 
 const DayOfWeekConfig = Union{NoDayOfWeekConfig, PluginDayOfWeekConfig, LearnedDayOfWeekConfig}
 
-"""
-    CountInput()                                          # [input.counts]
-    PercentInput(; annual_rate_per_100)                   # [input.percent]
-
-The observation scale. `counts` are already on the model's count scale. `percent` observations
-are percentages of a denominator series (all visits, say) whose annual volume is
-`annual_rate_per_100` per 100 population; the runner converts them to counts with the location's
-population and the observation interval.
-"""
-@option "counts" struct CountInput end
-
-@option "percent" struct PercentInput
-    annual_rate_per_100::Float64
-end
-
-const InputConfig = Union{CountInput, PercentInput}
-
 # --- inference axis 1: the state filter -------------------------------------------------------
+
+"Supertype of the state-filter options, the `[filter.<name>]` axis."
+abstract type StateFilter end
 
 """
     UKF(; obs_jitter = 1.0)                               # [filter.ukf]
@@ -157,7 +143,7 @@ const InputConfig = Union{CountInput, PercentInput}
 Unscented Kalman filter. `obs_jitter` scales the accumulator process-noise whisker that keeps the
 smoother covariance full-rank.
 """
-@option "ukf" struct UKF
+@option "ukf" struct UKF <: StateFilter
     obs_jitter::Float64 = 1.0
 end
 
@@ -167,7 +153,7 @@ end
 Bootstrap particle filter. `threads` parallelises particle propagation; a seeded run reproduces
 exactly for a fixed thread count.
 """
-@option "pf" struct PF
+@option "pf" struct PF <: StateFilter
     n_particles::Int
     threads::Bool = true
 end
@@ -178,15 +164,19 @@ end
 Augmented ensemble Kalman filter. `inflation >= 1` multiplies the ensemble spread after each
 propagation; `threads` parallelises member propagation.
 """
-@option "enkf" struct EnKF
+@option "enkf" struct EnKF <: StateFilter
     n_ensemble::Int
     inflation::Float64 = 1.0
     threads::Bool = false
 end
 
-const StateFilter = Union{UKF, PF, EnKF}
+"The concrete filter options, for `@option` fields: Configurations.jl parses an aliased block into a `Union`."
+const StateFilterConfig = Union{UKF, PF, EnKF}
 
 # --- inference axis 2: hyperparameter inference -----------------------------------------------
+
+"Supertype of the hyperparameter-inference options, the `[hyper.<name>]` axis."
+abstract type HyperMethod end
 
 """
     Optimise(; reopt_interval = 1, maxiters = 50, maxiters_burnin = 300, window_length = nothing,
@@ -197,7 +187,7 @@ Maximise the filter's marginal log-posterior over data replays every `reopt_inte
 `maxiters` on warm-started ones. `window_length` scores only the most recent observations from a
 rolling filter checkpoint. `warm_start = false` restarts from the configured values each time.
 """
-@option "optimise" struct Optimise
+@option "optimise" struct Optimise <: HyperMethod
     reopt_interval::Int = 1
     maxiters::Int = 50
     maxiters_burnin::Int = 300
@@ -222,7 +212,7 @@ Learn static hyperparameters online in the particle cloud by the Liu-West shrink
 over the model's own defaults. `replay_on_revision` tells a backtest runner whether to rebuild the
 filter when already-assimilated data are revised.
 """
-@option "liu_west" struct LiuWest
+@option "liu_west" struct LiuWest <: HyperMethod
     discount::Float64 = 0.95
     jitter_floor_fraction::Float64 = DEFAULT_JITTER_FLOOR_FRACTION
     forgetting_memory_days::Dict{String, Float64} = Dict{String, Float64}()
@@ -238,7 +228,7 @@ inner filter replay. `burnin_iterations` at the first origin, `iterations` when 
 from the previous ensemble. `threads` parallelises candidate replays (not together with
 `filter.enkf.threads`).
 """
-@option "ekp" struct EKP
+@option "ekp" struct EKP <: HyperMethod
     n_ensemble::Int
     iterations::Int
     burnin_iterations::Int
@@ -249,7 +239,8 @@ from the previous ensemble. `threads` parallelises candidate replays (not togeth
     threads::Bool = false
 end
 
-const HyperMethod = Union{Optimise, LiuWest, EKP}
+"The concrete hyperparameter options, for `@option` fields."
+const HyperMethodConfig = Union{Optimise, LiuWest, EKP}
 
 """
     option_alias(x) -> String
@@ -258,52 +249,29 @@ The TOML alias of an `@option` value, e.g. `option_alias(UKF()) == "ukf"`.
 """
 option_alias(x) = Configurations.type_alias(typeof(x))
 
-# --- run config -------------------------------------------------------------------------------
+# --- inference config -------------------------------------------------------------------------
 
 """
-    RunIO(; data, model_id, forecast_df, loc, locations = String[])   # [io]
+    InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 2000,
+                    learn_params = String[], priors = Dict())
 
-Per-run I/O labels: the reporting-triangle `data` path, the `model_id` and `forecast_df` output
-labels, the run `loc`, and the ordered `locations` of a joint multi-location model.
+The settings of one inference run: the `[filter.<name>]` and
+`[hyper.<name>]` axes, the observation step and integration substeps, the forecast horizon and
+draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run
+script embeds it as one field of its own run config.
 """
-@option struct RunIO
-    data::String
-    model_id::String
-    forecast_df::String
-    loc::String
-    locations::Vector{String} = String[]
-end
-
-"""
-    RunConfig
-
-One run's TOML: the `[io]` block, the forecast horizon and draw count, the observation cadence
-(`step_days`, `burnin_observations`, `drop_recent_observations`), the `[input.<name>]` scale, the
-inference axes `[filter.<name>]` and `[hyper.<name>]`, the `[epi.<submodel>]` block (kept opaque
-for the submodel to parse with its own `@option` type) and `[priors]` overriding the submodel's
-defaults per key. `origin_mode` is `sequential`, `independent` or `forked` (PF + Liu-West only).
-"""
-@option struct RunConfig
-    io::RunIO
-    n_ahead::Int
-    n_draws::Int = 2000
+@option struct InferenceConfig
+    filter::StateFilterConfig
+    hyper::HyperMethodConfig
     step_days::Float64
     supersample::Int = 2
-    seed::Int = 1
-    burnin_observations::Int
-    drop_recent_observations::Int = 0
-    forecast_start::Union{Nothing, String} = nothing
-    origin_mode::String = "sequential"
+    n_ahead::Int
+    n_draws::Int = 2000
     learn_params::Vector{String} = String[]
-    input::InputConfig
-    filter::StateFilter
-    hyper::HyperMethod
-    epi::Dict{String, Any} = Dict{String, Any}()
     priors::Dict{String, PriorSpec} = Dict{String, PriorSpec}()
 end
 
 _require(ok::Bool, message) = ok || throw(ArgumentError(message))
-
 _validate(f::UKF) = (_require(f.obs_jitter > 0, "ukf.obs_jitter must be positive, got $(f.obs_jitter)"); f)
 _validate(f::PF) = (_require(f.n_particles > 0, "pf.n_particles must be positive, got $(f.n_particles)"); f)
 function _validate(f::EnKF)
@@ -337,54 +305,29 @@ end
 _validate_window(::Nothing) = nothing
 _validate_window(w::Integer) = _require(w > 0, "window_length must be positive when given, got $w")
 
-_validate(::CountInput) = nothing
-_validate(i::PercentInput) =
-    _require(isfinite(i.annual_rate_per_100) && i.annual_rate_per_100 > 0, "input.percent.annual_rate_per_100 must be finite and positive")
-
 """
-    validate_run_config(cfg::RunConfig) -> cfg
+    validate_inference_config(cfg::InferenceConfig) -> cfg
 
-Check what the schema cannot: a positive whole number of `step_days`, the cadence counts,
-`origin_mode`, the input scale and both inference axes.
+Check what the schema cannot: a positive whole number of `step_days`, positive counts and the
+options of both axes.
 """
-function validate_run_config(cfg::RunConfig)
+function validate_inference_config(cfg::InferenceConfig)
     _require(
         isfinite(cfg.step_days) && isinteger(cfg.step_days) && cfg.step_days > 0,
         "step_days must be a positive whole number of days, got $(cfg.step_days)",
     )
     _require(cfg.n_ahead >= 1 && cfg.n_draws >= 1 && cfg.supersample >= 1, "n_ahead, n_draws and supersample must be >= 1")
-    _require(cfg.burnin_observations >= 1, "burnin_observations must be >= 1, got $(cfg.burnin_observations)")
-    _require(cfg.drop_recent_observations >= 0, "drop_recent_observations must be non-negative")
-    _require(
-        cfg.origin_mode in ("sequential", "independent", "forked"),
-        "origin_mode must be sequential, independent or forked; got $(repr(cfg.origin_mode))",
-    )
-    _require(
-        cfg.origin_mode != "forked" || (cfg.filter isa PF && cfg.hyper isa LiuWest),
-        "origin_mode = forked carries a particle cloud between origins and requires [filter.pf] + [hyper.liu_west]",
-    )
-    _validate(cfg.input)
     _validate(cfg.filter)
     _validate(cfg.hyper)
     return cfg
 end
 
 """
-    submodel_name(cfg::RunConfig) -> String
+    resolve_prior_specs(cfg::InferenceConfig, default_priors) -> Dict{String, PriorSpec}
+    resolve_priors(cfg::InferenceConfig, default_priors) -> NamedTuple
 
-The single `[epi.<name>]` key.
+A model's `default_priors()` with the config's `[priors]` merged over them per key, as specs or
+as built distributions.
 """
-function submodel_name(cfg::RunConfig)
-    _require(length(cfg.epi) == 1, "run config needs exactly one [epi.<submodel>] block, got $(sort!(collect(keys(cfg.epi))))")
-    return only(keys(cfg.epi))
-end
-
-"""
-    resolve_prior_specs(cfg::RunConfig, default_priors) -> Dict{String, PriorSpec}
-    resolve_priors(cfg::RunConfig, default_priors) -> NamedTuple
-
-The submodel's `default_priors()` with the run config's `[priors]` merged over them per key, as
-specs or as built distributions.
-"""
-resolve_prior_specs(cfg::RunConfig, default_priors) = merge(default_priors(), cfg.priors)
-resolve_priors(cfg::RunConfig, default_priors) = build_priors(resolve_prior_specs(cfg, default_priors))
+resolve_prior_specs(cfg::InferenceConfig, default_priors) = merge(default_priors(), cfg.priors)
+resolve_priors(cfg::InferenceConfig, default_priors) = build_priors(resolve_prior_specs(cfg, default_priors))

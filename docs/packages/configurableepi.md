@@ -71,22 +71,14 @@ result.summary       # (parameter, statistic, value) estimates and diagnostics
 
 [Inference engines](../examples/inference_engines.md) runs all three engines on simulated data, and [Low-level filtering](../examples/low_level_filtering.md) wires the same building blocks into LowLevelParticleFilters directly.
 
-## Run configuration
+## Inference configuration
 
-A run can be configured from TOML: `build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` reads the engine pairing and cadence from the file.
+The engine pairing and its cadence can be read from TOML: `build_inference(validate_inference_config(from_toml(InferenceConfig, "inference.toml")), model)`.
 
 ```toml
 n_ahead = 4
 step_days = 7
-burnin_observations = 12
-
-[io]
-data = "triangle.csv"
-model_id = "seir"
-forecast_df = "forecast.csv"
-loc = "ny"
-
-[input.counts]
+learn_params = ["R0_baseline"]
 
 [filter.pf]
 n_particles = 2000
@@ -94,11 +86,23 @@ n_particles = 2000
 [hyper.liu_west]
 discount = 0.97
 
-[epi.basic_seir]  # parsed by the model's own @option type
+[priors.phi]
+mean = 50.0
+std = 10.0
 ```
 
-The `[filter.<name>]` and `[hyper.<name>]` tables select the engine (`ukf`, `pf`, `enkf`; `optimise`, `liu_west`, `ekp`) and set its options.
-`[input.counts]` or `[input.percent]` sets the observation scale, and `[priors]` overrides a model's default priors by name.
+The `[filter.<name>]` and `[hyper.<name>]` tables select the engine (`ukf`, `pf`, `enkf`; `optimise`, `liu_west`, `ekp`) and set its options, and `[priors]` overrides a model's default priors by name.
+
+`InferenceConfig` holds only what the package reads.
+Run settings such as data paths, the observation scale, burn-in and the forecast schedule belong to the run script, which embeds the config as one field of its own `@option` type:
+
+```julia
+@option struct MyRun
+    data::String
+    burnin_observations::Int
+    inference::InferenceConfig   # an [inference] table in the run's TOML
+end
+```
 
 ## Conventions
 
@@ -114,8 +118,8 @@ The `[filter.<name>]` and `[hyper.<name>]` tables select the engine (`ukf`, `pf`
 ```
 src/
   ConfigurableEpi.jl      module, imports, exports
-  config.jl               TOML-backed RunConfig and the @option types for both axes
-  model/                  everything that defines a model: priors, state layout, latent processes,
+  model/                  everything that defines a model: TOML-backed options and InferenceConfig,
+                          priors, state layout, latent processes,
                           dynamics, observation, seasonality, ascertainment, day-of-week effects,
                           initialisation, radiation mixing, and EpiModel itself
   inference/              the shared engine machinery (build_inference / fit_forecast!) and the

@@ -235,18 +235,18 @@ _require_full_range(update_range, T, what) = update_range == 1:T || throw(
 """
     build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, n_ahead, n_draws = 2000,
                     rng = Random.default_rng(), kwargs...) -> InferenceEngine
-    build_inference(cfg::RunConfig, model::EpiModel; rng = Random.default_rng())
+    build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng())
 
 Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](@ref) + [`Optimise`](@ref),
 [`PF`](@ref) + [`LiuWest`](@ref) or [`EnKF`](@ref) + [`EKP`](@ref). Drive it with
-[`fit_forecast!`](@ref). The `RunConfig` form reads `dt`, `supersample`, `n_ahead` and `n_draws`
-from the run config.
+[`fit_forecast!`](@ref). The [`InferenceConfig`](@ref) form takes the pairing, `dt = step_days`,
+`supersample`, `n_ahead` and `n_draws` from the config.
 """
 build_inference(filter::StateFilter, hyper::HyperMethod, ::EpiModel; kwargs...) = throw(
     ArgumentError("build_inference is not implemented for $(nameof(typeof(filter))) + $(nameof(typeof(hyper)))")
 )
 
-build_inference(cfg::RunConfig, model::EpiModel; rng = Random.default_rng()) = build_inference(
+build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng()) = build_inference(
     cfg.filter, cfg.hyper, model;
     dt = cfg.step_days, supersample = cfg.supersample, n_ahead = cfg.n_ahead, n_draws = cfg.n_draws, rng,
 )

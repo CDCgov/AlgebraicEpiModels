@@ -15,8 +15,8 @@ Three engines are supported, selected by two run-config axes:
 ```
 src/
   ConfigurableEpi.jl      module, imports, exports
-  config.jl               TOML-backed RunConfig and the @option types for both axes
   model/                  everything that defines a model
+    config.jl             TOML-backed @option types for both axes and InferenceConfig
     priors.jl             scalar EKP priors, ParameterPriorBundle
     layout.jl             StateLayout: where compartments, observation states and latents live
     processes.jl          AR1 / random-walk / integrated latents, ArrivalProcess, StochasticUpdate
@@ -66,29 +66,20 @@ result.fitted_means    # fitted observation means over the series
 result.summary         # (parameter, statistic, value) estimates and diagnostics
 ```
 
-With a run config, `build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` reads the axes and the cadence from the TOML:
+With an inference config, `build_inference(validate_inference_config(from_toml(InferenceConfig, "inference.toml")), model)` reads the axes and the cadence from the TOML:
 
 ```toml
 n_ahead = 4
 step_days = 7
-burnin_observations = 12
-
-[io]
-data = "triangle.csv"
-model_id = "seir"
-forecast_df = "forecast.csv"
-loc = "ny"
-
-[input.counts]
 
 [filter.pf]
 n_particles = 2000
 
 [hyper.liu_west]
 discount = 0.97
-
-[epi.basic_seir]          # parsed by the submodel's own @option type
 ```
+
+`InferenceConfig` holds only what the package reads; a run script keeps data paths, the observation scale and the forecast schedule in its own config and embeds `InferenceConfig` as one field.
 
 ## Conventions
 

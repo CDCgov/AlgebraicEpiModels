@@ -276,21 +276,19 @@ estimate(df, name, statistic = "estimate") =
             @test warm.hyperparams.R0_baseline == estimate(second.summary, "R0_baseline")
         end
 
-        @testset "custom optimiser schedule and the RunConfig form" begin
+        @testset "custom optimiser schedule and the InferenceConfig form" begin
             single_stage = build_inference(
                 UKF(), Optimise(maxiters = 3, maxiters_burnin = 3), model; ukf_kwargs..., optimiser = CE.LBFGS(),
             )
             @test isfinite(estimate(fit_forecast!(single_stage, counts3, 1).summary, "R0_baseline"))
             cfg = from_dict(
-                RunConfig, Dict(
-                    "io" => Dict("data" => "d", "model_id" => "m", "forecast_df" => "f.csv", "loc" => "ny"),
-                    "n_ahead" => 2, "step_days" => 1, "supersample" => 1, "burnin_observations" => 2, "n_draws" => 7,
-                    "input" => Dict("counts" => Dict{String, Any}()), "filter" => Dict("ukf" => Dict{String, Any}()),
+                InferenceConfig, Dict(
+                    "n_ahead" => 2, "step_days" => 1, "supersample" => 1, "n_draws" => 7,
+                    "filter" => Dict("ukf" => Dict{String, Any}()),
                     "hyper" => Dict("optimise" => Dict("maxiters" => 1, "maxiters_burnin" => 1)),
-                    "epi" => Dict("mock" => Dict{String, Any}()),
                 ),
             )
-            from_cfg = build_inference(validate_run_config(cfg), model)
+            from_cfg = build_inference(validate_inference_config(cfg), model)
             @test from_cfg isa UKFOptimiseEngine
             @test (from_cfg.settings.dt, from_cfg.settings.supersample, from_cfg.settings.n_ahead, from_cfg.settings.n_draws) == (1.0, 1, 2, 7)
         end

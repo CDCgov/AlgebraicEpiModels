@@ -11,10 +11,9 @@ Reference for the exported API of `ConfigurableEpi`, generated from docstrings a
 ConfigurableEpi
 ```
 
-Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Four layers:
+Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Three layers:
 
-- `config.jl`: the TOML-backed `RunConfig` and the two inference axes (`filter` × `hyper`).
-- `model/`: everything that defines a model — priors, latent processes, the state layout, vector fields, the observation model, seasonality, ascertainment, weekday effects, initialisation — grouped into an [`EpiModel`](configurableepi.md#ConfigurableEpi.EpiModel).
+- `model/`: everything that defines a model — the TOML-backed options and [`InferenceConfig`](configurableepi.md#ConfigurableEpi.InferenceConfig), priors, latent processes, the state layout, vector fields, the observation model, seasonality, ascertainment, weekday effects, initialisation — grouped into an [`EpiModel`](configurableepi.md#ConfigurableEpi.EpiModel).
 - `inference/`: the three engines built by [`build_inference`](configurableepi.md#ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}) and driven by [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!): UKF + Optimise, PF + Liu-West, EnKF + EKP.
 - `output/`: forecast rolls, quantiles, backtest tables, routine sample output and data linkage.
 
@@ -31,16 +30,17 @@ DEFAULT_JITTER_FLOOR_FRACTION
 
 Minimum Liu-West jitter variance per parameter as a fraction of the prior's unconstrained variance, so a collapsed cloud can re-expand rather than freeze.
 
-<a id='ConfigurableEpi.CountInput'></a>
-<a id='ConfigurableEpi.CountInput-1'></a>
-**`ConfigurableEpi.CountInput`** &mdash; *Type*.
+<a id='ConfigurableEpi.HyperMethodConfig'></a>
+<a id='ConfigurableEpi.HyperMethodConfig-1'></a>
+**`ConfigurableEpi.HyperMethodConfig`** &mdash; *Type*.
 
-```julia
-CountInput()                                          # [input.counts]
-PercentInput(; annual_rate_per_100)                   # [input.percent]
-```
+The concrete hyperparameter options, for `@option` fields.
 
-The observation scale. `counts` are already on the model's count scale. `percent` observations are percentages of a denominator series (all visits, say) whose annual volume is `annual_rate_per_100` per 100 population; the runner converts them to counts with the location's population and the observation interval.
+<a id='ConfigurableEpi.StateFilterConfig'></a>
+<a id='ConfigurableEpi.StateFilterConfig-1'></a>
+**`ConfigurableEpi.StateFilterConfig`** &mdash; *Type*.
+
+The concrete filter options, for `@option` fields: Configurations.jl parses an aliased block into a `Union`.
 
 <a id='ConfigurableEpi.Durations'></a>
 <a id='ConfigurableEpi.Durations-1'></a>
@@ -72,6 +72,23 @@ EnKF(; n_ensemble, inflation = 1.0, threads = false)  # [filter.enkf]
 ```
 
 Augmented ensemble Kalman filter. `inflation >= 1` multiplies the ensemble spread after each propagation; `threads` parallelises member propagation.
+
+<a id='ConfigurableEpi.HyperMethod'></a>
+<a id='ConfigurableEpi.HyperMethod-1'></a>
+**`ConfigurableEpi.HyperMethod`** &mdash; *Type*.
+
+Supertype of the hyperparameter-inference options, the `[hyper.<name>]` axis.
+
+<a id='ConfigurableEpi.InferenceConfig'></a>
+<a id='ConfigurableEpi.InferenceConfig-1'></a>
+**`ConfigurableEpi.InferenceConfig`** &mdash; *Type*.
+
+```julia
+InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 2000,
+                learn_params = String[], priors = Dict())
+```
+
+The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the observation step and integration substeps, the forecast horizon and draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of its own run config.
 
 <a id='ConfigurableEpi.LiuWest'></a>
 <a id='ConfigurableEpi.LiuWest-1'></a>
@@ -125,27 +142,7 @@ Bootstrap particle filter. `threads` parallelises particle propagation; a seeded
 PriorSpec(; mean, std, constraint = "positive")
 ```
 
-One parameter's prior as written in TOML; `constraint` is `positive`, `unit_interval` or `unconstrained`. `build_prior` turns it into an EKP `ParameterDistribution`.
-
-<a id='ConfigurableEpi.RunConfig'></a>
-<a id='ConfigurableEpi.RunConfig-1'></a>
-**`ConfigurableEpi.RunConfig`** &mdash; *Type*.
-
-```julia
-RunConfig
-```
-
-One run's TOML: the `[io]` block, the forecast horizon and draw count, the observation cadence (`step_days`, `burnin_observations`, `drop_recent_observations`), the `[input.<name>]` scale, the inference axes `[filter.<name>]` and `[hyper.<name>]`, the `[epi.<submodel>]` block (kept opaque for the submodel to parse with its own `@option` type) and `[priors]` overriding the submodel's defaults per key. `origin_mode` is `sequential`, `independent` or `forked` (PF + Liu-West only).
-
-<a id='ConfigurableEpi.RunIO'></a>
-<a id='ConfigurableEpi.RunIO-1'></a>
-**`ConfigurableEpi.RunIO`** &mdash; *Type*.
-
-```julia
-RunIO(; data, model_id, forecast_df, loc, locations = String[])   # [io]
-```
-
-Per-run I/O labels: the reporting-triangle `data` path, the `model_id` and `forecast_df` output labels, the run `loc`, and the ordered `locations` of a joint multi-location model.
+One parameter's prior as written in TOML; `constraint` is `positive`, `unit_interval` or `unconstrained`. [`build_prior`](configurableepi.md#ConfigurableEpi.build_prior-Tuple{Any, PriorSpec}) turns it into an EKP `ParameterDistribution`.
 
 <a id='ConfigurableEpi.SeasonalityConfig'></a>
 <a id='ConfigurableEpi.SeasonalityConfig-1'></a>
@@ -157,6 +154,12 @@ SeasonalityConfig(; mode = "indoor_activity", kappa = 0.8, fallback = "us")
 
 Transmission seasonality: `mode` is `indoor_activity` (empirical location curve scaled by `kappa ∈ [0, 1]`, the seasonally forced share of transmission), `cosine` (learned annual harmonic) or `none`. `fallback` (`us`, `none`, `error`) covers a location the climatology lacks.
 
+<a id='ConfigurableEpi.StateFilter'></a>
+<a id='ConfigurableEpi.StateFilter-1'></a>
+**`ConfigurableEpi.StateFilter`** &mdash; *Type*.
+
+Supertype of the state-filter options, the `[filter.<name>]` axis.
+
 <a id='ConfigurableEpi.UKF'></a>
 <a id='ConfigurableEpi.UKF-1'></a>
 **`ConfigurableEpi.UKF`** &mdash; *Type*.
@@ -166,6 +169,16 @@ UKF(; obs_jitter = 1.0)                               # [filter.ukf]
 ```
 
 Unscented Kalman filter. `obs_jitter` scales the accumulator process-noise whisker that keeps the smoother covariance full-rank.
+
+<a id='ConfigurableEpi.build_prior-Tuple{Any, PriorSpec}'></a>
+<a id='ConfigurableEpi.build_prior-Tuple{Any, PriorSpec}-1'></a>
+**`ConfigurableEpi.build_prior`** &mdash; *Method*.
+
+```julia
+build_prior(name, spec::PriorSpec) -> ParameterDistribution
+```
+
+Build one scalar EKP prior from its TOML-backed specification.
 
 <a id='ConfigurableEpi.build_priors-Tuple{Any}'></a>
 <a id='ConfigurableEpi.build_priors-Tuple{Any}-1'></a>
@@ -218,36 +231,26 @@ prior_upper(spec::PriorSpec; probability = 0.99) -> Float64
 
 Upper quantile of a prior on its constrained scale (moment-matched lognormal for `positive`).
 
-<a id='ConfigurableEpi.resolve_prior_specs-Tuple{RunConfig, Any}'></a>
-<a id='ConfigurableEpi.resolve_prior_specs-Tuple{RunConfig, Any}-1'></a>
+<a id='ConfigurableEpi.resolve_prior_specs-Tuple{InferenceConfig, Any}'></a>
+<a id='ConfigurableEpi.resolve_prior_specs-Tuple{InferenceConfig, Any}-1'></a>
 **`ConfigurableEpi.resolve_prior_specs`** &mdash; *Method*.
 
 ```julia
-resolve_prior_specs(cfg::RunConfig, default_priors) -> Dict{String, PriorSpec}
-resolve_priors(cfg::RunConfig, default_priors) -> NamedTuple
+resolve_prior_specs(cfg::InferenceConfig, default_priors) -> Dict{String, PriorSpec}
+resolve_priors(cfg::InferenceConfig, default_priors) -> NamedTuple
 ```
 
-The submodel's `default_priors()` with the run config's `[priors]` merged over them per key, as specs or as built distributions.
+A model's `default_priors()` with the config's `[priors]` merged over them per key, as specs or as built distributions.
 
-<a id='ConfigurableEpi.submodel_name-Tuple{RunConfig}'></a>
-<a id='ConfigurableEpi.submodel_name-Tuple{RunConfig}-1'></a>
-**`ConfigurableEpi.submodel_name`** &mdash; *Method*.
+<a id='ConfigurableEpi.validate_inference_config-Tuple{InferenceConfig}'></a>
+<a id='ConfigurableEpi.validate_inference_config-Tuple{InferenceConfig}-1'></a>
+**`ConfigurableEpi.validate_inference_config`** &mdash; *Method*.
 
 ```julia
-submodel_name(cfg::RunConfig) -> String
+validate_inference_config(cfg::InferenceConfig) -> cfg
 ```
 
-The single `[epi.<name>]` key.
-
-<a id='ConfigurableEpi.validate_run_config-Tuple{RunConfig}'></a>
-<a id='ConfigurableEpi.validate_run_config-Tuple{RunConfig}-1'></a>
-**`ConfigurableEpi.validate_run_config`** &mdash; *Method*.
-
-```julia
-validate_run_config(cfg::RunConfig) -> cfg
-```
-
-Check what the schema cannot: a positive whole number of `step_days`, the cadence counts, `origin_mode`, the input scale and both inference axes.
+Check what the schema cannot: a positive whole number of `step_days`, positive counts and the options of both axes.
 
 
 ## Model {#Model}
@@ -261,7 +264,27 @@ ParameterPriorBundle(priors::NamedTuple)
 ParameterPriorBundle(priors::ParameterDistribution...)
 ```
 
-Ordered scalar priors combined into one EKP distribution. `constrained_values`, `unconstrained_values` and `prior_logpdf` map between the optimiser's unconstrained vector and constrained `NamedTuple`s. NamedTuple keys must equal the prior names.
+Ordered scalar priors combined into one EKP distribution. [`constrained_values`](configurableepi.md#ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}), [`unconstrained_values`](configurableepi.md#ConfigurableEpi.unconstrained_values-Tuple{ParameterPriorBundle, NamedTuple}) and [`prior_logpdf`](configurableepi.md#ConfigurableEpi.prior_logpdf-Tuple{ParameterPriorBundle, AbstractVector}) map between the optimiser's unconstrained vector and constrained `NamedTuple`s. NamedTuple keys must equal the prior names.
+
+<a id='ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}'></a>
+<a id='ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}-1'></a>
+**`ConfigurableEpi.constrained_values`** &mdash; *Method*.
+
+```julia
+constrained_values(bundle, unconstrained) -> NamedTuple
+```
+
+Transform an unconstrained optimiser vector to named values on their model scales.
+
+<a id='ConfigurableEpi.prior_logpdf-Tuple{ParameterPriorBundle, AbstractVector}'></a>
+<a id='ConfigurableEpi.prior_logpdf-Tuple{ParameterPriorBundle, AbstractVector}-1'></a>
+**`ConfigurableEpi.prior_logpdf`** &mdash; *Method*.
+
+```julia
+prior_logpdf(bundle, unconstrained) -> Real
+```
+
+Evaluate the combined prior density in the optimiser's unconstrained coordinates.
 
 <a id='ConfigurableEpi.prior_name-Tuple{ParameterDistribution}'></a>
 <a id='ConfigurableEpi.prior_name-Tuple{ParameterDistribution}-1'></a>
@@ -295,6 +318,16 @@ unit_interval_gaussian(name, mean, sd)
 ```
 
 Scalar EKP `constrained_gaussian` priors on `(-Inf, Inf)`, `(0, Inf)` and `(0, 1)`.
+
+<a id='ConfigurableEpi.unconstrained_values-Tuple{ParameterPriorBundle, NamedTuple}'></a>
+<a id='ConfigurableEpi.unconstrained_values-Tuple{ParameterPriorBundle, NamedTuple}-1'></a>
+**`ConfigurableEpi.unconstrained_values`** &mdash; *Method*.
+
+```julia
+unconstrained_values(bundle, constrained) -> Vector
+```
+
+Transform named model-scale parameter values to the optimiser's unconstrained coordinates.
 
 <a id='ConfigurableEpi.StateLayout'></a>
 <a id='ConfigurableEpi.StateLayout-1'></a>
@@ -550,6 +583,17 @@ Out-of-place form of the Petri vector field for `SeeToDee.Rk4`, naming the ODE s
 make_lvector_constructor(names) -> x -> LArray{names}(collect(x))
 ```
 
+<a id='ConfigurableEpi.AggregatedSignalSpec'></a>
+<a id='ConfigurableEpi.AggregatedSignalSpec-1'></a>
+**`ConfigurableEpi.AggregatedSignalSpec`** &mdash; *Type*.
+
+```julia
+AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
+AggregatedSignalSpec(noise; ...) # the sum of every signal
+```
+
+One observation formed by summing several signal reset accumulators. Its mean is `raw * mean_modifier + baseline`, with the same modifier and baseline conventions as [`SignalObservationSpec`](configurableepi.md#ConfigurableEpi.SignalObservationSpec).
+
 <a id='ConfigurableEpi.LogNormalNoise'></a>
 <a id='ConfigurableEpi.LogNormalNoise-1'></a>
 **`ConfigurableEpi.LogNormalNoise`** &mdash; *Type*.
@@ -586,11 +630,9 @@ Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first
 
 ```julia
 SignalObservationSpec(signal_idx, noise; mean_modifier = nothing, baseline = nothing, name)
-AggregatedSignalSpec(signal_indices, noise; mean_modifier = nothing, baseline = nothing, name)
-AggregatedSignalSpec(noise; ...)                       # the sum of every signal
 ```
 
-One observation: a signal's reset accumulator, or the sum over several. Its mean is `raw * mean_modifier + baseline`, where each of the two is `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say).
+One observation from a signal's reset accumulator. Its mean is `raw * mean_modifier + baseline`, where each of the two is `nothing`, a `Real` or a function `(latent, hyper, t) -> Real` (an [`AscertainmentPath`](configurableepi.md#ConfigurableEpi.AscertainmentPath), say).
 
 <a id='ConfigurableEpi.apply_noise-Tuple{NegBinomialNoise, Vararg{Any, 5}}'></a>
 <a id='ConfigurableEpi.apply_noise-Tuple{NegBinomialNoise, Vararg{Any, 5}}-1'></a>
@@ -999,8 +1041,8 @@ The weekday factor alone at observation time `t`; `true` for a modifier without 
 
 Prior sd of each Helmert coordinate that gives every centred weekday log-effect marginal sd `sd`.
 
-<a id='ConfigurableEpi.estimate_day_of_week_effects-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Real}}'></a>
-<a id='ConfigurableEpi.estimate_day_of_week_effects-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Real}}-1'></a>
+<a id='ConfigurableEpi.estimate_day_of_week_effects-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Union{Missing, Real}}}'></a>
+<a id='ConfigurableEpi.estimate_day_of_week_effects-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Union{Missing, Real}}}-1'></a>
 **`ConfigurableEpi.estimate_day_of_week_effects`** &mdash; *Method*.
 
 ```julia
@@ -1008,17 +1050,17 @@ estimate_day_of_week_effects(dates, counts; phi, window_days = 182, exclude_rece
                              min_weeks = 4) -> (; weights, extra_var, fallback, n_used)
 ```
 
-Multiplicative weekday decomposition of a gap-free daily series against a leave-one-out centred weekly baseline: weights `w_d = 7 q_d / (6 + q_d)` from the ratio of sums `q_d = Σy / Σb`, normalised to mean 1, and per-weekday extra variance `s_d²` after removing the Poisson/NB sampling variance of the counts and of the baseline. Falls back to no effect (with a warning) when any weekday has fewer than `min_weeks` usable days.
+Multiplicative weekday decomposition of a daily series against a leave-one-out centred weekly baseline: weights `w_d = 7 q_d / (6 + q_d)` from the ratio of sums `q_d = Σy / Σb`, normalised to mean 1, and per-weekday extra variance `s_d²` after removing the Poisson/NB sampling variance of the counts and of the baseline. `dates` is the complete daily grid; a day with no report is a `missing` count, and only centres whose whole leave-one-out week is observed are used. Falls back to no effect (with a warning) when any weekday has fewer than `min_weeks` usable days.
 
-<a id='ConfigurableEpi.prepare_day_of_week_history-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Real}, Dates.Date}'></a>
-<a id='ConfigurableEpi.prepare_day_of_week_history-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Real}, Dates.Date}-1'></a>
+<a id='ConfigurableEpi.prepare_day_of_week_history-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Union{Missing, Real}}, Dates.Date}'></a>
+<a id='ConfigurableEpi.prepare_day_of_week_history-Tuple{AbstractVector{Dates.Date}, AbstractVector{<:Union{Missing, Real}}, Dates.Date}-1'></a>
 **`ConfigurableEpi.prepare_day_of_week_history`** &mdash; *Method*.
 
 ```julia
 prepare_day_of_week_history(dates, counts, report_date) -> (; dates, counts)
 ```
 
-Check one daily as-of series ends on `report_date - 1` and is gap-free, and drop its final observation (the model's history contract).
+Check one daily as-of series ends on `report_date - 1` and is a gap-free daily grid (a day with no report is a `missing` count), and drop its final slot (the model's history contract).
 
 <a id='ConfigurableEpi.remove_day_of_week_effect-Tuple{Any, Any, Any}'></a>
 <a id='ConfigurableEpi.remove_day_of_week_effect-Tuple{Any, Any, Any}-1'></a>
@@ -1241,10 +1283,10 @@ The run-level numbers every engine shares: the observation interval in days, RK4
 ```julia
 build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, n_ahead, n_draws = 2000,
                 rng = Random.default_rng(), kwargs...) -> InferenceEngine
-build_inference(cfg::RunConfig, model::EpiModel; rng = Random.default_rng())
+build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng())
 ```
 
-Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](configurableepi.md#ConfigurableEpi.UKF) + [`Optimise`](configurableepi.md#ConfigurableEpi.Optimise), [`PF`](configurableepi.md#ConfigurableEpi.PF) + [`LiuWest`](configurableepi.md#ConfigurableEpi.LiuWest) or [`EnKF`](configurableepi.md#ConfigurableEpi.EnKF) + [`EKP`](configurableepi.md#ConfigurableEpi.EKP). Drive it with [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!). The `RunConfig` form reads `dt`, `supersample`, `n_ahead` and `n_draws` from the run config.
+Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](configurableepi.md#ConfigurableEpi.UKF) + [`Optimise`](configurableepi.md#ConfigurableEpi.Optimise), [`PF`](configurableepi.md#ConfigurableEpi.PF) + [`LiuWest`](configurableepi.md#ConfigurableEpi.LiuWest) or [`EnKF`](configurableepi.md#ConfigurableEpi.EnKF) + [`EKP`](configurableepi.md#ConfigurableEpi.EKP). Drive it with [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!). The [`InferenceConfig`](configurableepi.md#ConfigurableEpi.InferenceConfig) form takes the pairing, `dt = step_days`, `supersample`, `n_ahead` and `n_draws` from the config.
 
 <a id='ConfigurableEpi.fit_forecast!'></a>
 <a id='ConfigurableEpi.fit_forecast!-1'></a>
@@ -1557,6 +1599,17 @@ pivot_to_wide(df, link::DataLink) -> DataFrame
 ```
 
 Wide frame with the time column followed by one column per schema name, sorted by time. A wide input is validated and sorted; a long one is unstacked on `link.pivot_column`.
+
+<a id='ConfigurableEpi.reindex_to_grid-Tuple{DataFrames.DataFrame, Integer}'></a>
+<a id='ConfigurableEpi.reindex_to_grid-Tuple{DataFrames.DataFrame, Integer}-1'></a>
+**`ConfigurableEpi.reindex_to_grid`** &mdash; *Method*.
+
+```julia
+reindex_to_grid(df, step_days; date_col = :date, start = nothing, stop = nothing,
+                value_cols = (:counts,)) -> DataFrame
+```
+
+One row per grid date `start:Day(step_days):stop` (the first and last dates of `df` by default): the regular `step_days` grid the engines read ([`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) takes one entry per slot). A row of `df` keeps its `value_cols` at its slot; a grid date `df` lacks gets `missing` in every value column, the predict-only slot the filter advances through without correcting. A reporting gap is therefore stepped through slot by slot instead of being closed up into one step, which is what keeps model time on the calendar. `df` must be strictly increasing in `date_col` with every date on the grid; other columns are dropped.
 
 <a id='ConfigurableEpi.require_complete_grid-Union{Tuple{N}, Tuple{DataFrames.DataFrame, DataLink{N}}} where N'></a>
 <a id='ConfigurableEpi.require_complete_grid-Union{Tuple{N}, Tuple{DataFrames.DataFrame, DataLink{N}}} where N-1'></a>
