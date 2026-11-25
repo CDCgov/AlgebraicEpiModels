@@ -57,6 +57,7 @@ end
     @test chain_stage_seed(3.0, 0.1, 1.0, 3)[3] ≈ 3.0 / 1.1 * (1 / 1.1)^2
     @test issorted(chain_stage_seed(3.0, 0.1, 1.0, 5); rev = true)
     @test isempty(chain_stage_seed(3.0, 0.1, 1.0, 0))
+    @test isempty(chain_stage_seed(3.0, -1.0, 1.0, 0))   # an empty chain constrains no decline
     @test_throws ArgumentError chain_stage_seed(3.0, -1.0, 1.0, 2)
     @test_throws ArgumentError chain_stage_seed(3.0, 0.0, 0.0, 2)
     @test_throws ArgumentError chain_stage_seed(3.0, 0.0, 1.0, -1)
@@ -102,6 +103,17 @@ end
     @test staged.observation == chain_stage_seed(staged.infection_rate, g, rho, 2)
     @test staged.exposed == chain_stage_seed(staged.infection_rate, g, 2 / dur.latent, 2)
 
+    # A decline faster than a slow reporting chain allows is fine when there is no chain to fill.
+    falling = (times = [-21.0, -14.0, -7.0], counts = 80 .* exp.(-0.08 .* [0.0, 7.0, 14.0]))
+    slow_chain(n_obs) = SeedContext(;
+        durations = Durations(obs_progression = 20.0), population = 10_000.0, bin_days = 7.0, ascertainment = 0.2,
+        history = falling, n_obs,
+    )
+    declining = initial_seed(cfg, slow_chain(1))
+    @test declining.growth_rate ≈ -0.08
+    @test isempty(declining.observation)
+    @test_throws ArgumentError initial_seed(cfg, slow_chain(2))
+
     @test_throws ArgumentError initial_seed(cfg, context((times = [0.0], counts = [10.0]); population = 100.0, bin_days = 7.0))
     @test_throws ArgumentError initial_seed(cfg, context((times = [-14.0, -10.0], counts = [1.0, 1.0]); population = 100.0, bin_days = 7.0))
     @test_throws ArgumentError initial_seed(cfg, context((times = [-10.0, -20.0], counts = [1.0, 1.0]); population = 100.0, bin_days = 7.0))
@@ -124,7 +136,8 @@ end
     @test only(at_start.infectious) ≈ recon.infectious
     @test at_start.observation ≈ fill(recon.obs_stage, 3)
     @test at_start.infection_rate ≈ recon.daily_incidence
-    @test at_start.growth_rate == 0 && at_start.first_observation_accumulator == 0
+    @test at_start.growth_rate == 0
+    @test at_start.first_observation_accumulator ≈ 14.0 / 0.005
 
     from_history = initial_seed(PeakFromHistoryInitialisation(), context(; history))
     anchor = peak_anchored_susceptible_fraction(history, dur, 4, 0.005, 1.0e6, 7.0, Returns(1.0), 2.0)

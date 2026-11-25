@@ -1315,7 +1315,7 @@ Integrate `ds/dt = omega (1 - s) - i(t)` from the anchor to the target time (mid
 chain_stage_seed(inflow, growth_rate, rate, n_stages) -> Vector{Float64}
 ```
 
-Occupancy of an `n_stages` Erlang chain progressing at `rate` and fed by `inflow · exp(g t)` for all `t ≤ 0`: stage `k` holds `inflow / (rate + g) · (rate / (rate + g))^(k − 1)`, which at `g = 0` is the quasi-steady fill `inflow / rate`.
+Occupancy of an `n_stages` Erlang chain progressing at `rate` and fed by `inflow · exp(g t)` for all `t ≤ 0`: stage `k` holds `inflow / (rate + g) · (rate / (rate + g))^(k − 1)`, which at `g = 0` is the quasi-steady fill `inflow / rate`. An empty chain constrains nothing.
 
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}'></a>
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}-1'></a>
@@ -1348,7 +1348,7 @@ initial_seed(strategy::InitialisationStrategy, ctx::SeedContext) -> NamedTuple
 
 The state at `t = 0` as fractions and stage fills: `susceptible_fraction`, the stage occupancies `exposed`, `infectious` and `observation` (the in-transit reporting stages), `first_observation_accumulator`, and the infection stream `infection_rate · exp(growth_rate t)` they were filled from, which seeds any further chain through [`chain_stage_seed`](configurableepi.md#ConfigurableEpi.chain_stage_seed-Tuple{Real, Real, Real, Integer}).
 
-The peak strategies invert `first_count` into a flat stream. `SlowModeInitialisation` fits the stream to the last three bins of a history that ends before `t = 0`, and also returns `susceptible_variance` and the terms of its susceptible fraction, `boundary_survival` and `kernel`. `PeakFromHistoryInitialisation` also returns its `anchor`.
+The peak strategies invert `first_count` into a flat stream and prime the accumulator with that count's infections. `SlowModeInitialisation` fits the stream to the last three bins of a history that ends before `t = 0`, primes the accumulator with the extrapolated bin before it, and also returns `susceptible_variance` and the terms of its susceptible fraction, `boundary_survival` and `kernel`. `PeakFromHistoryInitialisation` also returns its `anchor`.
 
 <a id='ConfigurableEpi.max_transition_rate-Tuple{IntegrationBounds}'></a>
 <a id='ConfigurableEpi.max_transition_rate-Tuple{IntegrationBounds}-1'></a>

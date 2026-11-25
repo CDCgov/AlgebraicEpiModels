@@ -226,10 +226,11 @@ end
 
 Occupancy of an `n_stages` Erlang chain progressing at `rate` and fed by `inflow · exp(g t)` for
 all `t ≤ 0`: stage `k` holds `inflow / (rate + g) · (rate / (rate + g))^(k − 1)`, which at `g = 0`
-is the quasi-steady fill `inflow / rate`.
+is the quasi-steady fill `inflow / rate`. An empty chain constrains nothing.
 """
 function chain_stage_seed(inflow::Real, growth_rate::Real, rate::Real, n_stages::Integer)
     n_stages >= 0 || throw(ArgumentError("n_stages must be non-negative, got $n_stages"))
+    n_stages == 0 && return Float64[]
     isfinite(rate) && rate > 0 || throw(ArgumentError("the stage rate must be finite and positive, got $rate"))
     growth_rate > -rate ||
         throw(ArgumentError("a decline at rate $(-growth_rate) is too fast for a chain progressing at $rate"))
@@ -277,8 +278,9 @@ The state at `t = 0` as fractions and stage fills: `susceptible_fraction`, the s
 `first_observation_accumulator`, and the infection stream `infection_rate · exp(growth_rate t)`
 they were filled from, which seeds any further chain through [`chain_stage_seed`](@ref).
 
-The peak strategies invert `first_count` into a flat stream. `SlowModeInitialisation` fits the
-stream to the last three bins of a history that ends before `t = 0`, and also returns
+The peak strategies invert `first_count` into a flat stream and prime the accumulator with that
+count's infections. `SlowModeInitialisation` fits the stream to the last three bins of a history
+that ends before `t = 0`, primes the accumulator with the extrapolated bin before it, and also returns
 `susceptible_variance` and the terms of its susceptible fraction, `boundary_survival` and `kernel`.
 `PeakFromHistoryInitialisation` also returns its `anchor`.
 """
@@ -359,9 +361,10 @@ function _stream_seed(ctx::SeedContext, infection_rate, g, first_observation_acc
     return (; exposed, infectious, observation, first_observation_accumulator, infection_rate, growth_rate = g)
 end
 
-# The peak strategies' flat stream: `first_count` inverted into a daily infection rate.
+# The peak strategies' flat stream: `first_count` inverted into a daily infection rate. The first
+# correction precedes a predict step, so the accumulator holds that count's infections.
 function _count_seed(ctx::SeedContext)
     count = _seed_input(ctx.first_count, :first_count)
     incidence = initial_infection_state(count, ctx.durations, _ascertainment_at(ctx.ascertainment, 0.0), ctx.bin_days).daily_incidence
-    return _stream_seed(ctx, incidence, 0.0, 0.0)
+    return _stream_seed(ctx, incidence, 0.0, incidence * ctx.bin_days)
 end
