@@ -3,7 +3,7 @@ using ConfigurableEpi
 using DataFramesMeta: DataFrame, names
 using Dates: Date, Day
 using LinearAlgebra: BLAS, I, diag
-using Distributions: MvNormal, NegativeBinomial, Normal, quantile
+using Distributions: MvNormal, NegativeBinomial
 using LowLevelParticleFilters: AdvancedParticleFilter, UnscentedKalmanFilter, forward_trajectory,
     TrivialParams, correct!, covariance, expweights, index, particles, predict!, reset!, state, weights
 using StaticArrays: SVector
@@ -103,16 +103,16 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError build_inference(PF(n_particles = 0), LiuWest(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 0.0, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = Inf, n_ahead = 2)
-        # The analytic UKF forecast reads the accumulator, so it refuses any other raw mean.
+        # The sampled UKF forecast simulates any observation kind.
         observed(spec) = EpiModel(;
             vectorfield! = mock_inference_vf!, layout, stochastic, observation = (spec,),
             hyperparams = base_hyperparams, priors = (R0_baseline = r0_prior,), initial_state = x0_state,
         )
         nb = NegBinomialNoise(phi = 50.0)
         for spec in (WeightedStateSpec([:I], [1.0], nb), LatentObservationSpec((l, h, t) -> 5.0, nb; name = :latent))
-            @test_throws ArgumentError build_inference(UKF(), Optimise(), observed(spec); ukf_kwargs...)
+            e = build_inference(UKF(), Optimise(maxiters = 1, maxiters_burnin = 1), observed(spec); ukf_kwargs..., n_draws = 20)
+            @test size(fit_forecast!(e, counts3, 1).samples) == (2, 20)
         end
-        @test build_inference(UKF(), Optimise(), observed(AggregatedSignalSpec(nb)); ukf_kwargs...) isa UKFOptimiseEngine
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, supersample = 0, n_ahead = 2)
         @test_throws ArgumentError build_inference(UKF(), Optimise(), model; dt = 1.0, n_ahead = 0)
         unsupported = try
@@ -286,7 +286,8 @@ estimate(df, name, statistic = "estimate") =
         @test size(result.quantiles) == (2, length(DEFAULT_QS))
         @test all(issorted(result.quantiles[h, :]) for h in axes(result.quantiles, 1))
         @test length(result.fitted_means) == 3
-        @test result.samples === nothing
+        @test size(result.samples) == (2, 2000)
+        @test forecast_quantiles(result.samples) == result.quantiles
         @test names(result.summary) == ["parameter", "statistic", "value"]
         @test engine.hyperparams.R0_baseline == estimate(result.summary, "R0_baseline")
         @test engine.filter.p.R0_baseline == engine.hyperparams.R0_baseline
@@ -747,6 +748,7 @@ end
         priors = (R0_baseline = positive_gaussian(:R0_baseline, 1.5, 0.4),), initial_state = x0_state,
     )
     engine = build_inference(UKF(), Optimise(reopt_interval = 100, maxiters = 1, maxiters_burnin = 1), model; dt, supersample = 1, n_ahead = 2)
+    forecast_seed = rand(copy(engine.rng_forecast), UInt64)
     result = fit_forecast!(engine, counts4, 1)
 
     # Replay the same deterministic filter at the fitted parameters.
@@ -761,14 +763,18 @@ end
     @test result.fitted_means ≈ through_spec
     @test !(result.fitted_means ≈ [max(solution.xt[k][acc], 0.0) * hp.ascertainment for k in 1:4])
 
-    means, covs = forecast_states(kf, solution.xt[end], CE._symmetrize_covariance(solution.Rt[end]); n_ahead = 2, t0 = 3 * dt, dt, p = hp)
-    for h in 1:2
-        m = observation_gaussian_moments(spec, means[h][acc], covs[h][acc, acc], stochastic.extract(means[h]), hp, 3 * dt + h * dt)
-        sd = sqrt(max(m.var, 1.0e-12))
-        @test result.quantiles[h, 4] ≈ max(0.0, quantile(Normal(m.mean, sd), 0.5))
-        @test result.quantiles[h, 7] ≈ max(0.0, quantile(Normal(m.mean, sd), 0.975))
-        @test !(result.quantiles[h, 4] ≈ max(0.0, hp.ascertainment * max(means[h][acc], 0.0)))
+    # The forecast is rebuilt exactly from the origin Gaussian and the engine's sub-seed; the
+    # growing modifier makes a wrong origin time visible.
+    function simulate(t0)
+        origin = CE._filter_pass!(CE._ukf(Float64, engine.core.assembly, model, hp, dt), CE._observation_vectors(counts4), hp)
+        rng = Random.Xoshiro(forecast_seed)
+        draws = CE._draw_origin_states(rng, origin.xt[end], origin.Rt[end], engine.core.settings.n_draws; ode_range = 1:2)
+        sim = CE._forecast_simulator(engine.core.assembly, model, rng)
+        return first(forecast_ensemble(sim, draws.states, hp; n_ahead = 2, t0, dt, latent_range = layout.latent_range))[:, :, 1]
     end
+    @test simulate(3 * dt) == result.samples
+    @test forecast_quantiles(result.samples) == result.quantiles
+    @test simulate(4 * dt) != result.samples
 
     @testset "_fitted_observation_means: each signal at each observation's own time" begin
         layout2 = StateLayout((:S, :I, :R), (:O_y1, :O_y2), (); signal_names = (:y1, :y2))
@@ -897,6 +903,6 @@ end
         @test size(r.fitted_means) == (4, 3)
         @test size(r.quantiles) == (2, 3, length(DEFAULT_QS))
         @test all(isfinite, r.fitted_means) && all(isfinite, r.quantiles)
-        r.samples === nothing || @test size(r.samples) == (2, 16, 3)
+        @test size(r.samples) == (2, 16, 3)
     end
 end

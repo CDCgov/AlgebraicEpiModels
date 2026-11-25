@@ -451,31 +451,4 @@ end
         @test size(qmat) == (4, length(DEFAULT_QS))
         @test all(issorted(qmat[h, :]) for h in 1:4)  # quantiles monotone per horizon
     end
-
-    @testset "forecast_states — UKF analytic predict! roll (deterministic, deepcopy)" begin
-        dynamics = build_full_dynamics(mock_bt_vf!, ld, layout; supersample = 2)
-        measure, ny, nv = build_measurement_model(layout, obs_specs, ld)
-        R1 = Matrix(build_R1(layout))
-        R2 = Matrix{Float64}(I, nv, nv)
-        x0 = [900.0, 50.0, 0.0, ld.to_unconstrained((Rt = 1.0,))[1]]
-        P0 = Matrix(Diagonal([1.0, 1.0, 1.0, 0.04]))
-        ukf = UnscentedKalmanFilter{false, false, true, true}(
-            dynamics, measure, R1, R2, MvNormal(x0, P0);
-            p = hyper, ny = ny, nu = 0, weight_params = TrivialParams(),
-            cholesky! = R -> cholesky!(Positive, Matrix(R)),
-        )
-        x_before = copy(ukf.x)
-        means, covs = forecast_states(ukf, x0, P0; n_ahead = 4, t0 = 0.0, dt = 1.0, p = hyper)
-        @test length(means) == 4 && length(covs) == 4
-        @test all(length(m) == length(x0) for m in means)
-        @test all(size(c) == (length(x0), length(x0)) for c in covs)
-        # analytic ⇒ deterministic: no rng, so a second call is bit-identical
-        means2, covs2 = forecast_states(ukf, x0, P0; n_ahead = 4, t0 = 0.0, dt = 1.0, p = hyper)
-        @test means == means2 && covs == covs2
-        # operates on a deepcopy — the caller's filter is left untouched
-        @test ukf.x == x_before
-        # predictive state covariance grows with horizon (process noise accumulates)
-        tr(c) = sum(c[i, i] for i in 1:size(c, 1))
-        @test tr(covs[4]) > tr(covs[1])
-    end
 end

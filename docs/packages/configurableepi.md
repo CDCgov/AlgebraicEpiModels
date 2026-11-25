@@ -27,6 +27,18 @@ Three engines are currently supported:
 Other pairings are currently rejected.
 Only the particle filter handles jump drivers such as `ArrivalProcess`.
 
+Every engine forecasts by simulation.
+The particle filter and the EnKF roll their own members forward; the UKF draws `n_draws` states jointly from its filtered Gaussian at the forecast origin.
+Each draw is then simulated through the model's process noise and its exact observation distribution, so the forecast carries the latent's uncertainty and its covariance with the compartments.
+The UKF's `obs_jitter` only keeps the filter's covariance full-rank, so the forecast leaves it out.
+Two repairs keep every UKF draw valid without changing its distribution:
+
+- negative eigenvalues of the origin covariance, usually rounding error, are set to zero, which adds no variance;
+- a compartment drawn below zero is raised to `STATE_FLOOR`, the floor the dynamics applies before every step anyway.
+
+Rejecting or truncating draws instead would change the distribution, and could stall a forecast at a trough where many draws fall below zero.
+The summary reports `origin_cov_min_eigenvalue`, `origin_cov_clamped_dims` and `origin_draws_floored_frac` under `ukf`.
+
 ## The model contract
 
 An `EpiModel` bundles everything an engine needs:
@@ -57,6 +69,7 @@ model = EpiModel(;
 engine = build_inference(UKF(), Optimise(), model; dt = 7.0, n_ahead = 4)
 result = fit_forecast!(engine, weekly_counts, 1)
 result.quantiles     # [horizon, quantile] at DEFAULT_QS
+result.samples       # [horizon, draw], the predictive draws behind the quantiles
 result.fitted_means  # fitted observation means over the series
 result.summary       # (parameter, statistic, value) estimates and diagnostics
 ```

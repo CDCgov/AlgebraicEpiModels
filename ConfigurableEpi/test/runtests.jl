@@ -25,6 +25,7 @@ const TEST_FILES = [
     "test_augmented_enkf.jl",
     "test_ukf_covariance_factor.jl",
     "test_build_inference.jl",
+    "test_ukf_forecast.jl",
     "test_data_linkage.jl",
     "test_closure_boxing.jl",
     "test_dual_numbers.jl",

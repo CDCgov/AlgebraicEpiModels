@@ -26,7 +26,8 @@ NegBinomialNoise(; sigma_mult = 0.0, phi) = NegBinomialNoise(sigma_mult, phi)
     PoissonNoise(sigma_mult = nothing)
 
 Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by
-`exp(σ v₁)` (UKF only: the particle filter rejects the mixture).
+`exp(σ v₁)`. A simulated draw is that mixture, `Poisson(μ exp(σz))`; it has no closed-form density,
+so the particle filter refuses it.
 """
 struct PoissonNoise{S} <: ObservationNoiseSpec
     sigma_mult::S
@@ -373,8 +374,10 @@ function sample_observation(spec::NegBinomialNoise, true_mean, latent, hyper, t,
     return float(rand(rng, _nb_dist(mu, phi)))
 end
 function sample_observation(spec::PoissonNoise, true_mean, latent, hyper, t, rng)
-    _check_pure_poisson(spec)
-    return float(rand(rng, Poisson(max(true_mean, 1.0e-6))))
+    sigma = spec.sigma_mult === nothing ? 0.0 : _obs_value(spec.sigma_mult, latent, hyper, t)
+    mu = max(true_mean, 1.0e-6)
+    iszero(sigma) || (mu *= exp(sigma * randn(rng)))
+    return float(rand(rng, Poisson(mu)))
 end
 function sample_observation(spec::LogNormalNoise, true_mean, latent, hyper, t, rng)
     sigma = _obs_value(spec.sigma, latent, hyper, t)
@@ -458,28 +461,6 @@ function _resolve_specs(specs::Tuple{Vararg{ObservationSpec}}, layout::StateLayo
     isempty(specs) && throw(ArgumentError("obs_specs must have at least one element"))
     return map(s -> resolve_observation(s, layout), specs)
 end
-
-"""
-    observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) -> (; mean, var)
-
-Gaussian moments of a NegBinomial observation given Gaussian moments of its accumulator (the UKF
-forecast mapping): `mean = observation_mean(max(raw_mean, 0))` and
-`var = scale² raw_var + mean + mean²/φ + (σ mean)²`, with the spec's scale and noise at `t`.
-"""
-observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) =
-    _gaussian_moments(spec.noise_spec, spec, raw_mean, raw_var, latent, hyper, t)
-
-function _gaussian_moments(noise::NegBinomialNoise, spec, raw_mean, raw_var, latent, hyper, t)
-    raw = max(raw_mean, zero(raw_mean))
-    scale = observation_scale(spec, latent, hyper, t)
-    mu = observation_mean(spec, raw, latent, hyper, t)
-    phi = _obs_value(noise.phi, latent, hyper, t)
-    sigma = _obs_value(noise.sigma_mult, latent, hyper, t)
-    return (; mean = mu, var = scale^2 * raw_var + mu + mu^2 / phi + (sigma * mu)^2)
-end
-_gaussian_moments(noise, args...) = throw(
-    ArgumentError("only NegBinomialNoise has a closed-form Gaussian forecast mapping; got $(typeof(noise))")
-)
 
 # Every observation's mean at `(x, t)`; `specs` is a tuple so the loop unrolls over spec types.
 @inline _observation_means(specs::Tuple, x, latent, p, t, accumulators, ::Val{K}) where {K} =

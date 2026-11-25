@@ -663,7 +663,7 @@ One observation: its mean is `raw * mean_modifier + baseline`, where `raw` is re
 PoissonNoise(sigma_mult = nothing)
 ```
 
-Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by `exp(σ v₁)` (UKF only: the particle filter rejects the mixture).
+Poisson count noise `y ≈ μ + sqrt(μ) v`; with `sigma_mult` the mean is first perturbed by `exp(σ v₁)`. A simulated draw is that mixture, `Poisson(μ exp(σz))`; it has no closed-form density, so the particle filter refuses it.
 
 <a id='ConfigurableEpi.RawMean'></a>
 <a id='ConfigurableEpi.RawMean-1'></a>
@@ -787,16 +787,6 @@ build_reporting_observation(mode::ReportingMode, inner, fractions)
 ```
 
 The mean modifier for a reporting mode: `FullReporting` for [`CorrectedObservations`](configurableepi.md#ConfigurableEpi.CorrectedObservations), or a [`ReportingFractionModifier`](configurableepi.md#ConfigurableEpi.ReportingFractionModifier) for `ThinnedObservations`, which needs the fractions.
-
-<a id='ConfigurableEpi.observation_gaussian_moments-NTuple{6, Any}'></a>
-<a id='ConfigurableEpi.observation_gaussian_moments-NTuple{6, Any}-1'></a>
-**`ConfigurableEpi.observation_gaussian_moments`** &mdash; *Method*.
-
-```julia
-observation_gaussian_moments(spec, raw_mean, raw_var, latent, hyper, t) -> (; mean, var)
-```
-
-Gaussian moments of a NegBinomial observation given Gaussian moments of its accumulator (the UKF forecast mapping): `mean = observation_mean(max(raw_mean, 0))` and `var = scale² raw_var + mean + mean²/φ + (σ mean)²`, with the spec's scale and noise at `t`.
 
 <a id='ConfigurableEpi.observation_mean-NTuple{5, Any}'></a>
 <a id='ConfigurableEpi.observation_mean-NTuple{5, Any}-1'></a>
@@ -1455,7 +1445,7 @@ fit_forecast!(engine, observations, forecast_number; update_range = eachindex(ob
 
 Assimilate `observations`, one entry per slot of the regular `dt` grid, and forecast `n_ahead` steps ahead. An entry is a number, a vector with one component per observation, or `missing` where nothing is observed: the filter predicts through the slot without correcting. A `missing` component is a signal absent that slot, and every filter corrects on the observed ones only. `forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls and `update_range` must start at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)` followed by the full range.
 
-`fitted_means` covers `update_range` (a nowcast at a `missing` slot). For one observation it is a vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them, `nothing` for the analytic UKF) is `[horizon, draw]`; several observations add an observation axis: `[slot, observation]`, `[horizon, observation, quantile]` and `[horizon, draw, observation]`. `quantiles` and `samples` are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see [`latent_path_rows`](configurableepi.md#ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any})).
+`fitted_means` covers `update_range` (a nowcast at a `missing` slot). For one observation it is a vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them, each simulated through the model's own process and observation noise) is `[horizon, draw]`; several observations add an observation axis: `[slot, observation]`, `[horizon, observation, quantile]` and `[horizon, draw, observation]`. `quantiles` and `samples` are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see [`latent_path_rows`](configurableepi.md#ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any})).
 
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}'></a>
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}-1'></a>
@@ -1483,10 +1473,10 @@ Positive-definite Cholesky via `PositiveFactorizations.ldlt!`, which unlike its 
 
 ```julia
 build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, n_ahead, n_draws = 2000,
-                rng = nothing, optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
+                rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
 ```
 
-`optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs; `rng` is unused.
+`optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs. `rng` seeds the forecast draws; the filter and the optimiser are deterministic.
 
 <a id='ConfigurableEpi.PFLiuWestEngine'></a>
 <a id='ConfigurableEpi.PFLiuWestEngine-1'></a>
@@ -1675,16 +1665,6 @@ forecast_quantiles(samples; qs = DEFAULT_QS)
 ```
 
 Per-horizon quantiles over draws: `[horizon, quantile]` from `samples[h, j]`, or `[horizon, observation, quantile]` from `samples[h, j, o]`.
-
-<a id='ConfigurableEpi.forecast_states-Tuple{Any, Any, Any}'></a>
-<a id='ConfigurableEpi.forecast_states-Tuple{Any, Any, Any}-1'></a>
-**`ConfigurableEpi.forecast_states`** &mdash; *Method*.
-
-```julia
-forecast_states(kf, x0, R0; n_ahead, t0, dt = 1.0, u = Float64[], p) -> (means, covs)
-```
-
-Analytic Kalman forecast: seed a copy of `kf` at the filtered Gaussian `(x0, R0)` and roll `n_ahead` steps with `predict!` only, returning each horizon's state mean and covariance.
 
 <a id='ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any}'></a>
 <a id='ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any}-1'></a>
