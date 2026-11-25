@@ -36,6 +36,12 @@ Minimum Liu-West jitter variance per parameter as a fraction of the prior's unco
 
 The concrete hyperparameter options, for `@option` fields.
 
+<a id='ConfigurableEpi.InitialisationConfig'></a>
+<a id='ConfigurableEpi.InitialisationConfig-1'></a>
+**`ConfigurableEpi.InitialisationConfig`** &mdash; *Type*.
+
+The concrete initialisation strategies, for `@option` fields.
+
 <a id='ConfigurableEpi.ReportingModeConfig'></a>
 <a id='ConfigurableEpi.ReportingModeConfig-1'></a>
 **`ConfigurableEpi.ReportingModeConfig`** &mdash; *Type*.
@@ -107,6 +113,12 @@ InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 
 
 The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the observation step and integration substeps, the forecast horizon and draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of its own run config.
 
+<a id='ConfigurableEpi.InitialisationStrategy'></a>
+<a id='ConfigurableEpi.InitialisationStrategy-1'></a>
+**`ConfigurableEpi.InitialisationStrategy`** &mdash; *Type*.
+
+Supertype of how the state at `t = 0` is seeded (see [`initial_seed`](configurableepi.md#ConfigurableEpi.initial_seed)).
+
 <a id='ConfigurableEpi.LiuWest'></a>
 <a id='ConfigurableEpi.LiuWest-1'></a>
 **`ConfigurableEpi.LiuWest`** &mdash; *Type*.
@@ -151,6 +163,17 @@ PF(; n_particles, threads = true)                    # [filter.pf]
 
 Bootstrap particle filter. `threads` parallelises particle propagation; a seeded run reproduces exactly for a fixed thread count.
 
+<a id='ConfigurableEpi.PeakAtStartInitialisation'></a>
+<a id='ConfigurableEpi.PeakAtStartInitialisation-1'></a>
+**`ConfigurableEpi.PeakAtStartInitialisation`** &mdash; *Type*.
+
+```julia
+PeakAtStartInitialisation()                           # [initialisation.peak_at_start]
+PeakFromHistoryInitialisation()                       # [initialisation.peak_from_history]
+```
+
+`peak_at_start` assumes the fit starts at a prevalence peak, `S/N = 1 / (R0 χ(0))`. `peak_from_history` finds an observed peak in the history and carries its susceptible fraction to the start ([`peak_anchored_susceptible_fraction`](configurableepi.md#ConfigurableEpi.peak_anchored_susceptible_fraction-Tuple{Any, Durations, Integer, Any, Real, Real, Any, Real})), falling back to `1 / R0` without one.
+
 <a id='ConfigurableEpi.PriorSpec'></a>
 <a id='ConfigurableEpi.PriorSpec-1'></a>
 **`ConfigurableEpi.PriorSpec`** &mdash; *Type*.
@@ -176,6 +199,17 @@ SeasonalityConfig(; mode = "indoor_activity", kappa = 0.8, fallback = "us")
 ```
 
 Transmission seasonality: `mode` is `indoor_activity` (empirical location curve scaled by `kappa ∈ [0, 1]`, the seasonally forced share of transmission), `cosine` (learned annual harmonic) or `none`. `fallback` (`us`, `none`, `error`) covers a location the climatology lacks.
+
+<a id='ConfigurableEpi.SlowModeInitialisation'></a>
+<a id='ConfigurableEpi.SlowModeInitialisation-1'></a>
+**`ConfigurableEpi.SlowModeInitialisation`** &mdash; *Type*.
+
+```julia
+SlowModeInitialisation(; boundary_low = 0.3, boundary_high = 0.7,
+                       historical_multiplier_logsd = log(2) / 1.645)  # [initialisation.slow_mode]
+```
+
+Reconstruct the susceptible fraction from the incidence observed before the fit starts. The susceptible fraction when that history begins is uniform on `[boundary_low, boundary_high]`, and the historical ascertainment is the initial one times a log-normal multiplier with log-sd `historical_multiplier_logsd` (by default within a factor of 2 with 90% probability).
 
 <a id='ConfigurableEpi.StateFilter'></a>
 <a id='ConfigurableEpi.StateFilter-1'></a>
@@ -223,6 +257,16 @@ load_priors(path) -> NamedTuple
 ```
 
 Read a flat priors TOML (one `[name]` table per parameter).
+
+<a id='ConfigurableEpi.normalise_config_dict-Tuple{AbstractDict}'></a>
+<a id='ConfigurableEpi.normalise_config_dict-Tuple{AbstractDict}-1'></a>
+**`ConfigurableEpi.normalise_config_dict`** &mdash; *Method*.
+
+```julia
+normalise_config_dict(dict) -> Dict{String, Any}
+```
+
+`dict` with string keys at every level, so an option table built in Julia (symbol keys, possibly empty) parses with `from_dict`.
 
 <a id='ConfigurableEpi.option_alias-Tuple{Any}'></a>
 <a id='ConfigurableEpi.option_alias-Tuple{Any}-1'></a>
@@ -274,6 +318,16 @@ validate_inference_config(cfg::InferenceConfig) -> cfg
 ```
 
 Check what the schema cannot: a positive whole number of `step_days`, positive counts and the options of both axes.
+
+<a id='ConfigurableEpi.validate_initialisation-Tuple{SlowModeInitialisation}'></a>
+<a id='ConfigurableEpi.validate_initialisation-Tuple{SlowModeInitialisation}-1'></a>
+**`ConfigurableEpi.validate_initialisation`** &mdash; *Method*.
+
+```julia
+validate_initialisation(strategy) -> strategy
+```
+
+Check what the schema cannot: a slow-mode boundary interval inside `[0, 1]` and a finite, non-negative multiplier log-sd.
 
 
 ## Model {#Model}
@@ -1206,21 +1260,42 @@ Classical RK4 is stable on a real negative eigenvalue only while `|lambda * h| <
 
 Proximity warning threshold, about 1.4x below the stability limit.
 
+<a id='ConfigurableEpi.IntegrationBounds'></a>
+<a id='ConfigurableEpi.IntegrationBounds-1'></a>
+**`ConfigurableEpi.IntegrationBounds`** &mdash; *Type*.
+
+```julia
+IntegrationBounds(durations; n_E = 1, n_I = 1, R_eff_max = 1.0, extra_rates = ())
+```
+
+The rates an ODE substep must integrate: the Erlang stages of `durations`, transmission at up to `R_eff_max` (size it from the priors' upper tail with [`prior_R_eff_bound`](configurableepi.md#ConfigurableEpi.prior_R_eff_bound-Tuple{AbstractDict{String, PriorSpec}}), not the endemic seed), and `extra_rates` a model adds outside the shared durations, such as a second observation chain's stage rate.
+
+<a id='ConfigurableEpi.SeedContext'></a>
+<a id='ConfigurableEpi.SeedContext-1'></a>
+**`ConfigurableEpi.SeedContext`** &mdash; *Type*.
+
+```julia
+SeedContext(; durations, population, bin_days, ascertainment, history = nothing, first_count = nothing,
+            R0 = nothing, chi_at = Returns(1.0), n_E = 1, n_I = 1, n_obs = 1)
+```
+
+What [`initial_seed`](configurableepi.md#ConfigurableEpi.initial_seed) reads. `history = (; times, counts)` is on the model clock with each count labelled by the end of its `bin_days` bin; `first_count` is the first fitted count. `ascertainment` is a constant or `t -> observations per infection`, `chi_at(t)` the seasonal forcing, and `n_obs` counts the observation stages including the reset accumulator.
+
 <a id='ConfigurableEpi.anchor_is_exact-Tuple{Integer, Integer}'></a>
 <a id='ConfigurableEpi.anchor_is_exact-Tuple{Integer, Integer}-1'></a>
 **`ConfigurableEpi.anchor_is_exact`** &mdash; *Method*.
 
 Whether `R_eff = 1` holds exactly at the peak of `E + I`: only for a single `I` stage.
 
-<a id='ConfigurableEpi.assert_integration_stable-Tuple{Durations, Integer, Integer, Real, Integer}'></a>
-<a id='ConfigurableEpi.assert_integration_stable-Tuple{Durations, Integer, Integer, Real, Integer}-1'></a>
+<a id='ConfigurableEpi.assert_integration_stable-Tuple{IntegrationBounds, Real, Integer}'></a>
+<a id='ConfigurableEpi.assert_integration_stable-Tuple{IntegrationBounds, Real, Integer}-1'></a>
 **`ConfigurableEpi.assert_integration_stable`** &mdash; *Method*.
 
 ```julia
-assert_integration_stable(dur, n_E, n_I, dt, supersample; R_eff_max = 1.0) -> lambda_h
+assert_integration_stable(bounds::IntegrationBounds, dt, supersample) -> lambda_h
 ```
 
-Error beyond [`RK4_STABILITY_LIMIT`](configurableepi.md#ConfigurableEpi.RK4_STABILITY_LIMIT) and warn beyond [`RK4_WARN_LAMBDA_H`](configurableepi.md#ConfigurableEpi.RK4_WARN_LAMBDA_H). Size `R_eff_max` from the priors' upper tail ([`prior_R_eff_bound`](configurableepi.md#ConfigurableEpi.prior_R_eff_bound-Tuple{AbstractDict{String, PriorSpec}})), not the endemic seed.
+Error beyond [`RK4_STABILITY_LIMIT`](configurableepi.md#ConfigurableEpi.RK4_STABILITY_LIMIT) and warn beyond [`RK4_WARN_LAMBDA_H`](configurableepi.md#ConfigurableEpi.RK4_WARN_LAMBDA_H).
 
 <a id='ConfigurableEpi.carry_susceptible-Tuple{Real, Real, Real, AbstractVector{<:Real}, AbstractVector{<:Real}, Real}'></a>
 <a id='ConfigurableEpi.carry_susceptible-Tuple{Real, Real, Real, AbstractVector{<:Real}, AbstractVector{<:Real}, Real}-1'></a>
@@ -1231,6 +1306,16 @@ carry_susceptible(s_anchor, t_anchor, t_target, times, daily_incidence, omega) -
 ```
 
 Integrate `ds/dt = omega (1 - s) - i(t)` from the anchor to the target time (midpoint RK2, steps of at most one day), holding the per-capita incidence flat outside its range.
+
+<a id='ConfigurableEpi.chain_stage_seed-Tuple{Real, Real, Real, Integer}'></a>
+<a id='ConfigurableEpi.chain_stage_seed-Tuple{Real, Real, Real, Integer}-1'></a>
+**`ConfigurableEpi.chain_stage_seed`** &mdash; *Method*.
+
+```julia
+chain_stage_seed(inflow, growth_rate, rate, n_stages) -> Vector{Float64}
+```
+
+Occupancy of an `n_stages` Erlang chain progressing at `rate` and fed by `inflow · exp(g t)` for all `t ≤ 0`: stage `k` holds `inflow / (rate + g) · (rate / (rate + g))^(k − 1)`, which at `g = 0` is the quasi-steady fill `inflow / rate`.
 
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}'></a>
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}-1'></a>
@@ -1253,15 +1338,27 @@ initial_infection_state(y0, dur::Durations, ascertainment, accumulation_window_d
 
 Invert one partially ascertained count into quasi-steady compartment occupancies: `daily_incidence = y0 / (ascertainment * accumulation_window_days)` and each upstream compartment holds `daily_incidence * mean_duration`.
 
-<a id='ConfigurableEpi.max_transition_rate-Tuple{Durations, Integer, Integer}'></a>
-<a id='ConfigurableEpi.max_transition_rate-Tuple{Durations, Integer, Integer}-1'></a>
+<a id='ConfigurableEpi.initial_seed'></a>
+<a id='ConfigurableEpi.initial_seed-1'></a>
+**`ConfigurableEpi.initial_seed`** &mdash; *Function*.
+
+```julia
+initial_seed(strategy::InitialisationStrategy, ctx::SeedContext) -> NamedTuple
+```
+
+The state at `t = 0` as fractions and stage fills: `susceptible_fraction`, the stage occupancies `exposed`, `infectious` and `observation` (the in-transit reporting stages), `first_observation_accumulator`, and the infection stream `infection_rate · exp(growth_rate t)` they were filled from, which seeds any further chain through [`chain_stage_seed`](configurableepi.md#ConfigurableEpi.chain_stage_seed-Tuple{Real, Real, Real, Integer}).
+
+The peak strategies invert `first_count` into a flat stream. `SlowModeInitialisation` fits the stream to the last three bins of a history that ends before `t = 0`, and also returns `susceptible_variance` and the terms of its susceptible fraction, `boundary_survival` and `kernel`. `PeakFromHistoryInitialisation` also returns its `anchor`.
+
+<a id='ConfigurableEpi.max_transition_rate-Tuple{IntegrationBounds}'></a>
+<a id='ConfigurableEpi.max_transition_rate-Tuple{IntegrationBounds}-1'></a>
 **`ConfigurableEpi.max_transition_rate`** &mdash; *Method*.
 
 ```julia
-max_transition_rate(dur::Durations, n_E, n_I; R_eff_max = 1.0) -> Float64
+max_transition_rate(bounds::IntegrationBounds) -> Float64
 ```
 
-The fastest model rate in 1/day: the Erlang stage rates, observation progression, waning, and the faster eigenvalue of the linearised `(E, I)` block at `R_eff_max`.
+The fastest rate in 1/day: the Erlang stage rates, observation progression, waning, the faster eigenvalue of the linearised `(E, I)` block at `R_eff_max`, and the extra rates.
 
 <a id='ConfigurableEpi.peak_anchored_susceptible_fraction-Tuple{Any, Durations, Integer, Any, Real, Real, Any, Real}'></a>
 <a id='ConfigurableEpi.peak_anchored_susceptible_fraction-Tuple{Any, Durations, Integer, Any, Real, Real, Any, Real}-1'></a>
@@ -1294,12 +1391,12 @@ reporting_delay_days(dur::Durations, n_obs_stages) -> Float64
 
 Mean infection-to-report delay, `(n_obs_stages - 1) * obs_progression`.
 
-<a id='ConfigurableEpi.required_supersample-Tuple{Durations, Integer, Integer, Real}'></a>
-<a id='ConfigurableEpi.required_supersample-Tuple{Durations, Integer, Integer, Real}-1'></a>
+<a id='ConfigurableEpi.required_supersample-Tuple{IntegrationBounds, Real}'></a>
+<a id='ConfigurableEpi.required_supersample-Tuple{IntegrationBounds, Real}-1'></a>
 **`ConfigurableEpi.required_supersample`** &mdash; *Method*.
 
 ```julia
-required_supersample(dur, n_E, n_I, dt; R_eff_max = 1.0, target = RK4_WARN_LAMBDA_H) -> Int
+required_supersample(bounds::IntegrationBounds, dt; target = RK4_WARN_LAMBDA_H) -> Int
 ```
 
 The smallest `supersample` whose substep keeps `|lambda * h| <= target`.

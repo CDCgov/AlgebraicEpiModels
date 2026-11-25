@@ -149,6 +149,66 @@ raw count against the expected count times that day's reporting fraction.
 "The concrete reporting modes, for `@option` fields."
 const ReportingModeConfig = Union{CorrectedObservations, ThinnedObservations}
 
+# --- initialisation ---------------------------------------------------------------------------
+
+"Supertype of how the state at `t = 0` is seeded (see [`initial_seed`](@ref))."
+abstract type InitialisationStrategy end
+
+"""
+    SlowModeInitialisation(; boundary_low = 0.3, boundary_high = 0.7,
+                           historical_multiplier_logsd = log(2) / 1.645)  # [initialisation.slow_mode]
+
+Reconstruct the susceptible fraction from the incidence observed before the fit starts. The
+susceptible fraction when that history begins is uniform on `[boundary_low, boundary_high]`, and
+the historical ascertainment is the initial one times a log-normal multiplier with log-sd
+`historical_multiplier_logsd` (by default within a factor of 2 with 90% probability).
+"""
+@option "slow_mode" struct SlowModeInitialisation <: InitialisationStrategy
+    boundary_low::Float64 = 0.3
+    boundary_high::Float64 = 0.7
+    historical_multiplier_logsd::Float64 = log(2) / 1.645
+end
+
+"""
+    PeakAtStartInitialisation()                           # [initialisation.peak_at_start]
+    PeakFromHistoryInitialisation()                       # [initialisation.peak_from_history]
+
+`peak_at_start` assumes the fit starts at a prevalence peak, `S/N = 1 / (R0 χ(0))`.
+`peak_from_history` finds an observed peak in the history and carries its susceptible fraction to
+the start ([`peak_anchored_susceptible_fraction`](@ref)), falling back to `1 / R0` without one.
+"""
+@option "peak_at_start" struct PeakAtStartInitialisation <: InitialisationStrategy end
+
+@option "peak_from_history" struct PeakFromHistoryInitialisation <: InitialisationStrategy end
+
+"The concrete initialisation strategies, for `@option` fields."
+const InitialisationConfig = Union{SlowModeInitialisation, PeakAtStartInitialisation, PeakFromHistoryInitialisation}
+
+"""
+    validate_initialisation(strategy) -> strategy
+
+Check what the schema cannot: a slow-mode boundary interval inside `[0, 1]` and a finite,
+non-negative multiplier log-sd.
+"""
+function validate_initialisation(s::SlowModeInitialisation)
+    _require(0 <= s.boundary_low <= s.boundary_high <= 1, "slow_mode boundary interval must lie in [0, 1]")
+    _require(
+        isfinite(s.historical_multiplier_logsd) && s.historical_multiplier_logsd >= 0,
+        "slow_mode historical_multiplier_logsd must be finite and non-negative",
+    )
+    return s
+end
+validate_initialisation(s::InitialisationStrategy) = s
+
+"""
+    normalise_config_dict(dict) -> Dict{String, Any}
+
+`dict` with string keys at every level, so an option table built in Julia (symbol keys, possibly
+empty) parses with `from_dict`.
+"""
+normalise_config_dict(dict::AbstractDict) =
+    Dict{String, Any}(String(k) => (v isa AbstractDict ? normalise_config_dict(v) : v) for (k, v) in dict)
+
 # --- inference axis 1: the state filter -------------------------------------------------------
 
 "Supertype of the state-filter options, the `[filter.<name>]` axis."

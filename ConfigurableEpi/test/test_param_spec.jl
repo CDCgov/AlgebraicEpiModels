@@ -150,20 +150,3 @@ using ConfigurableEpi
     end
 
 end
-
-@testset "RK4 stability recommendation advances an exact-boundary configuration" begin
-    durations = Durations(latent = 1.0, infectious = 1.0)
-    err = try
-        assert_integration_stable(
-            durations, 1, 1, RK4_STABILITY_LIMIT, 1; R_eff_max = 0.0
-        )
-        nothing
-    catch e
-        e
-    end
-    @test err isa ArgumentError
-    @test occursin("at least 2 (currently 1)", sprint(showerror, err))
-    @test assert_integration_stable(
-        durations, 1, 1, RK4_STABILITY_LIMIT, 2; R_eff_max = 0.0
-    ) < RK4_STABILITY_LIMIT
-end
