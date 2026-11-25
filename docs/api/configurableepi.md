@@ -1317,7 +1317,7 @@ What [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) returns
 InferenceEngine
 ```
 
-A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or ensemble and its random streams) and the hyperparameter state (learned values, warm-start ensembles, the window checkpoint). Passing it to [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) again continues inference; a `deepcopy` is an isolated fork.
+A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or ensemble and its random streams) and the hyperparameter state (learned values, warm-start ensembles, the window checkpoint). Passing it to [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) again continues inference. A `deepcopy` of a UKF or EnKF engine is an isolated fork. A particle-filter fork copies the cloud and its own streams, but LowLevelParticleFilters resamples from the task-local RNG, as does an engine built with the default `rng`, and the copies share it.
 
 <a id='ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}'></a>
 <a id='ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}-1'></a>

@@ -6,8 +6,10 @@
 
 A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or ensemble and its
 random streams) and the hyperparameter state (learned values, warm-start ensembles, the window
-checkpoint). Passing it to [`fit_forecast!`](@ref) again continues inference; a `deepcopy` is an
-isolated fork.
+checkpoint). Passing it to [`fit_forecast!`](@ref) again continues inference. A `deepcopy` of a UKF
+or EnKF engine is an isolated fork. A particle-filter fork copies the cloud and its own streams,
+but LowLevelParticleFilters resamples from the task-local RNG, as does an engine built with the
+default `rng`, and the copies share it.
 """
 abstract type InferenceEngine end
 
@@ -219,10 +221,11 @@ _loss_range(T::Integer, window::Integer, warmup::Integer = 0) = max(Int(warmup) 
 
 _warmup_steps(model::EpiModel, dt) = ceil(Int, model.likelihood_warmup_days / dt - 1.0e-9)
 
-_require_past_warmup(T::Integer, warmup::Integer, what) = T > warmup || throw(
+# A calibration needs at least one observation to score in `loss_range`.
+_require_scored(ys, loss_range, warmup::Integer, what) = any(k -> ys[k] !== missing, loss_range) || throw(
     ArgumentError(
-        "$what has $T observations and the model's likelihood warm-up covers the first $warmup: " *
-            "there is nothing to score yet. Start the first calibration later."
+        "$what has no observation to score in slots $(first(loss_range)):$(last(loss_range)) of " *
+            "$(length(ys)) (the model's likelihood warm-up covers the first $warmup). Start the first calibration later."
     )
 )
 

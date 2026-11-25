@@ -255,7 +255,9 @@ estimate(df, name, statistic = "estimate") =
         @test mode == :full_history
         _, mode, _ = CE._prepare_window_checkpoint!(CE.WindowCheckpoint(), build_anchor, base_hyperparams, ys, 5:6; warmup = 2)
         @test mode == :anchored
-        @test_throws ArgumentError CE._require_past_warmup(2, 2, "a test engine")
+        @test_throws ArgumentError CE._require_scored(ys, CE._loss_range(2, nothing, 2), 2, "a test engine")
+        @test_throws ArgumentError CE._require_scored([8.0, missing], 2:2, 1, "a test engine")
+        @test CE._require_scored(ys, 3:6, 2, "a test engine")
         warmed = with_likelihood_warmup(model, 2.0)
         @test (CE._warmup_steps(warmed, 1.0), CE._warmup_steps(warmed, 7.0), CE._warmup_steps(model, 1.0)) == (2, 1, 0)
     end
@@ -298,6 +300,8 @@ estimate(df, name, statistic = "estimate") =
             @test size(fit_forecast!(warmed, counts3, 1).quantiles) == (2, length(DEFAULT_QS))
             covered = build_inference(UKF(), brief, with_likelihood_warmup(model, 3.0); ukf_kwargs...)
             @test_throws ArgumentError fit_forecast!(covered, counts3, 1)
+            # A scored range with no observation left after the warm-up is refused too.
+            @test_throws ArgumentError fit_forecast!(warmed, [8.0, 10.0, missing], 1)
         end
 
         @testset "window length is independent of re-optimization cadence" begin
@@ -374,6 +378,27 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 3), ekp(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 40), ekp(n_ensemble = 1), model; ukf_kwargs...)
         @test_throws ArgumentError make_engine(5; window_length = -1)
+
+        @testset "a likelihood warm-up leaves the first observations out of the EKP score" begin
+            ys = CE._observation_vectors(counts3)
+            warm_ll = marginal_loglik(make_engine(23).filter, ys, base_hyperparams; warmup = 1)
+            split = make_engine(23).filter
+            reset!(split)
+            CE._filter_loglik!(split, ys, base_hyperparams, 1:1)
+            @test warm_ll == CE._filter_loglik!(split, ys, base_hyperparams, 2:3)
+
+            warmed(days; kwargs...) = build_inference(
+                EnKF(n_ensemble = 40), ekp(; kwargs...), with_likelihood_warmup(model, days);
+                dt = 1.0, supersample = 1, n_ahead = 2, n_draws = 50, rng = Random.MersenneTwister(5),
+            )
+            @test size(fit_forecast!(warmed(1.0), counts3, 1).quantiles) == (2, length(DEFAULT_QS))
+            # A window that starts after the warm-up resumes from a checkpoint holding it.
+            windowed = warmed(1.0; window_length = 1)
+            fit_forecast!(windowed, counts3, 1)
+            @test windowed.checkpoint.start == 3
+            @test_throws ArgumentError fit_forecast!(warmed(3.0), counts3, 1)
+            @test_throws ArgumentError fit_forecast!(warmed(2.0), [8.0, 10.0, missing], 1)
+        end
 
         @testset "outer candidate scheduling and diagnostics" begin
             @test_logs (:warn, r"only one thread") !CE._outer_ekp_threads_enabled(true; nthreads = 1)

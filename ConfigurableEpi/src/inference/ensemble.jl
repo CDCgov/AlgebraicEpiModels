@@ -183,8 +183,8 @@ function fit_forecast!(
 
     if (forecast_number - 1) % hyper.reopt_interval == 0
         warmup = _warmup_steps(model, s.dt)
-        _require_past_warmup(T, warmup, "EnKF + EKP")
         loss_range = _loss_range(T, hyper.window_length, warmup)
+        _require_scored(ys, loss_range, warmup, "EnKF + EKP")
         current = e.hyperparams
         checkpoint, mode, steps = _prepare_window_checkpoint!(e.checkpoint, () -> build(current), current, ys, loss_range; warmup)
         outer_threads = _outer_ekp_threads_enabled(hyper.threads)
