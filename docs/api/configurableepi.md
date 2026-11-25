@@ -1299,6 +1299,26 @@ EngineSettings(; dt, supersample, n_ahead, n_draws)
 
 The run-level numbers every engine shares: the observation interval in days, RK4 substeps per interval, forecast horizon and forecast draw count.
 
+<a id='ConfigurableEpi.ForecastResult'></a>
+<a id='ConfigurableEpi.ForecastResult-1'></a>
+**`ConfigurableEpi.ForecastResult`** &mdash; *Type*.
+
+```julia
+ForecastResult
+```
+
+What [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) returns: `quantiles`, `fitted_means`, `summary`, `samples` and `latents`.
+
+<a id='ConfigurableEpi.InferenceEngine'></a>
+<a id='ConfigurableEpi.InferenceEngine-1'></a>
+**`ConfigurableEpi.InferenceEngine`** &mdash; *Type*.
+
+```julia
+InferenceEngine
+```
+
+A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or ensemble and its random streams) and the hyperparameter state (learned values, warm-start ensembles, the window checkpoint). Passing it to [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!) again continues inference. A `deepcopy` of a UKF or EnKF engine is an isolated fork. A particle-filter fork copies the cloud and its own streams, but LowLevelParticleFilters resamples from the task-local RNG, as does an engine built with the default `rng`, and the copies share it.
+
 <a id='ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}'></a>
 <a id='ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}-1'></a>
 **`ConfigurableEpi.build_inference`** &mdash; *Method*.
@@ -1317,20 +1337,20 @@ Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](configurable
 
 ```julia
 fit_forecast!(engine, observations, forecast_number; update_range = eachindex(observations),
-              emit_forecast = true) -> (; quantiles, fitted_means, summary, samples)
+              emit_forecast = true) -> ForecastResult
 ```
 
-Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or `missing` where there is no observation: the filter then predicts through the slot without correcting), and forecast `n_ahead` steps ahead. `forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls and `update_range` must start at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)` followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF); both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics.
+Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or `missing` where there is no observation: the filter then predicts through the slot without correcting), and forecast `n_ahead` steps ahead. `forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls and `update_range` must start at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)` followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF); both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see [`latent_path_rows`](configurableepi.md#ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any})).
 
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}'></a>
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}-1'></a>
 **`ConfigurableEpi.marginal_loglik`** &mdash; *Method*.
 
 ```julia
-marginal_loglik(filter, ys, p) -> Real
+marginal_loglik(filter, ys, p; warmup = 0) -> Real
 ```
 
-Filter marginal log-likelihood of the observation vectors `ys` under hyperparameters `p` after `reset!`, accumulated at the promoted element type so it differentiates (`forward_trajectory(...).ll` sizes its buffers as Float64). A `missing` entry is a grid slot without an observation: the filter predicts through it without correcting.
+Filter marginal log-likelihood of the observation vectors `ys` under hyperparameters `p` after `reset!`, accumulated at the promoted element type so it differentiates (`forward_trajectory(...).ll` sizes its buffers as Float64). A `missing` entry is a grid slot without an observation: the filter predicts through it without correcting. The filter corrects on the first `warmup` slots without counting their terms.
 
 <a id='ConfigurableEpi.positive_cholesky!-Tuple{Any}'></a>
 <a id='ConfigurableEpi.positive_cholesky!-Tuple{Any}-1'></a>
@@ -1340,7 +1360,7 @@ Filter marginal log-likelihood of the observation vectors `ys` under hyperparame
 positive_cholesky!(R)
 ```
 
-Positive-definite Cholesky via `PositiveFactorizations.ldlt!`, which unlike its `cholesky!` wrapper accepts `ForwardDiff.Dual` matrices.
+Positive-definite Cholesky via `PositiveFactorizations.ldlt!`, which unlike its `cholesky!` wrapper accepts `ForwardDiff.Dual` matrices. It factors in correlation coordinates, so the repair tolerance does not overwrite small latent variances beside large compartment ones, and scales the lower factor back to state units. Only an exactly zero diagonal takes `MIN_MODEL_VARIANCE` as its scale.
 
 <a id='ConfigurableEpi.build_inference-Tuple{UKF, Optimise, EpiModel}'></a>
 <a id='ConfigurableEpi.build_inference-Tuple{UKF, Optimise, EpiModel}-1'></a>

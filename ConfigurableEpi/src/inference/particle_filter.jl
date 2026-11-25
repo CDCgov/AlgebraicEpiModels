@@ -106,9 +106,8 @@ end
 PF + Liu-West: one persistent particle cloud carrying the learned hyperparameters in its tail,
 assimilating only the observations it has not yet seen.
 """
-struct PFLiuWestEngine{M <: EpiModel, F, L <: LearnedHyperparams, U, R} <: InferenceEngine
-    model::M
-    settings::EngineSettings
+struct PFLiuWestEngine{C <: EngineCore, F, L <: LearnedHyperparams, U, R} <: InferenceEngine
+    core::C
     filter_cfg::PF
     hyper::LiuWest
     filter::F
@@ -123,8 +122,8 @@ function build_inference(
     )
     _validate(filter)
     _validate(hyper)
-    settings = EngineSettings(; dt, supersample, n_ahead, n_draws)
-    assembly = Assembly(model, settings, 0.0)
+    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
+    (; assembly, settings) = core
     assembly.n_obs == 1 ||
         throw(ArgumentError("PF + LiuWest needs exactly one observation signal; got $(assembly.n_obs)"))
     layout, base = model.layout, model.hyperparams
@@ -155,7 +154,7 @@ function build_inference(
         p = base, ny = 1, nu = 0, rng, Ts = settings.dt, threads = filter.threads,
     )
     reset!(pf)
-    return PFLiuWestEngine(model, settings, filter, hyper, pf, learned, update!, rng)
+    return PFLiuWestEngine(core, filter, hyper, pf, learned, update!, rng)
 end
 
 function fit_forecast!(
@@ -163,7 +162,8 @@ function fit_forecast!(
         update_range = LLPF.index(e.filter):length(observations), emit_forecast::Bool = true,
     )
     T = _validate_fit(observations, update_range, forecast_number)
-    pf, layout, s, base, learned = e.filter, e.model.layout, e.settings, e.model.hyperparams, e.learned
+    (; model, settings) = e.core
+    pf, layout, s, base, learned = e.filter, model.layout, settings, model.hyperparams, e.learned
     first(update_range) == LLPF.index(pf) || throw(
         ArgumentError(
             "the particle cloud has assimilated grid slots 1:$(LLPF.index(pf) - 1), so update_range must " *
@@ -173,7 +173,7 @@ function fit_forecast!(
     )
     ys = _observation_vectors(observations)
     n_particles = e.filter_cfg.n_particles
-    fitted, ess, latent_path = Float64[], Float64[], Vector{Vector{Float64}}()
+    fitted, ess, latent_path, latent_path_sd = Float64[], Float64[], Vector{Vector{Float64}}(), Vector{Vector{Float64}}()
     final_particles = final_weights = nothing
     n_updates = length(update_range)
     progress_interval = max(cld(n_updates, 10), 1)
@@ -187,7 +187,9 @@ function fit_forecast!(
         wsum = sum(weights)
         observed && push!(ess, _effective_sample_size(weights))
         push!(fitted, sum(weights[i] * pf.measurement(cloud[i], _NO_INPUT, base, t, false)[1] for i in eachindex(cloud)) / wsum)
-        push!(latent_path, [sum(weights[i] * cloud[i][slot] for i in eachindex(cloud)) / wsum for slot in layout.latent_range])
+        latent_mean, latent_sd = _cloud_latent_moments(cloud, weights, layout.latent_range)
+        push!(latent_path, latent_mean)
+        push!(latent_path_sd, latent_sd)
         if emit_forecast && k == last(update_range)
             final_particles, final_weights = deepcopy(cloud), copy(weights)
         end
@@ -196,7 +198,8 @@ function fit_forecast!(
         (progress == 1 || progress == n_updates || progress % progress_interval == 0) &&
             @info "PF: assimilation progress" forecast_number completed = progress total = n_updates observation_index = k
     end
-    emit_forecast || return (; quantiles = nothing, fitted_means = fitted, summary = _summary(), samples = nothing)
+    latents = _stack_latents(latent_path, latent_path_sd, length(layout.latent_names))
+    emit_forecast || return ForecastResult(; fitted_means = fitted, summary = _summary(), latents)
 
     @info "PF: generating forecast ensemble" forecast_number draws = s.n_draws horizons = s.n_ahead
     forecast_filter = deepcopy(pf)   # forecast sampling must not touch the live filter's RNG
@@ -221,7 +224,7 @@ function fit_forecast!(
         summarise!(name, [learned.extract(p)[name] for p in initial_states])
         push!(summary, (string(name), "sd_ratio", sqrt(max(V[slot, slot], 0.0) / prior_unconstrained_variance(learned.priors[slot]))))
     end
-    derived = e.model.derived_hyperparameters
+    derived = model.derived_hyperparameters
     if derived !== nothing && !isempty(initial_states)
         values = [derived(merge(base, learned.extract(p))) for p in initial_states]
         for name in keys(first(values))
@@ -239,9 +242,8 @@ function fit_forecast!(
             forecast_number, min_ess_fraction = minimum(fraction), n_particles,
         )
     end
-    latent_sd = [_cloud_sd(view(latent_samples, h, :, l)) for h in 1:s.n_ahead, l in axes(latent_samples, 3)]
-    append_latent_spread!(summary, layout.latent_names, latent_sd)
+    append_latent_spread!(summary, layout.latent_names, _latent_sd(latent_samples))
     append_latent_audit!(summary, layout.latent_names, latent_path, 1:length(layout.latent_names); dt = s.dt)
     @info "PF: forecast complete" forecast_number learned_parameters = collect(learned.names)
-    return (; quantiles = forecast_quantiles(samples), fitted_means = fitted, summary, samples)
+    return ForecastResult(; quantiles = forecast_quantiles(samples), fitted_means = fitted, summary, samples, latents)
 end

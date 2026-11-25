@@ -1,12 +1,9 @@
 # UKF + Optimise: replay the complete series each origin; every `reopt_interval` origins maximise
 # the differentiable filter marginal log-posterior over the learned hyperparameters.
 
-mutable struct UKFOptimiseEngine{M <: EpiModel, A <: Assembly, B <: ParameterPriorBundle, S <: Tuple, AD, F} <: InferenceEngine
-    const model::M
-    const assembly::A
-    const settings::EngineSettings
+mutable struct UKFOptimiseEngine{C <: EngineCore, S <: Tuple, AD, F} <: InferenceEngine
+    const core::C
     const hyper::Optimise
-    const bundle::B
     const stages::S
     const adtype::AD
     hyperparams::NamedTuple
@@ -40,18 +37,14 @@ function build_inference(
     )
     _validate(filter)
     _validate(hyper)
-    settings = EngineSettings(; dt, supersample, n_ahead, n_draws)
-    assembly = Assembly(model, settings, filter.obs_jitter)
-    assembly.n_obs == 1 || throw(
-        ArgumentError("UKF + Optimise produces one count-forecast matrix and needs exactly one observation signal; got $(assembly.n_obs)")
+    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), filter.obs_jitter)
+    core.assembly.n_obs == 1 || throw(
+        ArgumentError("UKF + Optimise produces one count-forecast matrix and needs exactly one observation signal; got $(core.assembly.n_obs)")
     )
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
-    ukf = _ukf(Float64, assembly, model, model.hyperparams, settings.dt)
-    return UKFOptimiseEngine(
-        model, assembly, settings, hyper, ParameterPriorBundle(model.priors), optimiser_stages(optimiser), adtype,
-        model.hyperparams, ukf, WindowCheckpoint(),
-    )
+    ukf = _ukf(Float64, core.assembly, model, model.hyperparams, core.settings.dt)
+    return UKFOptimiseEngine(core, hyper, optimiser_stages(optimiser), adtype, model.hyperparams, ukf, WindowCheckpoint())
 end
 
 function fit_forecast!(
@@ -61,14 +54,17 @@ function fit_forecast!(
     T = _validate_fit(observations, update_range, forecast_number)
     _require_full_range(update_range, T, "UKF + Optimise")
     ys = _observation_vectors(observations)
-    model, s, hyper, bundle = e.model, e.settings, e.hyper, e.bundle
-    build(::Type{E}, hp) where {E} = _ukf(E, e.assembly, model, hp, s.dt)
+    (; model, assembly, bundle) = e.core
+    s, hyper = e.core.settings, e.hyper
+    build(::Type{E}, hp) where {E} = _ukf(E, assembly, model, hp, s.dt)
 
     if (forecast_number - 1) % hyper.reopt_interval == 0
-        loss_range = _loss_range(T, hyper.window_length)
+        warmup = _warmup_steps(model, s.dt)
+        loss_range = _loss_range(T, hyper.window_length, warmup)
+        _require_scored(ys, loss_range, warmup, "UKF + Optimise")
         current = e.hyperparams
         checkpoint, mode, steps = _prepare_window_checkpoint!(
-            e.checkpoint, () -> build(Float64, current), current, ys, loss_range
+            e.checkpoint, () -> build(Float64, current), current, ys, loss_range; warmup
         )
         cold = forecast_number == 1 || !hyper.warm_start
         start_from = hyper.warm_start ? e.hyperparams : model.hyperparams
@@ -82,7 +78,7 @@ function fit_forecast!(
                 hp = merge(model.hyperparams, constrained_values(bundle, u))
                 kf = checkpoint === nothing ? build(eltype(u), hp) :
                     _candidate_from_checkpoint(checkpoint, build, eltype(u), hp)
-                ll = checkpoint === nothing ? marginal_loglik(kf, ys, hp) : _filter_loglik!(kf, ys, hp, loss_range)
+                ll = checkpoint === nothing ? marginal_loglik(kf, ys, hp; warmup) : _filter_loglik!(kf, ys, hp, loss_range)
                 value = -ll - log_prior
                 isfinite(value) ? value : Inf - log_prior
             catch
@@ -112,7 +108,8 @@ function fit_forecast!(
     for name in bundle.names
         push!(summary, (string(name), "estimate", Float64(hp[name])))
     end
-    emit_forecast || return (; quantiles = nothing, fitted_means = fitted, summary, samples = nothing)
+    latents = _latent_moments(solution.xt, solution.Rt, layout.latent_range, update_range)
+    emit_forecast || return ForecastResult(; fitted_means = fitted, summary, latents)
 
     @info "UKF: generating forecast" forecast_number horizons = s.n_ahead
     t0 = (T - 1) * s.dt
@@ -131,5 +128,5 @@ function fit_forecast!(
     latent_sd = [sqrt(max(covs[h][i, i], 0.0)) for h in 1:s.n_ahead, i in layout.latent_range]
     append_latent_spread!(summary, layout.latent_names, latent_sd)
     append_latent_audit!(summary, layout.latent_names, solution.xt, layout.latent_range; dt = s.dt)
-    return (; quantiles, fitted_means = fitted, summary, samples = nothing)
+    return ForecastResult(; quantiles, fitted_means = fitted, summary, latents)
 end

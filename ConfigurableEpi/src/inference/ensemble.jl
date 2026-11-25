@@ -12,13 +12,10 @@ const _EKP_LOSS_COV = Matrix(1.0I, 1, 1)
 EnKF + EKP: replays the complete series each origin and recalibrates every `reopt_interval`
 origins, warm-starting from the previous outer ensemble.
 """
-mutable struct EnKFEKPEngine{M <: EpiModel, A <: Assembly, B <: ParameterPriorBundle, F} <: InferenceEngine
-    const model::M
-    const assembly::A
-    const settings::EngineSettings
+mutable struct EnKFEKPEngine{C <: EngineCore, F} <: InferenceEngine
+    const core::C
     const filter_cfg::EnKF
     const hyper::EKP
-    const bundle::B
     const inner_seed::UInt64
     const rng_outer::Random.Xoshiro
     const rng_forecast::Random.Xoshiro
@@ -76,19 +73,18 @@ function build_inference(
     )
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
-    settings = EngineSettings(; dt, supersample, n_ahead, n_draws)
-    assembly = Assembly(model, settings, 0.0)
-    length(model.layout.accumulator_indices) == assembly.n_obs || throw(
-        ArgumentError("the ensemble path maps one accumulator per observation; the layout has $(length(model.layout.accumulator_indices)) for $(assembly.n_obs) observations")
+    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
+    length(model.layout.accumulator_indices) == core.assembly.n_obs || throw(
+        ArgumentError("the ensemble path maps one accumulator per observation; the layout has $(length(model.layout.accumulator_indices)) for $(core.assembly.n_obs) observations")
     )
     _check_ensemble_rank(filter, hyper, model)
     # Three streams off the caller's rng: the outer ensemble, the inner replays (a seed re-used
     # per candidate) and forecast simulation.
     stream_seed = rand(rng, UInt64)
     inner_seed = stream_seed + 0x01
-    enkf = _enkf(assembly, model, model.hyperparams, settings.dt, filter, inner_seed)
+    enkf = _enkf(core.assembly, model, model.hyperparams, core.settings.dt, filter, inner_seed)
     return EnKFEKPEngine(
-        model, assembly, settings, filter, hyper, ParameterPriorBundle(model.priors), inner_seed,
+        core, filter, hyper, inner_seed,
         Random.Xoshiro(stream_seed), Random.Xoshiro(stream_seed + 0x02), model.hyperparams, enkf,
         nothing, nothing, 0, 0.0, Ref(false), WindowCheckpoint(),
     )
@@ -180,21 +176,24 @@ function fit_forecast!(
     T = _validate_fit(observations, update_range, forecast_number)
     _require_full_range(update_range, T, "EnKF + EKP")
     ys = _observation_vectors(observations)
-    model, s, hyper, bundle = e.model, e.settings, e.hyper, e.bundle
+    (; model, assembly, bundle) = e.core
+    s, hyper = e.core.settings, e.hyper
     names = bundle.names
-    build(hp) = _enkf(e.assembly, model, hp, s.dt, e.filter_cfg, e.inner_seed)
+    build(hp) = _enkf(assembly, model, hp, s.dt, e.filter_cfg, e.inner_seed)
 
     if (forecast_number - 1) % hyper.reopt_interval == 0
-        loss_range = _loss_range(T, hyper.window_length)
+        warmup = _warmup_steps(model, s.dt)
+        loss_range = _loss_range(T, hyper.window_length, warmup)
+        _require_scored(ys, loss_range, warmup, "EnKF + EKP")
         current = e.hyperparams
-        checkpoint, mode, steps = _prepare_window_checkpoint!(e.checkpoint, () -> build(current), current, ys, loss_range)
+        checkpoint, mode, steps = _prepare_window_checkpoint!(e.checkpoint, () -> build(current), current, ys, loss_range; warmup)
         outer_threads = _outer_ekp_threads_enabled(hyper.threads)
 
         function score(theta)
             candidate_hp = merge(model.hyperparams, NamedTuple{names}(Tuple(theta)))
             candidate_kf = checkpoint === nothing ? build(candidate_hp) :
                 _candidate_from_checkpoint(checkpoint, nothing, Float64, candidate_hp)
-            return checkpoint === nothing ? marginal_loglik(candidate_kf, ys, candidate_hp) :
+            return checkpoint === nothing ? marginal_loglik(candidate_kf, ys, candidate_hp; warmup) :
                 _filter_loglik!(candidate_kf, ys, candidate_hp, loss_range)
         end
         # Resuming from the previous final ENSEMBLE carries the spread too, which is what lets
@@ -267,7 +266,8 @@ function fit_forecast!(
             push!(summary, (string(name), "ekp_" * stat, quantile(values, q)))
         end
     end
-    emit_forecast || return (; quantiles = nothing, fitted_means = fitted, summary, samples = nothing)
+    latents = _latent_moments(solution.xt, solution.Rt, layout.latent_range, update_range)
+    emit_forecast || return ForecastResult(; fitted_means = fitted, summary, latents)
 
     @info "EnKF: generating forecast ensemble" forecast_number draws = s.n_draws horizons = s.n_ahead
     corrected = solution.origin
@@ -276,11 +276,10 @@ function fit_forecast!(
     Random.seed!(forecast_filter.rng, rand(e.rng_forecast, UInt64))
     samples, latent_samples = forecast_ensemble(
         forecast_filter, initial_states, hp;
-        n_ahead = s.n_ahead, t0 = (T - 1) * s.dt, dt = s.dt, latent_range = layout.latent_range, n_obs = e.assembly.n_obs,
+        n_ahead = s.n_ahead, t0 = (T - 1) * s.dt, dt = s.dt, latent_range = layout.latent_range, n_obs = assembly.n_obs,
     )
-    latent_sd = [_cloud_sd(view(latent_samples, h, :, l)) for h in 1:s.n_ahead, l in axes(latent_samples, 3)]
-    append_latent_spread!(summary, layout.latent_names, latent_sd)
+    append_latent_spread!(summary, layout.latent_names, _latent_sd(latent_samples))
     append_latent_audit!(summary, layout.latent_names, solution.xt, layout.latent_range; dt = s.dt)
     @info "EnKF: forecast complete" forecast_number log_likelihood = solution.ll
-    return (; quantiles = forecast_quantiles(samples), fitted_means = fitted, summary, samples)
+    return ForecastResult(; quantiles = forecast_quantiles(samples), fitted_means = fitted, summary, samples, latents)
 end
