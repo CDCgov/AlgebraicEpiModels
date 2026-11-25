@@ -393,6 +393,14 @@ estimate(df, name, statistic = "estimate") =
         # Rank guards: the ensemble must span the state, the outer ensemble the learned set.
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 3), ekp(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 40), ekp(n_ensemble = 1), model; ukf_kwargs...)
+        # ... and the observations, which can outnumber the state when specs share a signal.
+        crowded = EpiModel(;
+            vectorfield! = mock_inference_vf!, layout, stochastic, hyperparams = base_hyperparams,
+            observation = ntuple(i -> SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); name = Symbol(:y, i)), 5),
+            priors = (R0_baseline = r0_prior,), initial_state = x0_state,
+        )
+        @test_throws "5 observations" build_inference(EnKF(n_ensemble = 5), ekp(), crowded; ukf_kwargs...)
+        @test build_inference(EnKF(n_ensemble = 6), ekp(), crowded; ukf_kwargs...) isa EnKFEKPEngine
         @test_throws ArgumentError make_engine(5; window_length = -1)
 
         @testset "a likelihood warm-up leaves the first observations out of the EKP score" begin

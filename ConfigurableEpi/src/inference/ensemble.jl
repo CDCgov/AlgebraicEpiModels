@@ -52,6 +52,14 @@ function _check_ensemble_rank(filter::EnKF, hyper::EKP, model::EpiModel)
                 "$(filter.n_ensemble - 1) dimensions but the state has $nx; raise filter.enkf.n_ensemble",
         )
     )
+    # The innovation covariance is a sample covariance of the observation ensemble alone.
+    ny = length(model.observation)
+    filter.n_ensemble > ny || throw(
+        ArgumentError(
+            "EnKF innovation covariance is rank-deficient: n_ensemble = $(filter.n_ensemble) spans " *
+                "$(filter.n_ensemble - 1) dimensions but there are $ny observations; raise filter.enkf.n_ensemble",
+        )
+    )
     n_learned = length(model.priors)
     hyper.n_ensemble > n_learned || throw(
         ArgumentError(
