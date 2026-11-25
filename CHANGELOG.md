@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `build_inference`, `resolve_priors` and `resolve_prior_specs` take an `InferenceConfig`.
 - ConfigurableEpi: `StateFilter` and `HyperMethod` are abstract supertypes of the option structs; `StateFilterConfig` and `HyperMethodConfig` are the `Union`s for `@option` fields.
 - ConfigurableEpi: `config.jl` moved to `src/model/config.jl`.
+- ConfigurableEpi: `forecast_ensemble` always returns `samples[horizon, draw, observation]`, keeping the observation axis for one observation.
+  `ForecastResult` still drops it for a one-observation model.
 
 ### Removed
 

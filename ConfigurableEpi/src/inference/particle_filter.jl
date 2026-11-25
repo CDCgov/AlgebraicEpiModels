@@ -124,8 +124,6 @@ function build_inference(
     _validate(hyper)
     core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
     (; assembly, settings) = core
-    assembly.n_obs == 1 ||
-        throw(ArgumentError("PF + LiuWest needs exactly one observation signal; got $(assembly.n_obs)"))
     layout, base = model.layout, model.hyperparams
     learned = build_learned_hyperparams(model.priors, layout)
     as_days(entries) = Dict{Symbol, Float64}(Symbol(k) => Float64(v) for (k, v) in entries)
@@ -151,7 +149,7 @@ function build_inference(
     )
     pf = AdvancedParticleFilter(
         filter.n_particles, pf_dynamics, pf_measure, logpdf, nothing, d0;
-        p = base, ny = 1, nu = 0, rng, Ts = settings.dt, threads = filter.threads,
+        p = base, ny = assembly.n_obs, nu = 0, rng, Ts = settings.dt, threads = filter.threads,
     )
     reset!(pf)
     return PFLiuWestEngine(core, filter, hyper, pf, learned, update!, rng)
@@ -173,7 +171,8 @@ function fit_forecast!(
     )
     ys = _observation_vectors(observations)
     n_particles = e.filter_cfg.n_particles
-    fitted, ess, latent_path, latent_path_sd = Float64[], Float64[], Vector{Vector{Float64}}(), Vector{Vector{Float64}}()
+    fitted = Matrix{Float64}(undef, length(update_range), pf.ny)
+    ess, latent_path, latent_path_sd = Float64[], Vector{Vector{Float64}}(), Vector{Vector{Float64}}()
     final_particles = final_weights = nothing
     n_updates = length(update_range)
     progress_interval = max(cld(n_updates, 10), 1)
@@ -186,7 +185,7 @@ function fit_forecast!(
         cloud, weights = particles(pf), expweights(pf)
         wsum = sum(weights)
         observed && push!(ess, _effective_sample_size(weights))
-        push!(fitted, sum(weights[i] * pf.measurement(cloud[i], _NO_INPUT, base, t, false)[1] for i in eachindex(cloud)) / wsum)
+        fitted[progress, :] = sum(weights[i] * pf.measurement(cloud[i], _NO_INPUT, base, t, false) for i in eachindex(cloud)) / wsum
         latent_mean, latent_sd = _cloud_latent_moments(cloud, weights, layout.latent_range)
         push!(latent_path, latent_mean)
         push!(latent_path_sd, latent_sd)
@@ -206,7 +205,7 @@ function fit_forecast!(
     initial_states = final_particles[_weighted_sample_indices(final_weights, s.n_draws, forecast_filter.rng)]
     samples, latent_samples = forecast_ensemble(
         forecast_filter, initial_states, base;
-        n_ahead = s.n_ahead, t0 = (T - 1) * s.dt, dt = s.dt, latent_range = layout.latent_range,
+        n_ahead = s.n_ahead, t0 = (T - 1) * s.dt, dt = s.dt, latent_range = layout.latent_range, n_obs = pf.ny,
     )
 
     summary = _summary()

@@ -525,8 +525,9 @@ end
 """
     build_measurement_logpdf(layout, obs_specs, stochastic; learned = nothing) -> g(x, u, y, p, t)
 
-Particle weighting: the summed exact `observation_logpdf` of `y` over the observation specs.
-`learned` (a `LearnedHyperparams`) lets each particle's own hyperparameters override `p`.
+Particle weighting: the summed exact `observation_logpdf` of `y` over the observation specs,
+skipping a `NaN` (absent) component. `learned` (a `LearnedHyperparams`) lets each particle's own
+hyperparameters override `p`.
 """
 function build_measurement_logpdf(
         layout::StateLayout, obs_specs::Tuple{Vararg{ObservationSpec}}, stochastic::StochasticUpdate;
@@ -540,7 +541,8 @@ function build_measurement_logpdf(
         p_eff = _effective_params(learned, p, x)
         latent = extract(x)
         means = _observation_means(specs, x, latent, p_eff, t, accumulators, n_val)
-        return sum(ntuple(i -> observation_logpdf(specs[i].noise_spec, y[i], means[i], latent, p_eff, t), n_val))
+        term(i) = isnan(y[i]) ? 0.0 : observation_logpdf(specs[i].noise_spec, y[i], means[i], latent, p_eff, t)
+        return sum(ntuple(term, n_val))
     end
     return logpdf_fn
 end

@@ -2,10 +2,11 @@ using Test
 using ConfigurableEpi
 using DataFramesMeta: DataFrame, names
 using Dates: Date, Day
-using LinearAlgebra: BLAS, diag
-using Distributions: NegativeBinomial, Normal, quantile
+using LinearAlgebra: BLAS, I, diag
+using Distributions: MvNormal, NegativeBinomial, Normal, quantile
 using LowLevelParticleFilters: AdvancedParticleFilter, UnscentedKalmanFilter, forward_trajectory,
-    correct!, covariance, expweights, index, particles, predict!, reset!, state, weights
+    TrivialParams, correct!, covariance, expweights, index, particles, predict!, reset!, state, weights
+using StaticArrays: SVector
 import Random
 
 const CE = ConfigurableEpi
@@ -149,7 +150,9 @@ estimate(df, name, statistic = "estimate") =
         @test_throws ArgumentError cov(layout, x0_state; model_relative_sd = -0.1)
     end
 
-    @testset "_observation_vectors: single-signal shape is unchanged" begin
+    # An absent component becomes `NaN`, an all-absent vector a predict-only slot, and NaN in the
+    # data is refused rather than mistaken for an absent value.
+    @testset "_observation_vectors: absent components, predict-only slots, refused NaN" begin
         obsvec = CE._observation_vectors
         @test obsvec([8.0, 10.0, 12.0]) == [[8.0], [10.0], [12.0]]
         @test obsvec([8, 10]) == [[8.0], [10.0]]
@@ -157,6 +160,9 @@ estimate(df, name, statistic = "estimate") =
         @test obsvec([[8.0, 90.0], [10.0, 91.0]]) == [[8.0, 90.0], [10.0, 91.0]]
         @test eltype(obsvec([[8, 90], [10, 91]])) == Vector{Float64}
         @test isequal(obsvec([8.0, missing, 12.0]), [[8.0], missing, [12.0]])
+        @test isequal(obsvec([[1.0, missing], [missing, missing], [2, 4]]), [[1.0, NaN], missing, [2.0, 4.0]])
+        @test_throws ArgumentError obsvec([NaN])
+        @test_throws ArgumentError obsvec([[1.0, NaN]])
     end
 
     @testset "initial accumulator variance: opt-in, keyed by signal" begin
@@ -387,6 +393,14 @@ estimate(df, name, statistic = "estimate") =
         # Rank guards: the ensemble must span the state, the outer ensemble the learned set.
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 3), ekp(), model; ukf_kwargs...)
         @test_throws ArgumentError build_inference(EnKF(n_ensemble = 40), ekp(n_ensemble = 1), model; ukf_kwargs...)
+        # ... and the observations, which can outnumber the state when specs share a signal.
+        crowded = EpiModel(;
+            vectorfield! = mock_inference_vf!, layout, stochastic, hyperparams = base_hyperparams,
+            observation = ntuple(i -> SignalObservationSpec(1, NegBinomialNoise(phi = 50.0); name = Symbol(:y, i)), 5),
+            priors = (R0_baseline = r0_prior,), initial_state = x0_state,
+        )
+        @test_throws "5 observations" build_inference(EnKF(n_ensemble = 5), ekp(), crowded; ukf_kwargs...)
+        @test build_inference(EnKF(n_ensemble = 6), ekp(), crowded; ukf_kwargs...) isa EnKFEKPEngine
         @test_throws ArgumentError make_engine(5; window_length = -1)
 
         @testset "a likelihood warm-up leaves the first observations out of the EKP score" begin
@@ -770,11 +784,10 @@ end
         @test M[:, 1] ≈ [10.0 * 0.1 * (1 + 0.0), 0.0, 30.0 * 0.1 * (1 + 14.0)]   # a negative accumulator is floored
         @test M[:, 2] ≈ [20.0 * 0.5 + 3.0, 40.0 * 0.5 + 3.0, 60.0 * 0.5 + 3.0]
         v = CE._fitted_observation_means(specs[1:1], layout2.accumulator_indices, extract, xt, hyper, 7.0, 2:3)
-        @test v isa Vector
-        @test v ≈ [0.0, 30.0 * 0.1 * (1 + 14.0)]
+        @test v ≈ reshape([0.0, 30.0 * 0.1 * (1 + 14.0)], 2, 1)   # the observation axis stays
         constant = (SignalObservationSpec(1, NegBinomialNoise(phi = 10.0); mean_modifier = (_l, h, _t) -> h.a),)
         c = CE._fitted_observation_means(constant, layout2.accumulator_indices, extract, xt, hyper, 7.0, 1:3)
-        @test c == [max(x[4], 0.0) * hyper.a for x in xt]
+        @test vec(c) == [max(x[4], 0.0) * hyper.a for x in xt]
     end
 end
 
@@ -818,4 +831,72 @@ end
     @test est > 0.5 * r_true
     @test abs(est - r_true) < abs(0.0 - r_true)
     @test engine.hyperparams.ascertainment_decline_rate == est
+end
+
+# A Gaussian filter corrects a partially observed slot on its observed components: the same update
+# and log-likelihood as a filter whose measurement is those components alone.
+@testset "Gaussian filters skip an absent component exactly" begin
+    dynamics(x, u, p, t, w) = x .+ 0.1 .* w
+    both(x, u, p, t, v) = SVector(x[1] + x[2] + v[1], 2x[2] + 0.5v[2])
+    first_only(x, u, p, t, v) = SVector(x[1] + x[2] + v[1])
+    d0 = MvNormal([1.0, 2.0], [0.5 0.1; 0.1 0.3])
+    R1, R2 = Matrix(1.0I, 2, 2), Matrix(1.0I, 2, 2)
+    ukf(measure, ny) = UnscentedKalmanFilter{false, false, true, true}(
+        dynamics, measure, R1, R2, d0; p = nothing, ny, nu = 0, weight_params = TrivialParams(),
+    )
+    partial, reference = ukf(both, 2), ukf(first_only, 1)
+    got = CE._correct!(partial, [3.5, NaN], nothing, 0.0)
+    want = correct!(reference, Float64[], [3.5], nothing, 0.0)
+    @test got.ll ≈ want.ll rtol = 1.0e-12
+    @test state(partial) ≈ state(reference) rtol = 1.0e-12
+    @test covariance(partial) ≈ covariance(reference) rtol = 1.0e-12
+
+    enkf(measure, ny) = AugmentedEnsembleKalmanFilter(dynamics, measure, R1, R2, d0, 50; nu = 0, ny, rng = Random.Xoshiro(3))
+    partial, reference = enkf(both, 2), enkf(first_only, 1)
+    got = CE._correct!(partial, [3.5, NaN], nothing, 0.0)
+    want = correct!(reference, Float64[], [3.5], nothing, 0.0)
+    @test got.ll ≈ want.ll rtol = 1.0e-12
+    @test partial.ensemble ≈ reference.ensemble
+end
+
+function mock_two_signal_vf!(du, u, p, t)
+    hyper, latent = p
+    beta = 0.3 * hyper.R0_baseline * latent.Rt / 1000.0
+    du[:S] = -beta * u[:S] * u[:I]
+    du[:I] = beta * u[:S] * u[:I] - 0.2 * u[:I]
+    du[:O_a] = hyper.obs_scale * u[:I]
+    du[:O_b] = 0.5 * hyper.obs_scale * u[:I]
+    return nothing
+end
+
+# Three observations on two accumulators, with slots that miss a signal: every engine fits and
+# forecasts each observation.
+@testset "engines fit several observations with absent components" begin
+    layout = StateLayout((:S, :I), (:O_a, :O_b), (:Rt,); signal_names = (:a, :b))
+    rt_spec = RWParamSpec(:Rt; init = positive_gaussian(:Rt, 1.0, 0.1), sigma_rate = FixedParam(:sigma_Rt, 0.03))
+    stochastic = build_stochastic_update(layout, (rt_spec,))
+    noise = NegBinomialNoise(phi = (_l, h, _t) -> h.phi)
+    observed(third) = EpiModel(;
+        vectorfield! = mock_two_signal_vf!, layout, stochastic,
+        observation = (SignalObservationSpec(1, noise; name = :a), SignalObservationSpec(2, noise; name = :b), third),
+        hyperparams = (R0_baseline = 1.5, obs_scale = 0.25, phi = 50.0),
+        priors = (R0_baseline = positive_gaussian(:R0_baseline, 1.5, 0.4),),
+        initial_state = [900.0, 50.0, 10.0, 5.0, stochastic.to_unconstrained((Rt = 1.0,))[1]],
+    )
+    total = observed(AggregatedSignalSpec([1, 2], noise; name = :total))
+    share = observed(ShareSignalSpec([1], [1, 2], noise; mean_modifier = SlotSeries(fill(90.0, 4)), name = :share_a))
+    ys_total = [[12.0, 6.0, 18.0], [13.0, missing, 19.0], [missing, 7.0, missing], [14.0, 7.0, 21.0]]
+    ys_share = [[12.0, 6.0, 60.0], [13.0, missing, 62.0], [missing, 7.0, missing], [14.0, 7.0, 58.0]]
+    kwargs = (; dt = 1.0, supersample = 1, n_ahead = 2, n_draws = 16, rng = Random.Xoshiro(17))
+    for (filter, hyper, model, ys) in (
+            (UKF(), Optimise(maxiters = 2, maxiters_burnin = 2), total, ys_total),
+            (EnKF(n_ensemble = 40), EKP(n_ensemble = 6, iterations = 1, burnin_iterations = 1), share, ys_share),
+            (PF(n_particles = 200, threads = false), LiuWest(), share, ys_share),
+        )
+        r = fit_forecast!(build_inference(filter, hyper, model; kwargs...), ys, 1)
+        @test size(r.fitted_means) == (4, 3)
+        @test size(r.quantiles) == (2, 3, length(DEFAULT_QS))
+        @test all(isfinite, r.fitted_means) && all(isfinite, r.quantiles)
+        r.samples === nothing || @test size(r.samples) == (2, 16, 3)
+    end
 end

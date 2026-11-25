@@ -268,27 +268,13 @@ end
         cloud = collect(particles(pf))
 
         s1, lat1 = forecast_ensemble(pf, cloud, hyper; n_ahead = 4, t0 = 0.0, dt = 1.0)
-        @test size(s1) == (4, length(cloud))
-
-        # `n_obs` is opt-in and the single-signal branch is unchanged: with the same seed the
-        # `n_obs = 1` call reproduces the default one exactly, which is what keeps the existing
-        # UKF/PF forecasts byte-identical (the two branches consume the RNG identically).
-        Random.seed!(20260620)
-        pf_a = deepcopy(pf)
-        s_default, _ = forecast_ensemble(pf_a, cloud, hyper; n_ahead = 4, t0 = 0.0, dt = 1.0)
-        Random.seed!(20260620)
-        pf_b = deepcopy(pf)
-        s_explicit, _ = forecast_ensemble(
-            pf_b, cloud, hyper; n_ahead = 4, t0 = 0.0, dt = 1.0, n_obs = 1
-        )
-        @test s_default == s_explicit
-        @test s_default isa Matrix
+        @test size(s1) == (4, length(cloud), 1)   # one observation keeps its axis
         @test_throws ArgumentError forecast_ensemble(
             pf, cloud, hyper; n_ahead = 2, t0 = 0.0, dt = 1.0, n_obs = 0
         )
 
         @test all(s1 .>= 0.0)
-        @test var(s1[4, :]) > var(s1[1, :])  # predictive spread widens with horizon
+        @test var(s1[4, :, 1]) > var(s1[1, :, 1])  # predictive spread widens with horizon
         @test size(lat1) == (4, length(cloud), 0)  # latent capture is opt-in
 
         # `observe_state` sees every draw from the origin on and leaves the draws unchanged; any
@@ -457,10 +443,11 @@ end
         init = [rand(rng, MvNormal(x0, P0)) for _ in 1:300]
 
         s, _ = forecast_ensemble(ukf, init, hyper; n_ahead = 4, t0 = 0.0, dt = 1.0)
-        @test size(s) == (4, 300)
+        @test size(s) == (4, 300, 1)
         @test all(s .>= 0.0)
+        @test size(forecast_quantiles(s)) == (4, 1, length(DEFAULT_QS))
 
-        qmat = forecast_quantiles(s)
+        qmat = forecast_quantiles(s[:, :, 1])
         @test size(qmat) == (4, length(DEFAULT_QS))
         @test all(issorted(qmat[h, :]) for h in 1:4)  # quantiles monotone per horizon
     end

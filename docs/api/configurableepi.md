@@ -765,7 +765,7 @@ Gaussian-approximation observation given unit noise `v` (the UKF measurement).
 build_measurement_logpdf(layout, obs_specs, stochastic; learned = nothing) -> g(x, u, y, p, t)
 ```
 
-Particle weighting: the summed exact `observation_logpdf` of `y` over the observation specs. `learned` (a `LearnedHyperparams`) lets each particle's own hyperparameters override `p`.
+Particle weighting: the summed exact `observation_logpdf` of `y` over the observation specs, skipping a `NaN` (absent) component. `learned` (a `LearnedHyperparams`) lets each particle's own hyperparameters override `p`.
 
 <a id='ConfigurableEpi.build_measurement_model-Tuple{StateLayout, Tuple{Vararg{ObservationSpec}}, StochasticUpdate}'></a>
 <a id='ConfigurableEpi.build_measurement_model-Tuple{StateLayout, Tuple{Vararg{ObservationSpec}}, StochasticUpdate}-1'></a>
@@ -1453,7 +1453,9 @@ fit_forecast!(engine, observations, forecast_number; update_range = eachindex(ob
               emit_forecast = true) -> ForecastResult
 ```
 
-Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or `missing` where there is no observation: the filter then predicts through the slot without correcting), and forecast `n_ahead` steps ahead. `forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls and `update_range` must start at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)` followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF); both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see [`latent_path_rows`](configurableepi.md#ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any})).
+Assimilate `observations`, one entry per slot of the regular `dt` grid, and forecast `n_ahead` steps ahead. An entry is a number, a vector with one component per observation, or `missing` where nothing is observed: the filter predicts through the slot without correcting. A `missing` component is a signal absent that slot, and every filter corrects on the observed ones only. `forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls and `update_range` must start at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)` followed by the full range.
+
+`fitted_means` covers `update_range` (a nowcast at a `missing` slot). For one observation it is a vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them, `nothing` for the analytic UKF) is `[horizon, draw]`; several observations add an observation axis: `[slot, observation]`, `[horizon, observation, quantile]` and `[horizon, draw, observation]`. `quantiles` and `samples` are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see [`latent_path_rows`](configurableepi.md#ConfigurableEpi.latent_path_rows-Tuple{Any, AbstractVector, Any})).
 
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}'></a>
 <a id='ConfigurableEpi.marginal_loglik-Tuple{Any, Any, Any}-1'></a>
@@ -1662,7 +1664,7 @@ forecast_ensemble(filter, init_states, p; n_ahead, t0, dt = 1.0, u = Float64[], 
                   n_obs = 1, observe_state = Returns(nothing)) -> (samples, latent_samples)
 ```
 
-Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with `sample_measurement` (no `correct!`). `samples[h, j]` (or `[h, j, o]` for `n_obs > 1`) is the non-negative predictive observation; `latent_samples[h, j, l]` the requested slots (`latent_range`, any integer vector) in their unconstrained chart, the forecast-spread diagnostic. `observe_state(h, j, x)` sees draw `j`'s state at every horizon `h`, from the origin `h = 0`.
+Roll each state forward `n_ahead` steps with `sample_state` and draw a predictive observation with `sample_measurement` (no `correct!`). `samples[h, j, o]` is the non-negative predictive draw of observation `o`; `latent_samples[h, j, l]` the requested slots (`latent_range`, any integer vector) in their unconstrained chart, the forecast-spread diagnostic. `observe_state(h, j, x)` sees draw `j`'s state at every horizon `h`, from the origin `h = 0`.
 
 <a id='ConfigurableEpi.forecast_quantiles-Tuple{AbstractMatrix}'></a>
 <a id='ConfigurableEpi.forecast_quantiles-Tuple{AbstractMatrix}-1'></a>

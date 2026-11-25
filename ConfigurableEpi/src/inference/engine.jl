@@ -77,8 +77,15 @@ struct ForecastResult{Q, F, S, L}
     latents::L
 end
 
-ForecastResult(; quantiles = nothing, fitted_means, summary, samples = nothing, latents) =
-    ForecastResult(quantiles, fitted_means, summary, samples, latents)
+# The engines carry an observation axis on every per-observation array (`fitted_means[k, o]`,
+# `quantiles[h, o, q]`, `samples[h, j, o]`); a one-observation model drops it here.
+ForecastResult(; quantiles = nothing, fitted_means, summary, samples = nothing, latents) = ForecastResult(
+    _drop_observation_axis(quantiles, 2), _drop_observation_axis(fitted_means, 2), summary,
+    _drop_observation_axis(samples, 3), latents,
+)
+
+_drop_observation_axis(::Nothing, _) = nothing
+_drop_observation_axis(A::AbstractArray, dim) = size(A, dim) == 1 ? dropdims(A; dims = dim) : A
 
 "Default initial variance of a latent coefficient slot (unconstrained space): in a log chart, sd 0.45."
 const DEFAULT_LATENT_VARIANCE = 0.2
@@ -166,7 +173,7 @@ function _filter_loglik!(filter, ys, p, range; warmup::Integer = 0)
     for k in range
         t = (k - 1) * filter.Ts
         if ys[k] !== missing
-            term = first(correct!(filter, _NO_INPUT, ys[k], p, t))
+            term = first(_correct!(filter, ys[k], p, t))
             k > warmup && (ll += term)
         end
         predict!(filter, _NO_INPUT, p, t)
@@ -186,7 +193,7 @@ function _filter_pass!(kf, ys, p; at_origin = Returns(nothing))
     origin = nothing
     for k in 1:T
         t = (k - 1) * kf.Ts
-        ys[k] === missing || (ll += first(correct!(kf, _NO_INPUT, ys[k], p, t)))
+        ys[k] === missing || (ll += first(_correct!(kf, ys[k], p, t)))
         xt[k] = Vector{Float64}(state(kf))
         Rt[k] = Matrix{Float64}(covariance(kf))
         k == T && (origin = at_origin(kf))
@@ -283,20 +290,37 @@ function _candidate_from_checkpoint(cp::AugmentedEnsembleKalmanFilter, _build, _
     return candidate
 end
 
-_observation_vector(y::Real) = [Float64(y)]
-_observation_vector(y::AbstractVector) = collect(Float64, y)
+# One slot's observation as the filters read it: a Float64 vector, or `missing` for a slot with
+# nothing observed. An absent component (a signal unsampled that slot) becomes `NaN`, which every
+# filter skips; `NaN` in the data itself is refused so a corrupt value cannot pass as an absent one.
+_observation_vector(y::Real) = [_observation_component(y)]
+_observation_vector(y::AbstractVector) = all(ismissing, y) ? missing : map(_observation_component, collect(y))
 _observation_vector(::Missing) = missing
+_observation_component(::Missing) = NaN
+_observation_component(v::Real) = isnan(v) ?
+    throw(ArgumentError("observation $v is NaN; use `missing` for an absent observation")) : Float64(v)
 _observation_vectors(ys::AbstractVector) = [_observation_vector(y) for y in ys]
 
-# Fitted observation means: each filtered state mean through its spec's `observation_mean` at its
-# own model time. A Vector for one spec, a `[time, observation]` matrix otherwise.
-function _fitted_observation_means(specs, accumulators, extract, xt, hyper, dt, range)
-    means = [
-        observation_mean(spec, compute_true_mean(spec, xt[k], accumulators), extract(xt[k]), hyper, (k - 1) * dt)
-            for k in range, spec in specs
-    ]
-    return length(specs) == 1 ? vec(means) : means
+# One correction at a present slot. A Gaussian filter with absent components corrects on the
+# observed sub-block, the exact marginal update; the particle log-density skips them itself.
+_correct!(filter, y, p, t) = correct!(filter, _NO_INPUT, y, p, t)
+function _correct!(ukf::UnscentedKalmanFilter, y, p, t)
+    observed = findall(!isnan, y)
+    length(observed) == length(y) && return correct!(ukf, _NO_INPUT, y, p, t)
+    mm = ukf.measurement_model
+    sub = LLPF.UKFMeasurementModel{eltype(ukf.x), false, true}(
+        (x, u, p, t, v) -> mm.measurement(x, u, p, t, v)[observed], mm.R2;
+        nx = length(ukf.x), ny = length(observed), weight_params = mm.weight_params, static = false,
+    )
+    return correct!(ukf, sub, _NO_INPUT, y[observed], p, t)
 end
+
+# Fitted observation means `[slot, observation]`: each filtered state mean through its spec's
+# `observation_mean` at its own model time.
+_fitted_observation_means(specs, accumulators, extract, xt, hyper, dt, range) = [
+    observation_mean(spec, compute_true_mean(spec, xt[k], accumulators), extract(xt[k]), hyper, (k - 1) * dt)
+        for k in range, spec in specs
+]
 
 function _symmetrize_covariance(R)
     M = Matrix(R)
@@ -348,17 +372,22 @@ build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng(
     fit_forecast!(engine, observations, forecast_number; update_range = eachindex(observations),
                   emit_forecast = true) -> ForecastResult
 
-Assimilate `observations`, one entry per slot of the regular `dt` grid (a number or a vector, or
-`missing` where there is no observation: the filter then predicts through the slot without
-correcting), and forecast `n_ahead` steps ahead. `forecast_number` counts fitted origins and
-drives the re-optimisation cadence. The replay engines (UKF, EnKF) require the complete
-`update_range`; the online PF engine keeps its cloud between calls and `update_range` must start
-at the slot after the last one it assimilated (the default), so a replay is `reset!(engine.filter)`
-followed by the full range. `fitted_means` covers `update_range` (a nowcast at a `missing` slot). `quantiles` is `[horizon, quantile]` (`[horizon, observation, quantile]` for a
-multi-signal EnKF) and `samples` the predictive draws behind it (`nothing` for the analytic UKF);
-both are `nothing` when `emit_forecast = false`. `summary` is a `(parameter, statistic, value)`
-table of estimates and diagnostics. `latents` holds the filtered latents over `update_range` in
-their unconstrained chart, `(; mean, sd)` as `[slot, latent]` matrices (see
-[`latent_path_rows`](@ref)).
+Assimilate `observations`, one entry per slot of the regular `dt` grid, and forecast `n_ahead`
+steps ahead. An entry is a number, a vector with one component per observation, or `missing`
+where nothing is observed: the filter predicts through the slot without correcting. A `missing`
+component is a signal absent that slot, and every filter corrects on the observed ones only.
+`forecast_number` counts fitted origins and drives the re-optimisation cadence. The replay engines
+(UKF, EnKF) require the complete `update_range`; the online PF engine keeps its cloud between calls
+and `update_range` must start at the slot after the last one it assimilated (the default), so a
+replay is `reset!(engine.filter)` followed by the full range.
+
+`fitted_means` covers `update_range` (a nowcast at a `missing` slot). For one observation it is a
+vector, `quantiles` is `[horizon, quantile]` and `samples` (the predictive draws behind them,
+`nothing` for the analytic UKF) is `[horizon, draw]`; several observations add an observation axis:
+`[slot, observation]`, `[horizon, observation, quantile]` and `[horizon, draw, observation]`.
+`quantiles` and `samples` are `nothing` when `emit_forecast = false`. `summary` is a
+`(parameter, statistic, value)` table of estimates and diagnostics. `latents` holds the filtered
+latents over `update_range` in their unconstrained chart, `(; mean, sd)` as `[slot, latent]`
+matrices (see [`latent_path_rows`](@ref)).
 """
 function fit_forecast! end

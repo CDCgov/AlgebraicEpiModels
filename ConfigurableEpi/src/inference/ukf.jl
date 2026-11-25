@@ -38,14 +38,12 @@ function build_inference(
     _validate(filter)
     _validate(hyper)
     core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), filter.obs_jitter)
-    core.assembly.n_obs == 1 || throw(
-        ArgumentError("UKF + Optimise produces one count-forecast matrix and needs exactly one observation signal; got $(core.assembly.n_obs)")
-    )
-    # The analytic forecast maps the accumulator's Gaussian moments to the observation.
-    raw = only(model.observation).raw
-    raw isa Union{Signal, SignalSum, AllSignals} || throw(
-        ArgumentError("UKF + Optimise forecasts a signal's accumulator, so it cannot forecast a $(nameof(typeof(raw))) observation; use PF + Liu-West")
-    )
+    # The analytic forecast maps the Gaussian moments of each observation's accumulators.
+    for spec in model.observation
+        spec.raw isa Union{Signal, SignalSum, AllSignals} || throw(
+            ArgumentError("UKF + Optimise forecasts signal accumulators, so it cannot forecast the $(nameof(typeof(spec.raw))) observation `$(spec.name)`; use PF + Liu-West")
+        )
+    end
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
     ukf = _ukf(Float64, core.assembly, model, model.hyperparams, core.settings.dt)
@@ -107,8 +105,8 @@ function fit_forecast!(
     solution = _filter_pass!(kf, ys, hp)
     e.filter = kf
     layout, extract = model.layout, model.stochastic.extract
-    spec = only(_resolve_specs(model.observation, layout))
-    fitted = _fitted_observation_means((spec,), layout.accumulator_indices, extract, solution.xt, hp, s.dt, update_range)
+    specs = _resolve_specs(model.observation, layout)
+    fitted = _fitted_observation_means(specs, layout.accumulator_indices, extract, solution.xt, hp, s.dt, update_range)
     summary = _summary()
     for name in bundle.names
         push!(summary, (string(name), "estimate", Float64(hp[name])))
@@ -121,13 +119,14 @@ function fit_forecast!(
     means, covs = forecast_states(
         kf, solution.xt[end], _symmetrize_covariance(solution.Rt[end]); n_ahead = s.n_ahead, t0, dt = s.dt, p = hp,
     )
-    acc = only(layout.accumulator_indices)
-    quantiles = Matrix{Float64}(undef, s.n_ahead, length(DEFAULT_QS))
-    for h in 1:s.n_ahead
-        m = observation_gaussian_moments(spec, means[h][acc], covs[h][acc, acc], extract(means[h]), hp, t0 + h * s.dt)
+    quantiles = Array{Float64, 3}(undef, s.n_ahead, length(specs), length(DEFAULT_QS))
+    for h in 1:s.n_ahead, (o, spec) in enumerate(specs)
+        slots = _accumulator_slots(spec.raw, layout.accumulator_indices)
+        raw_var = sum(view(covs[h], slots, slots))
+        m = observation_gaussian_moments(spec, sum(means[h][slots]), raw_var, extract(means[h]), hp, t0 + h * s.dt)
         dist = Normal(m.mean, sqrt(max(m.var, 1.0e-12)))
         for (k, q) in enumerate(DEFAULT_QS)
-            quantiles[h, k] = max(0.0, quantile(dist, q))
+            quantiles[h, o, k] = max(0.0, quantile(dist, q))
         end
     end
     latent_sd = [sqrt(max(covs[h][i, i], 0.0)) for h in 1:s.n_ahead, i in layout.latent_range]
@@ -135,3 +134,7 @@ function fit_forecast!(
     append_latent_audit!(summary, layout.latent_names, solution.xt, layout.latent_range; dt = s.dt)
     return ForecastResult(; quantiles, fitted_means = fitted, summary, latents)
 end
+
+# The accumulator slots whose sum is a signal observation's raw mean.
+_accumulator_slots(r::Signal, acc) = [acc[r.index]]
+_accumulator_slots(r::SignalSum, acc) = [acc[i] for i in r.indices]
