@@ -99,7 +99,7 @@ LiuWest(; discount = 0.95, jitter_floor_fraction = DEFAULT_JITTER_FLOOR_FRACTION
         forgetting_memory_days = Dict(), replay_on_revision = true)   # [hyper.liu_west]
 ```
 
-Learn static hyperparameters online in the particle cloud by the Liu-West shrink-jitter kernel. `forgetting_memory_days` (parameter => days) adds Kulhavý forgetting toward the prior, merged over the model's own defaults. `replay_on_revision` tells a backtest runner whether to rebuild the filter when already-assimilated data are revised.
+Learn static hyperparameters online in the particle cloud by the Liu-West shrink-jitter kernel. `forgetting_memory_days` (parameter => days) adds Kulhavý forgetting toward the prior, merged over the model's own defaults. `replay_on_revision` marks whether revised, already-assimilated data should trigger a full replay; the package does not read it.
 
 <a id='ConfigurableEpi.NoDayOfWeekConfig'></a>
 <a id='ConfigurableEpi.NoDayOfWeekConfig-1'></a>

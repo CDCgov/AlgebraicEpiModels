@@ -209,8 +209,8 @@ const DEFAULT_JITTER_FLOOR_FRACTION = 1.0e-3
 
 Learn static hyperparameters online in the particle cloud by the Liu-West shrink-jitter kernel.
 `forgetting_memory_days` (parameter => days) adds Kulhavý forgetting toward the prior, merged
-over the model's own defaults. `replay_on_revision` tells a backtest runner whether to rebuild the
-filter when already-assimilated data are revised.
+over the model's own defaults. `replay_on_revision` marks whether revised, already-assimilated
+data should trigger a full replay; the package does not read it.
 """
 @option "liu_west" struct LiuWest <: HyperMethod
     discount::Float64 = 0.95
@@ -255,10 +255,10 @@ option_alias(x) = Configurations.type_alias(typeof(x))
     InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 2000,
                     learn_params = String[], priors = Dict())
 
-The settings of one inference run: the `[filter.<name>]` and
-`[hyper.<name>]` axes, the observation step and integration substeps, the forecast horizon and
-draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run
-script embeds it as one field of its own run config.
+The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the
+observation step and integration substeps, the forecast horizon and draw count, the parameters to
+learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of
+its own run config.
 """
 @option struct InferenceConfig
     filter::StateFilterConfig

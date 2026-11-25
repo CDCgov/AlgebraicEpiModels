@@ -23,8 +23,8 @@ end
     @test (cfg.n_draws, cfg.supersample) == (2000, 2) && isempty(cfg.learn_params) && isempty(cfg.priors)
     @test validate_inference_config(cfg) === cfg
     @test option_alias(cfg.filter) == "ukf" && option_alias(cfg.hyper) == "optimise"
-    @test all(T -> T <: StateFilter, Base.uniontypes(StateFilterConfig))
-    @test all(T -> T <: HyperMethod, Base.uniontypes(HyperMethodConfig))
+    @test StateFilterConfig == Union{UKF, PF, EnKF} && all(T -> T <: StateFilter, (UKF, PF, EnKF))
+    @test HyperMethodConfig == Union{Optimise, LiuWest, EKP} && all(T -> T <: HyperMethod, (Optimise, LiuWest, EKP))
 
     pf = config_with(
         "filter" => Dict("pf" => Dict("n_particles" => 500, "threads" => false)),
