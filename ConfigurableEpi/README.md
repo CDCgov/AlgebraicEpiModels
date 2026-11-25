@@ -2,7 +2,7 @@
 
 Configurable compartmental forecasting on [AlgebraicEpiMech](../AlgebraicEpiMech) Petri nets.
 A model is a Petri net with a rate function, a set of stochastic latent drivers, and an observation model; an inference engine fits it to a count series and forecasts ahead.
-Three engines are supported, selected by two run-config axes:
+Three engines are supported, selected by the two `InferenceConfig` axes:
 
   | `[filter.<name>]` | `[hyper.<name>]` | Engine                                                                                             |
   | ----------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
