@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- ConfigurableEpi: `InferenceConfig` replaces `RunConfig`.
+  It holds only the settings the package reads (`filter`, `hyper`, `step_days`, `supersample`, `n_ahead`, `n_draws`, `learn_params`, `priors`), and a run script embeds it in its own config.
+  `build_inference`, `resolve_priors` and `resolve_prior_specs` take an `InferenceConfig`.
+- ConfigurableEpi: `StateFilter` and `HyperMethod` are abstract supertypes of the option structs; `StateFilterConfig` and `HyperMethodConfig` are the `Union`s for `@option` fields.
+- ConfigurableEpi: `config.jl` moved to `src/model/config.jl`.
+
+### Removed
+
+- ConfigurableEpi: `RunConfig`, `RunIO`, `InputConfig`, `CountInput`, `PercentInput`, `validate_run_config` and `submodel_name`.
+  Use `validate_inference_config` for the inference settings; run settings (data paths, input scale, burn-in, origin mode, schedule) belong to the run script.
+
 ## v0.3.0
 
 ### Added

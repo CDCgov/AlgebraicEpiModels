@@ -1,10 +1,10 @@
 """
     ConfigurableEpi
 
-Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Four layers:
+Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Three layers:
 
-- `config.jl`: the TOML-backed `RunConfig` and the two inference axes (`filter` × `hyper`).
-- `model/`: everything that defines a model — priors, latent processes, the state layout,
+- `model/`: everything that defines a model — the TOML-backed options and
+  [`InferenceConfig`](@ref), priors, latent processes, the state layout,
   vector fields, the observation model, seasonality, ascertainment, weekday effects,
   initialisation — grouped into an [`EpiModel`](@ref).
 - `inference/`: the three engines built by [`build_inference`](@ref) and driven by
@@ -48,9 +48,10 @@ using DuckDB: DB, register_data_frame, unregister_data_frame
 export @option, from_dict, from_toml, from_kwargs, option_alias
 export PriorSpec, build_prior, build_priors, load_prior_specs, load_priors, prior_upper, prior_R_eff_bound
 export Durations, SeasonalityConfig, DayOfWeekConfig, NoDayOfWeekConfig, PluginDayOfWeekConfig,
-    LearnedDayOfWeekConfig, InputConfig, CountInput, PercentInput
-export StateFilter, UKF, PF, EnKF, HyperMethod, Optimise, LiuWest, EKP, DEFAULT_JITTER_FLOOR_FRACTION
-export RunIO, RunConfig, validate_run_config, submodel_name, resolve_priors, resolve_prior_specs
+    LearnedDayOfWeekConfig
+export StateFilter, StateFilterConfig, UKF, PF, EnKF, HyperMethod, HyperMethodConfig, Optimise, LiuWest, EKP,
+    DEFAULT_JITTER_FLOOR_FRACTION
+export InferenceConfig, validate_inference_config, resolve_priors, resolve_prior_specs
 
 # Model
 export ParameterDistribution, ParameterPriorBundle, prior_name, positive_gaussian, unit_interval_gaussian,
@@ -106,7 +107,7 @@ export ObservationSchema, n_observations, observation_names, build_observation_s
 const COMPARTMENTAL_MODELS = Dict(:SEIRS => SEIRS, :SEIR => SEIR, :SEIS => SEIS, :SEI => SEI)
 
 include("model/priors.jl")
-include("config.jl")
+include("model/config.jl")
 include("model/layout.jl")
 include("model/processes.jl")
 include("model/dynamics.jl")

@@ -144,15 +144,14 @@ fig
 ```
 ![](inference_engines-14.png)
 
-## From a run config
+## From an inference config
 
-The same engines can be chosen and tuned from a TOML run config, whose `[filter.<name>]` and `[hyper.<name>]` tables select the pairing:
+The same engines can be chosen and tuned from TOML, whose `[filter.<name>]` and `[hyper.<name>]` tables select the pairing:
 
 ```toml
 n_ahead = 4
 step_days = 7
 supersample = 7
-burnin_observations = 12
 
 [filter.pf]
 n_particles = 2000
@@ -161,5 +160,5 @@ n_particles = 2000
 discount = 0.97
 ```
 
-`build_inference(validate_run_config(from_toml(RunConfig, "run.toml")), model)` then reads the pairing and cadence from the file.
-See [ConfigurableEpi](../packages/configurableepi.md) for the full run config.
+`build_inference(validate_inference_config(from_toml(InferenceConfig, "inference.toml")), model)` then reads the pairing and cadence from the file.
+See [ConfigurableEpi](../packages/configurableepi.md) for embedding it in a run script's own config.

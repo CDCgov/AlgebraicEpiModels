@@ -27,10 +27,10 @@
         return sort!(
             [
                 (
-                    tname(codom(model), model[:T](t)),
-                    sort!([normalize(sname(pn, s)) for s in AlgebraicPetri.inputs(pn, t)]),
-                    sort!([normalize(sname(pn, s)) for s in AlgebraicPetri.outputs(pn, t)]),
-                )
+                        tname(codom(model), model[:T](t)),
+                        sort!([normalize(sname(pn, s)) for s in AlgebraicPetri.inputs(pn, t)]),
+                        sort!([normalize(sname(pn, s)) for s in AlgebraicPetri.outputs(pn, t)]),
+                    )
                     for t in 1:nt(pn)
             ]
         )
