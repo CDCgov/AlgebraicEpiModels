@@ -73,20 +73,21 @@ function _draw_origin_states(rng::Random.AbstractRNG, x, R, n_draws::Integer; od
 end
 
 """
-    build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, n_ahead, n_draws = 2000,
-                    rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
+    build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, integrator = Rk4, n_ahead,
+                    n_draws = 2000, rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES,
+                    adtype = AutoForwardDiff())
 
 `optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs. `rng` seeds the
 forecast draws; the filter and the optimiser are deterministic.
 """
 function build_inference(
         filter::UKF, hyper::Optimise, model::EpiModel;
-        dt, supersample = 2, n_ahead, n_draws = 2000, rng = Random.default_rng(),
+        dt, supersample = 2, integrator::Type{<:AbstractIntegrator} = Rk4, n_ahead, n_draws = 2000, rng = Random.default_rng(),
         optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff(),
     )
     _validate(filter)
     _validate(hyper)
-    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), filter.obs_jitter)
+    core = EngineCore(model, EngineSettings(; dt, supersample, integrator, n_ahead, n_draws), filter.obs_jitter)
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
     ukf = _ukf(Float64, core.assembly, model, model.hyperparams, core.settings.dt)

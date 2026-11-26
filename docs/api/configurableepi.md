@@ -107,11 +107,11 @@ Supertype of the hyperparameter-inference options, the `[hyper.<name>]` axis.
 **`ConfigurableEpi.InferenceConfig`** &mdash; *Type*.
 
 ```julia
-InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 2000,
+InferenceConfig(; filter, hyper, step_days, supersample = 2, integrator = "Rk4", n_ahead, n_draws = 2000,
                 learn_params = String[], priors = Dict())
 ```
 
-The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the observation step and integration substeps, the forecast horizon and draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of its own run config.
+The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the observation step, the integration substeps and SeeToDee integrator ([`integrator_type`](configurableepi.md#ConfigurableEpi.integrator_type-Tuple{AbstractString})), the forecast horizon and draw count, the parameters to learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of its own run config.
 
 <a id='ConfigurableEpi.InitialisationStrategy'></a>
 <a id='ConfigurableEpi.InitialisationStrategy-1'></a>
@@ -246,6 +246,16 @@ build_priors(specs) -> NamedTuple
 ```
 
 `name => PriorSpec` pairs to a `name => ParameterDistribution` NamedTuple.
+
+<a id='ConfigurableEpi.integrator_type-Tuple{AbstractString}'></a>
+<a id='ConfigurableEpi.integrator_type-Tuple{AbstractString}-1'></a>
+**`ConfigurableEpi.integrator_type`** &mdash; *Method*.
+
+```julia
+integrator_type(name) -> Type{<:AbstractIntegrator}
+```
+
+The SeeToDee integrator called `name`, such as `"Rk4"` or `"Heun"`.
 
 <a id='ConfigurableEpi.load_prior_specs-Tuple{Any}'></a>
 <a id='ConfigurableEpi.load_prior_specs-Tuple{Any}-1'></a>
@@ -635,11 +645,11 @@ Identity process-noise covariance sized `n_latent + n_accumulators`; every noise
 **`ConfigurableEpi.build_full_dynamics`** &mdash; *Method*.
 
 ```julia
-build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 2, obs_jitter = 1.0)
-    -> dynamics(x, u, p, t, w[, rng])
+build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 2, integrator = Rk4,
+                    obs_jitter = 1.0) -> dynamics(x, u, p, t, w[, rng])
 ```
 
-One filter step of the augmented state: apply the stochastic driver (coefficient noise from `w[1:L]`, jumps on `rng`), zero the reset accumulators, integrate the flow over `dt` with `supersample` RK4 substeps, then add the accumulator whisker `obs_jitter * w[L+1:end]`. `w` has `size(build_R1(layout), 1)` entries.
+One filter step of the augmented state: apply the stochastic driver (coefficient noise from `w[1:L]`, jumps on `rng`), zero the reset accumulators, integrate the flow over `dt` with `integrator(f, dt; supersample)`, a SeeToDee explicit integrator, then add the accumulator whisker `obs_jitter * w[L+1:end]`. `w` has `size(build_R1(layout), 1)` entries.
 
 <a id='ConfigurableEpi.build_petri_vf-Tuple{Any, Any}'></a>
 <a id='ConfigurableEpi.build_petri_vf-Tuple{Any, Any}-1'></a>
@@ -659,7 +669,7 @@ In-place mass-action vector field of `pn` whose rates are `merge(defaults, rates
 build_unified_vf(petri_vf!, layout) -> (x, u, p, t) -> dx
 ```
 
-Out-of-place form of the Petri vector field for `SeeToDee.Rk4`, naming the ODE slots of `x`.
+Out-of-place form of the Petri vector field for a SeeToDee integrator, naming the ODE slots of `x`.
 
 <a id='ConfigurableEpi.make_lvector_constructor-Union{Tuple{NTuple{N, Symbol}}, Tuple{N}} where N'></a>
 <a id='ConfigurableEpi.make_lvector_constructor-Union{Tuple{NTuple{N, Symbol}}, Tuple{N}} where N-1'></a>
@@ -952,7 +962,7 @@ seasonal_forcing_upper_bound(cfg, fixed_amp, prior_specs, learn_params = ();
                              probability = 0.95, climatology = nothing) -> Float64
 ```
 
-Mode-aware upper bound on the seasonal multiplier for the RK4 stability guard: 1 for `none`, `1 + |amplitude|` for `cosine` (from the prior when learned), and the largest curve value in `climatology` scaled by the fixed or learned `kappa` for `indoor_activity`. An empty `learn_params` means the mode's default learned set.
+Mode-aware upper bound on the seasonal multiplier for the integration stability guard: 1 for `none`, `1 + |amplitude|` for `cosine` (from the prior when learned), and the largest curve value in `climatology` scaled by the fixed or learned `kappa` for `indoor_activity`. An empty `learn_params` means the mode's default learned set.
 
 <a id='ConfigurableEpi.validate_indoor_activity_climatology-Tuple{AbstractDict}'></a>
 <a id='ConfigurableEpi.validate_indoor_activity_climatology-Tuple{AbstractDict}-1'></a>
@@ -1248,17 +1258,11 @@ validate_day_of_week(cfg::DayOfWeekConfig) -> cfg
 
 The plugin window must hold at least five weeks; other modes have nothing to check.
 
-<a id='ConfigurableEpi.RK4_STABILITY_LIMIT'></a>
-<a id='ConfigurableEpi.RK4_STABILITY_LIMIT-1'></a>
-**`ConfigurableEpi.RK4_STABILITY_LIMIT`** &mdash; *Constant*.
+<a id='ConfigurableEpi.STABILITY_HEADROOM'></a>
+<a id='ConfigurableEpi.STABILITY_HEADROOM-1'></a>
+**`ConfigurableEpi.STABILITY_HEADROOM`** &mdash; *Constant*.
 
-Classical RK4 is stable on a real negative eigenvalue only while `|lambda * h| < 2.785`.
-
-<a id='ConfigurableEpi.RK4_WARN_LAMBDA_H'></a>
-<a id='ConfigurableEpi.RK4_WARN_LAMBDA_H-1'></a>
-**`ConfigurableEpi.RK4_WARN_LAMBDA_H`** &mdash; *Constant*.
-
-Proximity warning threshold, about 1.4x below the stability limit.
+How far below its stability limit a substep is warned about.
 
 <a id='ConfigurableEpi.IntegrationBounds'></a>
 <a id='ConfigurableEpi.IntegrationBounds-1'></a>
@@ -1292,10 +1296,11 @@ Whether `R_eff = 1` holds exactly at the peak of `E + I`: only for a single `I` 
 **`ConfigurableEpi.assert_integration_stable`** &mdash; *Method*.
 
 ```julia
-assert_integration_stable(bounds::IntegrationBounds, dt, supersample) -> lambda_h
+assert_integration_stable(bounds::IntegrationBounds, dt, supersample; integrator = Rk4,
+                          limit = stability_limit(integrator)) -> lambda_h
 ```
 
-Error beyond [`RK4_STABILITY_LIMIT`](configurableepi.md#ConfigurableEpi.RK4_STABILITY_LIMIT) and warn beyond [`RK4_WARN_LAMBDA_H`](configurableepi.md#ConfigurableEpi.RK4_WARN_LAMBDA_H).
+Error at the integrator's [`stability_limit`](configurableepi.md#ConfigurableEpi.stability_limit) and warn within [`STABILITY_HEADROOM`](configurableepi.md#ConfigurableEpi.STABILITY_HEADROOM) of it. An integrator without a known limit needs `limit`.
 
 <a id='ConfigurableEpi.carry_susceptible-Tuple{Real, Real, Real, AbstractVector{<:Real}, AbstractVector{<:Real}, Real}'></a>
 <a id='ConfigurableEpi.carry_susceptible-Tuple{Real, Real, Real, AbstractVector{<:Real}, AbstractVector{<:Real}, Real}-1'></a>
@@ -1316,6 +1321,17 @@ chain_stage_seed(inflow, growth_rate, rate, n_stages) -> Vector{Float64}
 ```
 
 Occupancy of an `n_stages` Erlang chain progressing at `rate` and fed by `inflow · exp(g t)` for all `t ≤ 0`: stage `k` holds `inflow / (rate + g) · (rate / (rate + g))^(k − 1)`, which at `g = 0` is the quasi-steady fill `inflow / rate`. An empty chain constrains nothing.
+
+<a id='ConfigurableEpi.deterministic_spinup-Tuple{Any, StateLayout, AbstractVector, Any, Any, Real, Real}'></a>
+<a id='ConfigurableEpi.deterministic_spinup-Tuple{Any, StateLayout, AbstractVector, Any, Any, Real, Real}-1'></a>
+**`ConfigurableEpi.deterministic_spinup`** &mdash; *Method*.
+
+```julia
+deterministic_spinup(petri_vf!, layout, x_ode, hyper, latent_at, t_from, t_to;
+                     dt = 1.0, supersample = 2, integrator = Rk4, keep_accumulators = false) -> Vector
+```
+
+Integrate the ODE state from `t_from` to `t_to` in `supersample` substeps per `dt` of a SeeToDee explicit `integrator`, the latents held on the path `latent_at(t)` rather than filtered. Reset accumulators are zeroed each `dt` step, as in a filter step, and at the end unless `keep_accumulators`, which leaves them holding the last step's flow. States are floored at zero, not `STATE_FLOOR`, so an empty compartment stays empty.
 
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}'></a>
 <a id='ConfigurableEpi.find_observed_peak-Tuple{AbstractVector{<:Real}}-1'></a>
@@ -1396,10 +1412,184 @@ Mean infection-to-report delay, `(n_obs_stages - 1) * obs_progression`.
 **`ConfigurableEpi.required_supersample`** &mdash; *Method*.
 
 ```julia
-required_supersample(bounds::IntegrationBounds, dt; target = RK4_WARN_LAMBDA_H) -> Int
+required_supersample(bounds::IntegrationBounds, dt; integrator = Rk4, limit = stability_limit(integrator),
+                     target = limit / STABILITY_HEADROOM) -> Int
 ```
 
 The smallest `supersample` whose substep keeps `|lambda * h| <= target`.
+
+<a id='ConfigurableEpi.stability_limit'></a>
+<a id='ConfigurableEpi.stability_limit-1'></a>
+**`ConfigurableEpi.stability_limit`** &mdash; *Function*.
+
+```julia
+stability_limit(integrator::Type{<:AbstractIntegrator}) -> Union{Float64, Nothing}
+```
+
+The largest `|lambda * h|` on the negative real axis at which a SeeToDee integrator is stable: 2 for `ForwardEuler` and `Heun`, 2.513 for `Rk3` and 2.785 for `Rk4`; `nothing` for any other.
+
+<a id='ConfigurableEpi.BinnedIncidence'></a>
+<a id='ConfigurableEpi.BinnedIncidence-1'></a>
+**`ConfigurableEpi.BinnedIncidence`** &mdash; *Type*.
+
+```julia
+BinnedIncidence(edges, rates)
+```
+
+Infections per day into each cell, piecewise constant: `rates[c, b]` holds over `[edges[b], edges[b + 1])` and the rate is zero outside the bins.
+
+<a id='ConfigurableEpi.InfectionRoutes'></a>
+<a id='ConfigurableEpi.InfectionRoutes-1'></a>
+**`ConfigurableEpi.InfectionRoutes`** &mdash; *Type*.
+
+```julia
+InfectionRoutes(cells, source, targets, cell, weight)
+```
+
+The distinct ways a host enters infection: for route `k` its `source` compartment, the compartments it feeds (`targets[k]`, the first infected stage and any observation chain), the index `cell[k]` into `cells` of the incidence that drives it, and its relative susceptibility `weight[k]`. Read off a net by [`infection_routes`](configurableepi.md#ConfigurableEpi.infection_routes-Tuple{Any, StateLayout}).
+
+<a id='ConfigurableEpi.ReplayModel'></a>
+<a id='ConfigurableEpi.ReplayModel-1'></a>
+**`ConfigurableEpi.ReplayModel`** &mdash; *Type*.
+
+```julia
+ReplayModel(vf!, replay_vf!, layout, routes)
+ReplayModel(pn, layout, rates; cells, cell, weight = Returns(1.0), is_infection = is_infection_transition,
+            defaults = (;), structure_kwargs...)
+```
+
+A model's vector field, the same field with its infection transitions off, its layout and its [`InfectionRoutes`](configurableepi.md#ConfigurableEpi.InfectionRoutes). The second form builds them from the net with [`build_petri_vf`](configurableepi.md#ConfigurableEpi.build_petri_vf-Tuple{Any, Any}), [`build_replay_vf`](configurableepi.md#ConfigurableEpi.build_replay_vf-Tuple{Any, Any}) and [`infection_routes`](configurableepi.md#ConfigurableEpi.infection_routes-Tuple{Any, StateLayout}).
+
+<a id='ConfigurableEpi.build_replay_vf-Tuple{Any, Any}'></a>
+<a id='ConfigurableEpi.build_replay_vf-Tuple{Any, Any}-1'></a>
+**`ConfigurableEpi.build_replay_vf`** &mdash; *Method*.
+
+```julia
+build_replay_vf(pn, rates; is_infection = is_infection_transition, defaults = (;), structure_kwargs...)
+    -> petri_vf!
+```
+
+[`build_petri_vf`](configurableepi.md#ConfigurableEpi.build_petri_vf-Tuple{Any, Any}) with the rate keys of every infection transition set to zero. A key that also serves another transition, or is fixed, cannot be switched off and is an error.
+
+<a id='ConfigurableEpi.infection_routes-Tuple{Any, StateLayout}'></a>
+<a id='ConfigurableEpi.infection_routes-Tuple{Any, StateLayout}-1'></a>
+**`ConfigurableEpi.infection_routes`** &mdash; *Method*.
+
+```julia
+infection_routes(pn, layout; cells, cell, weight = Returns(1.0), is_infection = is_infection_transition)
+    -> InfectionRoutes
+```
+
+Each infection transition (by default a `transmission…` or `importation…` one) moves one host from a source compartment into its products, leaving the infector out; transitions sharing a source and products are one route. `cell(name)`, one of `cells`, and `weight(name)` must agree across a route.
+
+<a id='ConfigurableEpi.replay_scale_moments-Tuple{Any, Real}'></a>
+<a id='ConfigurableEpi.replay_scale_moments-Tuple{Any, Real}-1'></a>
+**`ConfigurableEpi.replay_scale_moments`** &mdash; *Method*.
+
+```julia
+replay_scale_moments(replay_at, logsd; relative_step = 1.0e-3) -> (; mean, sensitivity, covariance)
+```
+
+Moments of a replayed state when the history is `1 / m` times the central one, `m` log-normal with median 1 and log-sd `logsd` (the `historical_multiplier_logsd` of [`SlowModeInitialisation`](configurableepi.md#ConfigurableEpi.SlowModeInitialisation)). `replay_at(scale)` is the state at one scale; linear about its mean, the state has a rank-one covariance along `sensitivity`, its central-difference derivative in the scale.
+
+<a id='ConfigurableEpi.replay_state-Tuple{ReplayModel, BinnedIncidence, AbstractVector, Any, Any, Real, Real}'></a>
+<a id='ConfigurableEpi.replay_state-Tuple{ReplayModel, BinnedIncidence, AbstractVector, Any, Any, Real, Real}-1'></a>
+**`ConfigurableEpi.replay_state`** &mdash; *Method*.
+
+```julia
+replay_state(model::ReplayModel, incidence, x_start, hyper, latent_at, t_from, t_to;
+             scale = 1.0, dt = 1.0, supersample = 2, integrator = Rk4, keep_accumulators = false) -> Vector
+```
+
+The ODE state at `t_to` from `x_start` at `t_from`, integrated as [`deterministic_spinup`](configurableepi.md#ConfigurableEpi.deterministic_spinup-Tuple{Any, StateLayout, AbstractVector, Any, Any, Real, Real}) does but with `model.replay_vf!`: infections enter cell `c` at `scale × incidence`, held over each substep, and leave its susceptible classes in proportion to `weight × occupancy`. An incidence the susceptible classes cannot supply is an error. The state inherits no transmission parameter; the influence of `x_start` decays at the slowest waning rate.
+
+<a id='ConfigurableEpi.closed_loop_start-Tuple{ReplayModel, AbstractVector, Any, Any, Any}'></a>
+<a id='ConfigurableEpi.closed_loop_start-Tuple{ReplayModel, AbstractVector, Any, Any, Any}-1'></a>
+**`ConfigurableEpi.closed_loop_start`** &mdash; *Method*.
+
+```julia
+closed_loop_start(model::ReplayModel, x_from, hyper, latent_of, closing; window, accumulate_days, fast,
+                  conserve = identity, per_infection = nothing, supersample = 2, integrator = Rk4,
+                  first_guess = 1.0, refinements = 2, lower = 0.1, upper = 10.0) -> (; state, multiplier, scale, growth)
+```
+
+Run the model itself over the last `window` days from `x_from`, with the latents held at `latent_of(m)`, and set two things against `closing` ([`closing_incidence`](configurableepi.md#ConfigurableEpi.closing_incidence-Tuple{BinnedIncidence})):
+
+- the transmission multiplier `m`, so the infection rate grows at `closing.growth` over the last `accumulate_days`, by `refinements` secant steps;
+- the `fast` compartments, scaled together by `scale` so the infection rate at the start is `closing.rate`; `conserve(state)` returns the difference to the slow compartments.
+
+The reset accumulators hold the flow over the last `accumulate_days`.
+
+<a id='ConfigurableEpi.closing_incidence-Tuple{BinnedIncidence}'></a>
+<a id='ConfigurableEpi.closing_incidence-Tuple{BinnedIncidence}-1'></a>
+**`ConfigurableEpi.closing_incidence`** &mdash; *Method*.
+
+```julia
+closing_incidence(incidence; per_infection = nothing) -> (; rate, growth)
+```
+
+Infections per day over all cells at the history's last edge, and their growth per day: the growth between the last two bins, continued from the last bin's midpoint. With `per_infection` by cell the rate is in the signal's units, which the signal fixes whatever the split over cells.
+
+<a id='ConfigurableEpi.history_closure-Tuple{BinnedIncidence, AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVector{<:Real}}'></a>
+<a id='ConfigurableEpi.history_closure-Tuple{BinnedIncidence, AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVector{<:Real}}-1'></a>
+**`ConfigurableEpi.history_closure`** &mdash; *Method*.
+
+```julia
+history_closure(incidence, per_infection, ends, counts; delay, interval = 7.0) -> (; reported, implied, ratio)
+```
+
+A reconstructed history pushed back through the observation level: `implied[k]` is `Σ_c per_infection[c] ×` its infections over the interval ending at `ends[k] - delay`, and `ratio` is `sum(counts) / sum(implied)`. A ratio far from 1 says the history's level and the observation level disagree, which a fit would resolve silently by infecting a different number of people.
+
+<a id='ConfigurableEpi.log_growth_rate-Tuple{AbstractVector}'></a>
+<a id='ConfigurableEpi.log_growth_rate-Tuple{AbstractVector}-1'></a>
+**`ConfigurableEpi.log_growth_rate`** &mdash; *Method*.
+
+```julia
+log_growth_rate(counts; interval = 1.0) -> Float64
+```
+
+Least-squares slope of `log(counts)` per unit time over counts `interval` apart; zero with fewer than two counts or any not positive.
+
+<a id='ConfigurableEpi.matched_transmission_multiplier-Tuple{Any, Real}'></a>
+<a id='ConfigurableEpi.matched_transmission_multiplier-Tuple{Any, Real}-1'></a>
+**`ConfigurableEpi.matched_transmission_multiplier`** &mdash; *Method*.
+
+```julia
+matched_transmission_multiplier(rate_at, target; lower = 0.1, upper = 10.0) -> Real
+```
+
+The multiplier `m` at which `rate_at(m)`, affine in `m`, equals `target`, clamped to `[lower, upper]`; 1 when transmission contributes nothing.
+
+<a id='ConfigurableEpi.signal_incidence-Tuple{AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVecOrMat{<:Real}}'></a>
+<a id='ConfigurableEpi.signal_incidence-Tuple{AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVector{<:Real}, AbstractVecOrMat{<:Real}}-1'></a>
+**`ConfigurableEpi.signal_incidence`** &mdash; *Method*.
+
+```julia
+signal_incidence(ends, counts, per_infection, split; delay, interval = 7.0, growth_points = 4,
+                 until = 0.0) -> BinnedIncidence
+```
+
+The infections a signal implies at the model's observation level: `counts[k]`, reported over the `interval` ending at `ends[k]` and observed `delay` after infection, is `Σ_c per_infection[c] split[c, k]` per infection over the interval ending at `ends[k] - delay`, shared over cells as `split[:, k]` (a vector serves every count). Unobserved infections continue to `until` at the [`log_growth_rate`](configurableepi.md#ConfigurableEpi.log_growth_rate-Tuple{AbstractVector}) of the last `growth_points` counts; fewer than two hold the last rate.
+
+<a id='ConfigurableEpi.splice_incidence-Tuple{BinnedIncidence, BinnedIncidence}'></a>
+<a id='ConfigurableEpi.splice_incidence-Tuple{BinnedIncidence, BinnedIncidence}-1'></a>
+**`ConfigurableEpi.splice_incidence`** &mdash; *Method*.
+
+```julia
+splice_incidence(history, recent) -> BinnedIncidence
+```
+
+`history` up to the first edge of `recent`, then `recent`.
+
+<a id='ConfigurableEpi.total_infection_rate-Tuple{ReplayModel, Vararg{Any, 4}}'></a>
+<a id='ConfigurableEpi.total_infection_rate-Tuple{ReplayModel, Vararg{Any, 4}}-1'></a>
+**`ConfigurableEpi.total_infection_rate`** &mdash; *Method*.
+
+```julia
+total_infection_rate(model::ReplayModel, x, hyper, latent, t; per_infection = nothing) -> Real
+```
+
+Hosts entering infection per day at ODE state `x`: what `model.vf!` takes from the routes' source compartments beyond what `model.replay_vf!` does. With `per_infection` by cell the rate is in the signal's units, so a source compartment must feed cells of one level.
 
 <a id='ConfigurableEpi.contact_matrix-Tuple{AbstractMatrix, Real}'></a>
 <a id='ConfigurableEpi.contact_matrix-Tuple{AbstractMatrix, Real}-1'></a>
@@ -1494,10 +1684,10 @@ Initial sd of each compartment as a fraction of its own initial value.
 **`ConfigurableEpi.EngineSettings`** &mdash; *Type*.
 
 ```julia
-EngineSettings(; dt, supersample, n_ahead, n_draws)
+EngineSettings(; dt, supersample = 2, integrator = Rk4, n_ahead, n_draws = 2000)
 ```
 
-The run-level numbers every engine shares: the observation interval in days, RK4 substeps per interval, forecast horizon and forecast draw count.
+The run-level settings every engine shares: the observation interval in days, the integrator and its substeps per interval (see [`build_full_dynamics`](configurableepi.md#ConfigurableEpi.build_full_dynamics-Union{Tuple{S}, Tuple{L}, Tuple{M}, Tuple{N}, Tuple{Any, StochasticUpdate{L}, StateLayout{N, M, L, S}}} where {N, M, L, S})), forecast horizon and forecast draw count.
 
 <a id='ConfigurableEpi.ForecastResult'></a>
 <a id='ConfigurableEpi.ForecastResult-1'></a>
@@ -1524,12 +1714,12 @@ A `(filter, hyper)` pairing with all of its mutable state: the filter (cloud or 
 **`ConfigurableEpi.build_inference`** &mdash; *Method*.
 
 ```julia
-build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, n_ahead, n_draws = 2000,
-                rng = Random.default_rng(), kwargs...) -> InferenceEngine
+build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, integrator = Rk4, n_ahead,
+                n_draws = 2000, rng = Random.default_rng(), kwargs...) -> InferenceEngine
 build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng())
 ```
 
-Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](configurableepi.md#ConfigurableEpi.UKF) + [`Optimise`](configurableepi.md#ConfigurableEpi.Optimise), [`PF`](configurableepi.md#ConfigurableEpi.PF) + [`LiuWest`](configurableepi.md#ConfigurableEpi.LiuWest) or [`EnKF`](configurableepi.md#ConfigurableEpi.EnKF) + [`EKP`](configurableepi.md#ConfigurableEpi.EKP). Drive it with [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!). The [`InferenceConfig`](configurableepi.md#ConfigurableEpi.InferenceConfig) form takes the pairing, `dt = step_days`, `supersample`, `n_ahead` and `n_draws` from the config.
+Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](configurableepi.md#ConfigurableEpi.UKF) + [`Optimise`](configurableepi.md#ConfigurableEpi.Optimise), [`PF`](configurableepi.md#ConfigurableEpi.PF) + [`LiuWest`](configurableepi.md#ConfigurableEpi.LiuWest) or [`EnKF`](configurableepi.md#ConfigurableEpi.EnKF) + [`EKP`](configurableepi.md#ConfigurableEpi.EKP). Drive it with [`fit_forecast!`](configurableepi.md#ConfigurableEpi.fit_forecast!). The [`InferenceConfig`](configurableepi.md#ConfigurableEpi.InferenceConfig) form takes the pairing, `dt = step_days`, `supersample`, `integrator`, `n_ahead` and `n_draws` from the config.
 
 <a id='ConfigurableEpi.fit_forecast!'></a>
 <a id='ConfigurableEpi.fit_forecast!-1'></a>
@@ -1569,8 +1759,9 @@ Positive-definite Cholesky via `PositiveFactorizations.ldlt!`, which unlike its 
 **`ConfigurableEpi.build_inference`** &mdash; *Method*.
 
 ```julia
-build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, n_ahead, n_draws = 2000,
-                rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES, adtype = AutoForwardDiff())
+build_inference(filter::UKF, hyper::Optimise, model; dt, supersample = 2, integrator = Rk4, n_ahead,
+                n_draws = 2000, rng = Random.default_rng(), optimiser = DEFAULT_OPTIMISER_STAGES,
+                adtype = AutoForwardDiff())
 ```
 
 `optimiser` is a single optimiser, a tuple of them, or `(optimiser, options)` pairs. `rng` seeds the forecast draws; the filter and the optimiser are deterministic.

@@ -98,7 +98,22 @@ The strategy is typically an `initialisation` field of the run's config, parsed 
 The peak strategies fill the stages from the first count at a constant incidence; `slow_mode` fills them from the incidence growth rate over the last three bins of its history.
 `chain_stage_seed` fills any further chain, such as a wastewater shedding chain, from the same infection stream.
 
-The RK4 substep must resolve the fastest rate the model can reach: `assert_integration_stable(IntegrationBounds(durations; n_E, n_I, R_eff_max, extra_rates), dt, supersample)` errors past the stability limit and warns near it.
+### Replay and warm start
+
+A multi-strain or age-structured model has more immune classes than one observed count can place.
+`replay_state` integrates the model's own net over an incidence history with its infection transitions switched off and infections entering each cell at the prescribed rate, so waning, progression and the observation chains run as the model has them.
+A `ReplayModel(pn, layout, rates; cells, cell, weight)` holds what it needs: the vector field, the same field with infection off (`build_replay_vf`), the layout, and the `InfectionRoutes` read off the net by `infection_routes`.
+`replay_scale_moments` turns an uncertain historical ascertainment into a mean and rank-one covariance for the replayed state.
+`deterministic_spinup` integrates the same model with infection on, along a given latent path.
+All three take an `integrator` keyword (below).
+
+The replay sets who is immune; the recent infections come from the signal itself.
+`signal_incidence` turns the counts reported just before the start into infections at the model's observation level, `splice_incidence` puts them at the end of a longer history, and `history_closure` checks that the history reproduces the signal.
+`closed_loop_start` stops the replay a window before the start and lets the model run those days, choosing the transmission multiplier that continues the observed growth (`closing_incidence`) and scaling the infected compartments to the observed rate.
+
+Every integration, from the filter step (`build_full_dynamics`) to the spin-up, takes `supersample` substeps of a SeeToDee explicit integrator, any `integrator::Type{<:SeeToDee.AbstractIntegrator}` built as `integrator(f, dt; supersample)` and `Rk4` by default.
+The substep must resolve the fastest rate the model can reach: `assert_integration_stable(IntegrationBounds(durations; n_E, n_I, R_eff_max, extra_rates), dt, supersample; integrator)` errors past the integrator's `stability_limit` and warns within `STABILITY_HEADROOM` of it.
+An integrator without a known limit needs `limit` passed.
 
 ## Inference configuration
 
@@ -121,6 +136,7 @@ std = 10.0
 ```
 
 The `[filter.<name>]` and `[hyper.<name>]` tables select the engine (`ukf`, `pf`, `enkf`; `optimise`, `liu_west`, `ekp`) and set its options, and `[priors]` overrides a model's default priors by name.
+`integrator` names a SeeToDee integrator (`"Rk4"`, the default, `"Rk3"`, `"Heun"`, `"ForwardEuler"`), and `build_inference` and `EngineSettings` take the type itself.
 
 `InferenceConfig` holds only what the package reads.
 Run settings such as data paths, the observation scale, burn-in and the forecast schedule belong to the run script, which embeds the config as one field of its own `@option` type:

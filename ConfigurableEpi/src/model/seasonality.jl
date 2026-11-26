@@ -193,7 +193,7 @@ end
     seasonal_forcing_upper_bound(cfg, fixed_amp, prior_specs, learn_params = ();
                                  probability = 0.95, climatology = nothing) -> Float64
 
-Mode-aware upper bound on the seasonal multiplier for the RK4 stability guard: 1 for `none`,
+Mode-aware upper bound on the seasonal multiplier for the integration stability guard: 1 for `none`,
 `1 + |amplitude|` for `cosine` (from the prior when learned), and the largest curve value in
 `climatology` scaled by the fixed or learned `kappa` for `indoor_activity`. An empty
 `learn_params` means the mode's default learned set.

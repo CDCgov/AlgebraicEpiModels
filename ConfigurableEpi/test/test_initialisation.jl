@@ -1,7 +1,8 @@
-# Initialisation: the strategy options, the RK4 stability guard and the seeds each strategy builds.
+# Initialisation: the strategy options, the integration stability guard and the seeds each strategy builds.
 
 using Test
 using ConfigurableEpi
+using ConfigurableEpi: Rk4, Rk3, Heun, ForwardEuler
 
 @option struct InitialisationRun
     initialisation::InitialisationConfig = PeakFromHistoryInitialisation()
@@ -26,29 +27,43 @@ end
     @test_throws ArgumentError validate_initialisation(SlowModeInitialisation(historical_multiplier_logsd = Inf))
 end
 
-@testset "RK4 stability guard" begin
+@testset "integration stability guard" begin
     durations = Durations(latent = 1.0, infectious = 1.0)
     bounds = IntegrationBounds(durations; R_eff_max = 0.0)
+    limit = stability_limit(Rk4)
     err = try
-        assert_integration_stable(bounds, RK4_STABILITY_LIMIT, 1)
+        assert_integration_stable(bounds, limit, 1)
         nothing
     catch e
         e
     end
     @test err isa ArgumentError
     @test occursin("at least 2 (currently 1)", sprint(showerror, err))
-    @test assert_integration_stable(bounds, RK4_STABILITY_LIMIT, 2) < RK4_STABILITY_LIMIT
+    @test assert_integration_stable(bounds, limit, 2) < limit
 
     # A rate outside the shared durations raises the bound, and so the substeps needed.
     base = IntegrationBounds(Durations(); n_E = 2, n_I = 2, R_eff_max = 3.0)
     fast = IntegrationBounds(Durations(); n_E = 2, n_I = 2, R_eff_max = 3.0, extra_rates = (20.0,))
     @test max_transition_rate(fast) == 20.0 > max_transition_rate(base)
-    @test required_supersample(fast, 7.0) == ceil(Int, 20.0 * 7.0 / RK4_WARN_LAMBDA_H) > required_supersample(base, 7.0)
+    @test required_supersample(fast, 7.0) == ceil(Int, 20.0 * 7.0 * STABILITY_HEADROOM / limit) > required_supersample(base, 7.0)
     @test_logs (:warn, r"within 1.4x") assert_integration_stable(fast, 7.0, ceil(Int, 20.0 * 7.0 / 2.5))
     @test_throws ArgumentError IntegrationBounds(Durations(); extra_rates = (-1.0,))
     @test_throws ArgumentError IntegrationBounds(Durations(); n_E = 0)
     @test_throws ArgumentError IntegrationBounds(Durations(); R_eff_max = -1.0)
     @test_throws ArgumentError assert_integration_stable(base, 7.0, 0)
+
+    # Each integrator is held to its own limit; one without a known limit needs it given.
+    @test stability_limit(ForwardEuler) == stability_limit(Heun) == 2.0 < stability_limit(Rk3) < limit
+    @test (@test_logs (:warn, r"within 1.4x") assert_integration_stable(fast, 7.0, 56)) == 2.5
+    @test_throws ArgumentError assert_integration_stable(fast, 7.0, 56; integrator = Heun)
+    @test required_supersample(fast, 7.0; integrator = Heun) == ceil(Int, 20.0 * 7.0 * STABILITY_HEADROOM / 2.0)
+    # The implicit trapezoidal rule is A-stable, so it has no limit to know.
+    trapezoidal = ConfigurableEpi.SeeToDee.Trapezoidal
+    @test stability_limit(trapezoidal) === nothing
+    @test_throws ArgumentError assert_integration_stable(fast, 7.0, 56; integrator = trapezoidal)
+    @test (@test_logs assert_integration_stable(fast, 7.0, 56; integrator = trapezoidal, limit = Inf)) == 2.5
+    @test_throws TypeError assert_integration_stable(fast, 7.0, 56; integrator = (f, h) -> f)
+    @test_throws ArgumentError assert_integration_stable(fast, 7.0, 56; limit = 0.0)
 end
 
 @testset "Erlang chain fill" begin

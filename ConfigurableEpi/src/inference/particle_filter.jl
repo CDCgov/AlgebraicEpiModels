@@ -118,11 +118,11 @@ end
 
 function build_inference(
         filter::PF, hyper::LiuWest, model::EpiModel;
-        dt, supersample = 2, n_ahead, n_draws = 2000, rng = Random.default_rng(),
+        dt, supersample = 2, integrator::Type{<:AbstractIntegrator} = Rk4, n_ahead, n_draws = 2000, rng = Random.default_rng(),
     )
     _validate(filter)
     _validate(hyper)
-    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
+    core = EngineCore(model, EngineSettings(; dt, supersample, integrator, n_ahead, n_draws), 0.0)
     (; assembly, settings) = core
     layout, base = model.layout, model.hyperparams
     learned = build_learned_hyperparams(model.priors, layout)

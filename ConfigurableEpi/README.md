@@ -25,7 +25,9 @@ src/
     seasonality.jl        transmission forcings (cosine, indoor-activity climatology, none)
     ascertainment.jl      declining ascertainment path and the trend (integrated BM) variant
     day_of_week.jl        weekday observation effect for daily counts
-    initialisation.jl     RK4 stability guard, count inversion, peak-anchored susceptibles
+    initialisation.jl     stability guard, count inversion, seeding strategies, deterministic spin-up
+    replay.jl             replaying an incidence history through the net with infection off
+    warm_start.jl         recent incidence from the signal and the closed-loop start
     radiation_mixing.jl   cross-location contact matrix
     epi_model.jl          EpiModel: the bundle handed to build_inference
   inference/

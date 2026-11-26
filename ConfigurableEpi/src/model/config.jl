@@ -329,12 +329,26 @@ option_alias(x) = Configurations.type_alias(typeof(x))
 # --- inference config -------------------------------------------------------------------------
 
 """
-    InferenceConfig(; filter, hyper, step_days, supersample = 2, n_ahead, n_draws = 2000,
+    integrator_type(name) -> Type{<:AbstractIntegrator}
+
+The SeeToDee integrator called `name`, such as `"Rk4"` or `"Heun"`.
+"""
+function integrator_type(name::AbstractString)
+    s = Symbol(name)
+    T = isdefined(SeeToDee, s) ? getfield(SeeToDee, s) : nothing
+    T isa Type && T <: AbstractIntegrator && !isabstracttype(T) ||
+        throw(ArgumentError("integrator must name a SeeToDee integrator, such as Rk4 or Heun; got $name"))
+    return T
+end
+
+"""
+    InferenceConfig(; filter, hyper, step_days, supersample = 2, integrator = "Rk4", n_ahead, n_draws = 2000,
                     learn_params = String[], priors = Dict())
 
 The settings of one inference run: the `[filter.<name>]` and `[hyper.<name>]` axes, the
-observation step and integration substeps, the forecast horizon and draw count, the parameters to
-learn and `[priors]` overriding a model's defaults per key. A run script embeds it as one field of
+observation step, the integration substeps and SeeToDee integrator ([`integrator_type`](@ref)),
+the forecast horizon and draw count, the parameters to learn and `[priors]` overriding a model's
+defaults per key. A run script embeds it as one field of
 its own run config.
 """
 @option struct InferenceConfig
@@ -342,6 +356,7 @@ its own run config.
     hyper::HyperMethodConfig
     step_days::Float64
     supersample::Int = 2
+    integrator::String = "Rk4"
     n_ahead::Int
     n_draws::Int = 2000
     learn_params::Vector{String} = String[]
@@ -394,6 +409,7 @@ function validate_inference_config(cfg::InferenceConfig)
         "step_days must be a positive whole number of days, got $(cfg.step_days)",
     )
     _require(cfg.n_ahead >= 1 && cfg.n_draws >= 1 && cfg.supersample >= 1, "n_ahead, n_draws and supersample must be >= 1")
+    integrator_type(cfg.integrator)
     _validate(cfg.filter)
     _validate(cfg.hyper)
     return cfg

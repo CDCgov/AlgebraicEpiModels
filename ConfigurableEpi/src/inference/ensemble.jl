@@ -72,7 +72,7 @@ end
 
 function build_inference(
         filter::EnKF, hyper::EKP, model::EpiModel;
-        dt, supersample = 2, n_ahead, n_draws = 2000, rng = Random.default_rng(),
+        dt, supersample = 2, integrator::Type{<:AbstractIntegrator} = Rk4, n_ahead, n_draws = 2000, rng = Random.default_rng(),
     )
     _validate(filter)
     _validate(hyper)
@@ -81,7 +81,7 @@ function build_inference(
     )
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
-    core = EngineCore(model, EngineSettings(; dt, supersample, n_ahead, n_draws), 0.0)
+    core = EngineCore(model, EngineSettings(; dt, supersample, integrator, n_ahead, n_draws), 0.0)
     _check_ensemble_rank(filter, hyper, model)
     # Three streams off the caller's rng: the outer ensemble, the inner replays (a seed re-used
     # per candidate) and forecast simulation.
