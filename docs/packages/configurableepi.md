@@ -85,6 +85,21 @@ result.summary       # (parameter, statistic, value) estimates and diagnostics
 
 [Inference engines](../examples/inference_engines.md) runs all three engines on simulated data, and [Low-level filtering](../examples/low_level_filtering.md) wires the same building blocks into LowLevelParticleFilters directly.
 
+## Initialisation
+
+A model builds its state at `t = 0` from an `InitialisationStrategy`.
+The strategy is typically an `initialisation` field of the run's config, parsed from `[initialisation.<name>]` and checked by `validate_initialisation`:
+
+- `peak_at_start` assumes the fit starts at a prevalence peak, `S/N = 1 / (R0 χ(0))`.
+- `peak_from_history` finds an observed peak in the history and carries its susceptible fraction back to the start, falling back to `1 / R0` without one.
+- `slow_mode` reconstructs the susceptible fraction from the incidence observed before the fit starts, with uncertainty from an unknown starting immunity and historical ascertainment.
+
+`initial_seed(strategy, SeedContext(; durations, population, bin_days, ascertainment, ...))` returns the susceptible fraction and the `E`, `I` and reporting-stage occupancies.
+The peak strategies fill the stages from the first count at a constant incidence; `slow_mode` fills them from the incidence growth rate over the last three bins of its history.
+`chain_stage_seed` fills any further chain, such as a wastewater shedding chain, from the same infection stream.
+
+The RK4 substep must resolve the fastest rate the model can reach: `assert_integration_stable(IntegrationBounds(durations; n_E, n_I, R_eff_max, extra_rates), dt, supersample)` errors past the stability limit and warns near it.
+
 ## Inference configuration
 
 The engine pairing and its cadence can be read from TOML: `build_inference(validate_inference_config(from_toml(InferenceConfig, "inference.toml")), model)`.

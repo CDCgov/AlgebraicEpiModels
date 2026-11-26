@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Unreleased
 
+### Added
+
+- ConfigurableEpi: initialisation strategies `SlowModeInitialisation`, `PeakAtStartInitialisation` and `PeakFromHistoryInitialisation` (subtypes of `InitialisationStrategy`; `InitialisationConfig` is the `Union` for `@option` fields), checked by `validate_initialisation`.
+  `initial_seed(strategy, ::SeedContext)` returns each strategy's susceptible fraction and stage fills, and `chain_stage_seed` fills any further Erlang chain from the same infection stream.
+- ConfigurableEpi: `normalise_config_dict` gives an option table built in Julia string keys for `from_dict`.
+
 ### Changed
 
 - ConfigurableEpi: `InferenceConfig` replaces `RunConfig`.
@@ -18,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - ConfigurableEpi: UKF + Optimise forecasts by drawing `n_draws` states jointly from the filtered origin Gaussian and simulating each through the model's own process and observation noise, as the PF and EnKF engines do.
   `samples` is no longer `nothing` for the UKF, the quantiles are those of the draws, and any observation kind can be forecast.
   The `rng` keyword now seeds these draws.
+- ConfigurableEpi: `max_transition_rate`, `required_supersample` and `assert_integration_stable` take an `IntegrationBounds` (durations, stage counts, `R_eff_max` and any `extra_rates` outside the durations) in place of `(dur, n_E, n_I; R_eff_max)`.
 
 ### Removed
 

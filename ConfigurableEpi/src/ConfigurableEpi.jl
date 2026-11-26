@@ -48,7 +48,9 @@ using DuckDB: DB, register_data_frame, unregister_data_frame
 export @option, from_dict, from_toml, from_kwargs, option_alias
 export PriorSpec, build_prior, build_priors, load_prior_specs, load_priors, prior_upper, prior_R_eff_bound
 export Durations, SeasonalityConfig, DayOfWeekConfig, NoDayOfWeekConfig, PluginDayOfWeekConfig,
-    LearnedDayOfWeekConfig, ReportingMode, CorrectedObservations, ThinnedObservations, ReportingModeConfig
+    LearnedDayOfWeekConfig, ReportingMode, CorrectedObservations, ThinnedObservations, ReportingModeConfig,
+    InitialisationStrategy, InitialisationConfig, SlowModeInitialisation, PeakAtStartInitialisation,
+    PeakFromHistoryInitialisation, validate_initialisation, normalise_config_dict
 export StateFilter, StateFilterConfig, UKF, PF, EnKF, HyperMethod, HyperMethodConfig, Optimise, LiuWest, EKP,
     DEFAULT_JITTER_FLOOR_FRACTION
 export InferenceConfig, validate_inference_config, resolve_priors, resolve_prior_specs
@@ -84,9 +86,10 @@ export DOW_LEARNED_NAMES, DOW_DAY_ABBREVIATIONS, DOW_HELMERT, dow_helmert_prior_
     DayOfWeekDispersion, HyperPhi, validate_day_of_week, estimate_day_of_week_effects,
     prepare_day_of_week_history, build_day_of_week_observation, day_of_week_learned_names,
     assert_day_of_week_learnable, day_of_week_report_rows
-export RK4_STABILITY_LIMIT, RK4_WARN_LAMBDA_H, max_transition_rate, required_supersample,
+export RK4_STABILITY_LIMIT, RK4_WARN_LAMBDA_H, IntegrationBounds, max_transition_rate, required_supersample,
     assert_integration_stable, initial_infection_state, reporting_delay_days, prevalence_peak_lag_days,
-    anchor_is_exact, find_observed_peak, carry_susceptible, peak_anchored_susceptible_fraction
+    anchor_is_exact, find_observed_peak, carry_susceptible, peak_anchored_susceptible_fraction,
+    chain_stage_seed, SeedContext, initial_seed
 export load_radiation_matrix, contact_matrix
 export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likelihood_warmup
 
