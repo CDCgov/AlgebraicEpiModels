@@ -41,10 +41,10 @@ end
 @testset "Replay initialisation" begin
     @testset "BinnedIncidence" begin
         inc = BinnedIncidence([-14.0, -7.0, 0.0], [3.0 5.0])
-        rate(t) = ConfigurableEpi._incidence_at(inc, 1, t)
-        @test rate(-14.0) == 3.0 && rate(-7.5) == 3.0
-        @test rate(-7.0) == 5.0 && rate(-0.1) == 5.0
-        @test rate(-15.0) == 0.0 && rate(0.0) == 0.0
+        between(from, to) = ConfigurableEpi._incidence_between(inc, 1, from, to)
+        @test between(-14.0, -7.0) == 21.0 && between(-7.0, 0.0) == 35.0
+        @test between(-8.0, -6.0) == 8.0 && between(-20.0, 10.0) == 56.0
+        @test between(-20.0, -14.0) == 0.0 && between(0.0, 3.0) == 0.0
         @test_throws ArgumentError BinnedIncidence([0.0], zeros(1, 0))
         @test_throws ArgumentError BinnedIncidence([0.0, 0.0], zeros(1, 1))
         @test_throws DimensionMismatch BinnedIncidence([0.0, 1.0], zeros(1, 2))
@@ -83,6 +83,29 @@ end
         @test replay_scale_moments(replay_at, 0.0).covariance == zeros(2, 2)
         @test_throws ArgumentError replay_scale_moments(replay_at, -0.1)
         @test_throws ArgumentError replay_at(-1.0)
+    end
+
+    @testset "the supply bound and the substep average" begin
+        layout = StateLayout((:S, :A, :B), (), (); signal_names = ())
+        shared = ReplayModel(Returns(nothing), Returns(nothing), layout, InfectionRoutes([:a, :b], [1, 1], [[2], [3]], [1, 2], [1.0, 1.0]))
+        replay(rate; kwargs...) =
+            replay_state(shared, BinnedIncidence([0.0, 1.0], fill(rate, 2, 1)), [100.0, 0.0, 0.0], nothing, _ -> (;), 0.0, 1.0; kwargs...)
+        @test replay(40.0; supersample = 1) ≈ [20.0, 40.0, 40.0]
+        # Each cell alone fits in the shared source; together they would overdraw it.
+        @test_throws ArgumentError replay(60.0; supersample = 1)
+        # A bin narrower than a substep keeps its infections.
+        narrow = BinnedIncidence([0.0, 0.1, 1.0], [100.0 0.0; 0.0 0.0])
+        @test replay_state(shared, narrow, [100.0, 0.0, 0.0], nothing, _ -> (;), 0.0, 1.0) ≈ [90.0, 10.0, 0.0]
+    end
+
+    @testset "an infector that is also the product keeps its new host" begin
+        sir = attach_observation(
+            dom(create_model(UninfectedInfectedTyping(), SIR(importation = true))), AtEvent((:transmission, :importation)); n_stages = 1,
+        )
+        sir_layout = StateLayout(sir, ())
+        routes = infection_routes(sir, sir_layout; cells = [:all], cell = Returns(:all))
+        # `S + I → I + I` and `S → I` are the same route into I and its accumulator.
+        @test routes.source == [1] && collect(ode_names(sir_layout))[only(routes.targets)] == [:I, :O_transmission_1]
     end
 
     pn = _two_strain_net()

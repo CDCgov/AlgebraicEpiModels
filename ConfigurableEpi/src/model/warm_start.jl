@@ -30,6 +30,8 @@ function signal_incidence(
     )
     n, n_cells = length(ends), length(per_infection)
     n >= 1 && length(counts) == n || throw(ArgumentError("signal_incidence needs one count per interval end"))
+    isfinite(interval) && interval > 0 || throw(ArgumentError("the interval must be finite and positive, got $interval"))
+    isfinite(delay) && isfinite(until) || throw(ArgumentError("delay and until must be finite, got $delay and $until"))
     all(d -> isapprox(d, interval; atol = 1.0e-6), diff(ends)) ||
         throw(ArgumentError("the signal's interval ends must be $interval apart"))
     all(c -> isfinite(c) && c >= 0, counts) || throw(ArgumentError("signal counts must be finite and non-negative"))
@@ -56,20 +58,18 @@ end
 """
     splice_incidence(history, recent) -> BinnedIncidence
 
-`history` up to the first edge of `recent`, then `recent`.
+`history` up to the first edge of `recent`, then `recent`; a gap between them has no infections.
 """
 function splice_incidence(history::BinnedIncidence, recent::BinnedIncidence)
     size(history.rates, 1) == size(recent.rates, 1) ||
         throw(DimensionMismatch("the two incidence histories have different cells"))
     cut = first(recent.edges)
     cut > first(history.edges) || return recent
+    last(history.edges) < cut && return BinnedIncidence(
+        [history.edges; recent.edges], hcat(history.rates, zeros(size(history.rates, 1)), recent.rates),
+    )
     keep = findall(<(cut), @view(history.edges[1:(end - 1)]))
     return BinnedIncidence([history.edges[keep]; recent.edges], hcat(history.rates[:, keep], recent.rates))
-end
-
-function _incidence_between(incidence::BinnedIncidence, c::Integer, from::Real, to::Real)
-    (; edges, rates) = incidence
-    return sum(max(min(to, edges[b + 1]) - max(from, edges[b]), 0.0) * rates[c, b] for b in 1:(length(edges) - 1))
 end
 
 """
@@ -215,7 +215,7 @@ function closed_loop_start(
     state, rate, scale = at.state, at.rate, one(at.rate)
     for pass in 1:2
         unforced = rate_at(state, zero(m), 0.0)
-        closing.rate > unforced && rate > unforced || break
+        closing.rate >= unforced && rate > unforced || break
         factor = (closing.rate - unforced) / (rate - unforced)
         state = state .* one(factor)
         state[fast] .*= factor

@@ -25,8 +25,8 @@ end
         -> InfectionRoutes
 
 Each infection transition (by default a `transmission…` or `importation…` one) moves one host from
-a source compartment into its products, leaving the infector out; transitions sharing a source and
-products are one route. `cell(name)`, one of `cells`, and `weight(name)` must agree across a route.
+a source compartment into its net products, outputs less inputs counted with multiplicity, so an
+infector on both sides drops out; transitions sharing a source and products are one route. `cell(name)`, one of `cells`, and `weight(name)` must agree across a route.
 """
 function infection_routes(
         pn, layout::StateLayout; cells, cell, weight = Returns(1.0), is_infection = is_infection_transition,
@@ -40,11 +40,13 @@ function infection_routes(
     for i in 1:nt(pn)
         name = flatten_symbols(tname(pn, i))
         is_infection(name) || continue
-        ins, outs = inputs(pn, i), outputs(pn, i)
-        hosts = setdiff(ins, outs)
-        length(hosts) == 1 ||
+        net = Dict{Int, Int}()
+        foreach(j -> net[j] = get(net, j, 0) - 1, inputs(pn, i))
+        foreach(j -> net[j] = get(net, j, 0) + 1, outputs(pn, i))
+        hosts = [j for (j, n) in net if n < 0]
+        length(hosts) == 1 && net[only(hosts)] == -1 ||
             throw(ArgumentError("infection transition `$name` does not move one host out of one compartment"))
-        route = (index(only(hosts)), sort!([index(j) for j in setdiff(outs, ins)]))
+        route = (index(only(hosts)), sort!([index(j) for (j, n) in net for _ in 1:n]))
         c = findfirst(==(cell(name)), cell_keys)
         c === nothing && throw(ArgumentError("infection transition `$name` is in cell $(cell(name)), not one of $cell_keys"))
         w = Float64(weight(name))
@@ -82,9 +84,14 @@ struct BinnedIncidence
     end
 end
 
-@inline function _incidence_at(incidence::BinnedIncidence, c::Integer, t::Real)
-    b = searchsortedlast(incidence.edges, t)
-    return 1 <= b < length(incidence.edges) ? incidence.rates[c, b] : 0.0
+# The infections into cell `c` over `[from, to)`.
+function _incidence_between(incidence::BinnedIncidence, c::Integer, from::Real, to::Real)
+    (; edges, rates) = incidence
+    total = 0.0
+    for b in max(1, searchsortedlast(edges, from)):min(length(edges) - 1, searchsortedfirst(edges, to) - 1)
+        total += max(min(to, edges[b + 1]) - max(from, edges[b]), 0.0) * rates[c, b]
+    end
+    return total
 end
 
 """
@@ -136,11 +143,16 @@ function ReplayModel(
     )
 end
 
-function _add_infections!(dx, x, routes::InfectionRoutes, inflow)
-    pool = zeros(eltype(x), length(inflow))
+function _pools(x, routes::InfectionRoutes)
+    pool = zeros(eltype(x), length(routes.cells))
     @inbounds for k in eachindex(routes.source)
         pool[routes.cell[k]] += routes.weight[k] * x[routes.source[k]]
     end
+    return pool
+end
+
+function _add_infections!(dx, x, routes::InfectionRoutes, inflow)
+    pool = _pools(x, routes)
     @inbounds for k in eachindex(routes.source)
         c = routes.cell[k]
         pool[c] > 0 || continue
@@ -153,15 +165,24 @@ function _add_infections!(dx, x, routes::InfectionRoutes, inflow)
     return dx
 end
 
-function _assert_supply(x, routes::InfectionRoutes, inflow, h, t)
-    for c in eachindex(inflow)
-        need = inflow[c] * h
-        need > 0 || continue
-        have = sum((x[routes.source[k]] for k in eachindex(routes.source) if routes.cell[k] == c && routes.weight[k] > 0); init = zero(eltype(x)))
-        need <= have || throw(
+# Each source compartment gives up `inflow[c] × weight / pool[c]` of its hosts per day to every
+# cell it feeds; over a substep the total must not exceed what it holds.
+function _assert_supply(x, routes::InfectionRoutes, inflow, h, t, names)
+    pool = _pools(x, routes)
+    drawn = Dict{Int, eltype(x)}()
+    for k in eachindex(routes.source)
+        c, s = routes.cell[k], routes.source[k]
+        inflow[c] > 0 && routes.weight[k] > 0 || continue
+        pool[c] > 0 || throw(
+            ArgumentError("the incidence prescribed for cell $(routes.cells[c]) at t = $t finds no susceptible host")
+        )
+        drawn[s] = get(drawn, s, zero(eltype(x))) + h * inflow[c] * routes.weight[k] / pool[c]
+    end
+    for (s, share) in drawn
+        share <= 1 || throw(
             ArgumentError(
-                "the incidence prescribed for cell $(routes.cells[c]) at t = $t needs $need hosts and its " *
-                    "susceptible classes hold $have; the incidence level or the waning is inconsistent with the model",
+                "the incidence prescribed at t = $t takes $(round(share, sigdigits = 3)) times the hosts of " *
+                    "$(names[s]) in one $h-day substep; the incidence level or the waning is inconsistent with the model",
             )
         )
     end
@@ -173,9 +194,9 @@ end
                  scale = 1.0, dt = 1.0, supersample = 2, integrator = Rk4, keep_accumulators = false) -> Vector
 
 The ODE state at `t_to` from `x_start` at `t_from`, integrated as [`deterministic_spinup`](@ref)
-does but with `model.replay_vf!`: infections enter cell `c` at `scale × incidence`, held over each
-substep, and leave its susceptible classes in proportion to `weight × occupancy`. An incidence
-the susceptible classes cannot supply is an error. The state inherits no transmission parameter;
+does but with `model.replay_vf!`: infections enter cell `c` at `scale × incidence`, averaged over
+each substep, and leave its susceptible classes in proportion to `weight × occupancy`. An
+incidence that would draw a compartment below zero in a substep is an error. The state inherits no transmission parameter;
 the influence of `x_start` decays at the slowest waning rate.
 """
 function replay_state(
@@ -194,11 +215,12 @@ function replay_state(
     inflow = zeros(T, n_cells)
     unified = build_unified_vf(model.replay_vf!, layout)
     f(x, u, p, t) = _add_infections!(unified(x, u, (p, latent_at(t)), t), x, routes, inflow)
+    names = ode_names(layout)
     function prescribe!(x, t, h)
         for c in 1:n_cells
-            inflow[c] = scale * _incidence_at(incidence, c, t + h / 2)
+            inflow[c] = scale * _incidence_between(incidence, c, t, t + h) / h
         end
-        return _assert_supply(x, routes, inflow, h, t)
+        return _assert_supply(x, routes, inflow, h, t, names)
     end
     return _integrate(
         f, layout, T.(x_start), hyper, t_from, t_to; dt, supersample, integrator, keep_accumulators, before_substep = prescribe!,

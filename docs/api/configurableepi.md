@@ -1480,7 +1480,7 @@ infection_routes(pn, layout; cells, cell, weight = Returns(1.0), is_infection = 
     -> InfectionRoutes
 ```
 
-Each infection transition (by default a `transmission…` or `importation…` one) moves one host from a source compartment into its products, leaving the infector out; transitions sharing a source and products are one route. `cell(name)`, one of `cells`, and `weight(name)` must agree across a route.
+Each infection transition (by default a `transmission…` or `importation…` one) moves one host from a source compartment into its net products, outputs less inputs counted with multiplicity, so an infector on both sides drops out; transitions sharing a source and products are one route. `cell(name)`, one of `cells`, and `weight(name)` must agree across a route.
 
 <a id='ConfigurableEpi.replay_scale_moments-Tuple{Any, Real}'></a>
 <a id='ConfigurableEpi.replay_scale_moments-Tuple{Any, Real}-1'></a>
@@ -1501,7 +1501,7 @@ replay_state(model::ReplayModel, incidence, x_start, hyper, latent_at, t_from, t
              scale = 1.0, dt = 1.0, supersample = 2, integrator = Rk4, keep_accumulators = false) -> Vector
 ```
 
-The ODE state at `t_to` from `x_start` at `t_from`, integrated as [`deterministic_spinup`](configurableepi.md#ConfigurableEpi.deterministic_spinup-Tuple{Any, StateLayout, AbstractVector, Any, Any, Real, Real}) does but with `model.replay_vf!`: infections enter cell `c` at `scale × incidence`, held over each substep, and leave its susceptible classes in proportion to `weight × occupancy`. An incidence the susceptible classes cannot supply is an error. The state inherits no transmission parameter; the influence of `x_start` decays at the slowest waning rate.
+The ODE state at `t_to` from `x_start` at `t_from`, integrated as [`deterministic_spinup`](configurableepi.md#ConfigurableEpi.deterministic_spinup-Tuple{Any, StateLayout, AbstractVector, Any, Any, Real, Real}) does but with `model.replay_vf!`: infections enter cell `c` at `scale × incidence`, averaged over each substep, and leave its susceptible classes in proportion to `weight × occupancy`. An incidence that would draw a compartment below zero in a substep is an error. The state inherits no transmission parameter; the influence of `x_start` decays at the slowest waning rate.
 
 <a id='ConfigurableEpi.closed_loop_start-Tuple{ReplayModel, AbstractVector, Any, Any, Any}'></a>
 <a id='ConfigurableEpi.closed_loop_start-Tuple{ReplayModel, AbstractVector, Any, Any, Any}-1'></a>
@@ -1579,7 +1579,7 @@ The infections a signal implies at the model's observation level: `counts[k]`, r
 splice_incidence(history, recent) -> BinnedIncidence
 ```
 
-`history` up to the first edge of `recent`, then `recent`.
+`history` up to the first edge of `recent`, then `recent`; a gap between them has no infections.
 
 <a id='ConfigurableEpi.total_infection_rate-Tuple{ReplayModel, Vararg{Any, 4}}'></a>
 <a id='ConfigurableEpi.total_infection_rate-Tuple{ReplayModel, Vararg{Any, 4}}-1'></a>

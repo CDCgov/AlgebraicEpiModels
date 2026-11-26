@@ -44,6 +44,8 @@ end
         @test_throws ArgumentError signal_incidence([-21.0, -10.0], [1.0, 1.0], per_infection, split; delay = 7.0)
         @test_throws ArgumentError signal_incidence(ends, counts, [0.0, 0.01], [1.0, 0.0]; delay = 7.0)
         @test_throws DimensionMismatch signal_incidence(ends, counts, per_infection, [1.0]; delay = 7.0)
+        @test_throws ArgumentError signal_incidence([-7.0], [5.0], per_infection, split; delay = 7.0, interval = 0.0)
+        @test_throws ArgumentError signal_incidence(ends, counts, per_infection, split; delay = 7.0, until = Inf)
 
         closing = closing_incidence(incidence)
         @test closing.growth ≈ log(0.8) / 7
@@ -57,6 +59,10 @@ end
         @test spliced.rates[:, 1:5] == fill(5.0, 2, 5)
         @test spliced.rates[:, 6:10] == incidence.rates
         @test splice_incidence(BinnedIncidence([-30.0, -20.0], fill(1.0, 2, 1)), incidence) === incidence
+        # A gap before the recent incidence has no infections.
+        gapped = splice_incidence(BinnedIncidence([-50.0, -43.0], fill(5.0, 2, 1)), incidence)
+        @test gapped.edges == [-50.0; -43.0; incidence.edges]
+        @test gapped.rates == hcat(fill(5.0, 2), zeros(2), incidence.rates)
 
         # The same history pushed back through the observation level closes on the signal.
         closure = history_closure(incidence, per_infection, ends, counts; delay = 7.0)
@@ -142,5 +148,12 @@ end
             model, skewed, hyper, m -> (; Rt = m), closing;
             window = 7.0, accumulate_days = 7.0, fast = [3, 4, 6],
         )
+
+        # Without importation a zero closing rate is reached by emptying the fast compartments.
+        closed_out = closed_loop_start(
+            model, skewed, merge(hyper, (; importation = 0.0)), m -> (; Rt = m), (; rate = 0.0, closing.growth);
+            window = 28.0, accumulate_days = 7.0, fast = [3, 4, 6],
+        )
+        @test closed_out.scale == 0 && all(iszero, closed_out.state[[3, 4, 6]])
     end
 end
