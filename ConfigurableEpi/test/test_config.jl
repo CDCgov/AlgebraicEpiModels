@@ -20,7 +20,8 @@ end
     @test cfg.filter isa UKF && cfg.hyper isa Optimise
     @test cfg.filter isa StateFilter && cfg.hyper isa HyperMethod
     @test cfg.step_days === 7.0
-    @test (cfg.n_draws, cfg.supersample) == (2000, 2) && isempty(cfg.learn_params) && isempty(cfg.priors)
+    @test (cfg.n_draws, cfg.supersample, cfg.integrator) == (2000, 2, "Rk4") && isempty(cfg.learn_params) && isempty(cfg.priors)
+    @test integrator_type(config_with("integrator" => "Heun").integrator) === ConfigurableEpi.Heun
     @test validate_inference_config(cfg) === cfg
     @test option_alias(cfg.filter) == "ukf" && option_alias(cfg.hyper) == "optimise"
     @test StateFilterConfig == Union{UKF, PF, EnKF} && all(T -> T <: StateFilter, (UKF, PF, EnKF))
@@ -53,6 +54,9 @@ end
         rejected("n_ahead" => 0)
         rejected("n_draws" => 0)
         rejected("supersample" => 0)
+        rejected("integrator" => "Rk5")
+        rejected("integrator" => "AbstractIntegrator")
+        rejected("integrator" => "SeeToDee")
         rejected("filter" => Dict("ukf" => Dict("obs_jitter" => 0.0)))
         rejected("filter" => Dict("pf" => Dict("n_particles" => 0)), "hyper" => Dict("liu_west" => Dict{String, Any}()))
         rejected("hyper" => Dict("liu_west" => Dict("discount" => 1.5)))

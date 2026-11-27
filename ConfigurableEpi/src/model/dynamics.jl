@@ -36,7 +36,7 @@ end
 """
     build_unified_vf(petri_vf!, layout) -> (x, u, p, t) -> dx
 
-Out-of-place form of the Petri vector field for `SeeToDee.Rk4`, naming the ODE slots of `x`.
+Out-of-place form of the Petri vector field for a SeeToDee integrator, naming the ODE slots of `x`.
 """
 function build_unified_vf(petri_vf!, layout::StateLayout{N, M}) where {N, M}
     names_val, n_val = Val(ode_names(layout)), Val(N + M)
@@ -69,20 +69,20 @@ applied inside [`build_full_dynamics`](@ref).
 build_R1(layout::StateLayout) = Diagonal(ones(n_latent(layout) + length(layout.accumulator_indices)))
 
 """
-    build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 2, obs_jitter = 1.0)
-        -> dynamics(x, u, p, t, w[, rng])
+    build_full_dynamics(petri_vf!, stochastic, layout; dt = 1.0, supersample = 2, integrator = Rk4,
+                        obs_jitter = 1.0) -> dynamics(x, u, p, t, w[, rng])
 
 One filter step of the augmented state: apply the stochastic driver (coefficient noise from
 `w[1:L]`, jumps on `rng`), zero the reset accumulators, integrate the flow over `dt` with
-`supersample` RK4 substeps, then add the accumulator whisker `obs_jitter * w[L+1:end]`. `w` has
-`size(build_R1(layout), 1)` entries.
+`integrator(f, dt; supersample)`, a SeeToDee explicit integrator, then add the accumulator whisker
+`obs_jitter * w[L+1:end]`. `w` has `size(build_R1(layout), 1)` entries.
 """
 function build_full_dynamics(
         petri_vf!, stochastic::StochasticUpdate{L}, layout::StateLayout{N, M, L, S};
-        dt::Real = 1.0, supersample::Integer = 2, obs_jitter::Real = 1.0,
+        dt::Real = 1.0, supersample::Integer = 2, integrator::Type{<:AbstractIntegrator} = Rk4, obs_jitter::Real = 1.0,
     ) where {N, M, L, S}
     dt, jitter = float(dt), float(obs_jitter)
-    step = Rk4(build_unified_vf(petri_vf!, layout), dt; supersample = Int(supersample))
+    step = integrator(build_unified_vf(petri_vf!, layout), dt; supersample = Int(supersample))
     ode_range = 1:(N + M)
     accumulators = layout.accumulator_indices
     @inline function dynamics(x, u, p, t, w, rng = nothing)

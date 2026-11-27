@@ -14,26 +14,30 @@ default `rng`, and the copies share it.
 abstract type InferenceEngine end
 
 """
-    EngineSettings(; dt, supersample, n_ahead, n_draws)
+    EngineSettings(; dt, supersample = 2, integrator = Rk4, n_ahead, n_draws = 2000)
 
-The run-level numbers every engine shares: the observation interval in days, RK4 substeps per
-interval, forecast horizon and forecast draw count.
+The run-level settings every engine shares: the observation interval in days, the integrator and
+its substeps per interval (see [`build_full_dynamics`](@ref)), forecast horizon and forecast draw
+count.
 """
 struct EngineSettings
     dt::Float64
     supersample::Int
+    integrator::Type{<:AbstractIntegrator}
     n_ahead::Int
     n_draws::Int
-    function EngineSettings(; dt::Real, supersample::Integer = 2, n_ahead::Integer, n_draws::Integer = 2000)
+    function EngineSettings(;
+            dt::Real, supersample::Integer = 2, integrator::Type{<:AbstractIntegrator} = Rk4, n_ahead::Integer, n_draws::Integer = 2000,
+        )
         isfinite(dt) && dt > 0 || throw(ArgumentError("dt must be finite and positive, got $dt"))
         supersample >= 1 || throw(ArgumentError("supersample must be >= 1, got $supersample"))
         n_ahead >= 1 || throw(ArgumentError("n_ahead must be positive, got $n_ahead"))
         n_draws >= 1 || throw(ArgumentError("n_draws must be positive, got $n_draws"))
-        return new(dt, supersample, n_ahead, n_draws)
+        return new(dt, supersample, integrator, n_ahead, n_draws)
     end
 end
 
-# A model's dynamics and measurement assembled at one `(dt, supersample, obs_jitter)`.
+# A model's dynamics and measurement assembled at one `(dt, supersample, integrator, obs_jitter)`.
 # `forecast_dynamics` is the step at `obs_jitter = 0`: the jitter keeps a Gaussian filter's
 # covariance full-rank and is not process noise, so a forecast leaves it out.
 struct Assembly{D, F, H}
@@ -46,7 +50,8 @@ end
 
 function Assembly(model::EpiModel, s::EngineSettings, obs_jitter::Real)
     build(jitter) = build_full_dynamics(
-        model.vectorfield!, model.stochastic, model.layout; dt = s.dt, supersample = s.supersample, obs_jitter = jitter,
+        model.vectorfield!, model.stochastic, model.layout;
+        dt = s.dt, s.supersample, s.integrator, obs_jitter = jitter,
     )
     dynamics = build(obs_jitter)
     measure, n_obs, n_noise = build_measurement_model(model.layout, model.observation, model.stochastic)
@@ -349,14 +354,14 @@ _require_full_range(update_range, T, what) = update_range == 1:T || throw(
 )
 
 """
-    build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, n_ahead, n_draws = 2000,
-                    rng = Random.default_rng(), kwargs...) -> InferenceEngine
+    build_inference(filter, hyper, model::EpiModel; dt, supersample = 2, integrator = Rk4, n_ahead,
+                    n_draws = 2000, rng = Random.default_rng(), kwargs...) -> InferenceEngine
     build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng())
 
 Build the inference engine for a `(filter, hyper)` pairing: [`UKF`](@ref) + [`Optimise`](@ref),
 [`PF`](@ref) + [`LiuWest`](@ref) or [`EnKF`](@ref) + [`EKP`](@ref). Drive it with
 [`fit_forecast!`](@ref). The [`InferenceConfig`](@ref) form takes the pairing, `dt = step_days`,
-`supersample`, `n_ahead` and `n_draws` from the config.
+`supersample`, `integrator`, `n_ahead` and `n_draws` from the config.
 """
 build_inference(filter::StateFilter, hyper::HyperMethod, ::EpiModel; kwargs...) = throw(
     ArgumentError("build_inference is not implemented for $(nameof(typeof(filter))) + $(nameof(typeof(hyper)))")
@@ -364,7 +369,7 @@ build_inference(filter::StateFilter, hyper::HyperMethod, ::EpiModel; kwargs...) 
 
 build_inference(cfg::InferenceConfig, model::EpiModel; rng = Random.default_rng()) = build_inference(
     cfg.filter, cfg.hyper, model;
-    dt = cfg.step_days, supersample = cfg.supersample, n_ahead = cfg.n_ahead, n_draws = cfg.n_draws, rng,
+    dt = cfg.step_days, cfg.supersample, integrator = integrator_type(cfg.integrator), cfg.n_ahead, cfg.n_draws, rng,
 )
 
 """

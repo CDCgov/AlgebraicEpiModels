@@ -40,6 +40,17 @@ _noise_dim(layout) = size(build_R1(layout), 1)
         @test x_next[2] > x[2]   # I grows
         @test x_next[3] > 0.0    # accumulator reset to 0, then integrates this step's incidence
         @test x_next[4] == x[4]  # latent unchanged with zero process noise
+
+        # One SeeToDee call over the interval, Rk4 by default.
+        unified = build_unified_vf(mock_petri_vf!, layout)
+        reference = ConfigurableEpi.Rk4(unified, 1.0; supersample = 2)([990.0, 10.0, 0.0], nothing, (hyperparams, (; Rt = 0.0)), 0.0)
+        @test x_next[1:3] ≈ reference rtol = 1.0e-12
+        euler = ConfigurableEpi.ForwardEuler
+        by_euler = build_full_dynamics(mock_petri_vf!, latent_dynamics, layout; dt = 1.0, supersample = 2, integrator = euler)
+        y = euler(unified, 1.0; supersample = 2)([990.0, 10.0, 0.0], nothing, (hyperparams, (; Rt = 0.0)), 0.0)
+        @test by_euler(x, nothing, hyperparams, 0.0, w)[1:3] ≈ y rtol = 1.0e-12
+        @test !isapprox(y, reference; rtol = 1.0e-6)
+        @test_throws ArgumentError build_full_dynamics(mock_petri_vf!, latent_dynamics, layout; supersample = 0)
     end
 
     @testset "accumulators reset each step (no cross-step cumulation)" begin

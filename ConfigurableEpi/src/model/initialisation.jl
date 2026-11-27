@@ -1,10 +1,27 @@
-# Initial state: the RK4 stability guard on the model's rates, inversion of observed counts into
-# compartment occupancies, the peak-anchored susceptible fraction, and the seeding strategies.
+# Initial state: the stability guard on the model's rates, inversion of observed counts into
+# compartment occupancies, the peak-anchored susceptible fraction, the seeding strategies and the
+# deterministic spin-up.
 
-"Classical RK4 is stable on a real negative eigenvalue only while `|lambda * h| < 2.785`."
-const RK4_STABILITY_LIMIT = 2.785
-"Proximity warning threshold, about 1.4x below the stability limit."
-const RK4_WARN_LAMBDA_H = 2.0
+"""
+    stability_limit(integrator::Type{<:AbstractIntegrator}) -> Union{Float64, Nothing}
+
+The largest `|lambda * h|` on the negative real axis at which a SeeToDee integrator is stable: 2
+for `ForwardEuler` and `Heun`, 2.513 for `Rk3` and 2.785 for `Rk4`; `nothing` for any other.
+"""
+function stability_limit end
+stability_limit(::Type{<:Rk4}) = 2.785
+stability_limit(::Type{<:Rk3}) = 2.513
+stability_limit(::Union{Type{<:Heun}, Type{<:ForwardEuler}}) = 2.0
+stability_limit(::Type{<:AbstractIntegrator}) = nothing
+
+"How far below its stability limit a substep is warned about."
+const STABILITY_HEADROOM = 1.4
+
+function _stability_limit(integrator, limit)
+    limit === nothing && throw(ArgumentError("no stability limit is known for $integrator; pass `limit`"))
+    limit > 0 || throw(ArgumentError("the stability limit must be positive, got $limit"))
+    return float(limit)
+end
 
 """
     IntegrationBounds(durations; n_E = 1, n_I = 1, R_eff_max = 1.0, extra_rates = ())
@@ -47,37 +64,47 @@ function max_transition_rate(b::IntegrationBounds)
 end
 
 """
-    required_supersample(bounds::IntegrationBounds, dt; target = RK4_WARN_LAMBDA_H) -> Int
+    required_supersample(bounds::IntegrationBounds, dt; integrator = Rk4, limit = stability_limit(integrator),
+                         target = limit / STABILITY_HEADROOM) -> Int
 
 The smallest `supersample` whose substep keeps `|lambda * h| <= target`.
 """
-function required_supersample(b::IntegrationBounds, dt::Real; target::Real = RK4_WARN_LAMBDA_H)
+function required_supersample(
+        b::IntegrationBounds, dt::Real; integrator::Type{<:AbstractIntegrator} = Rk4, limit = stability_limit(integrator),
+        target::Real = _stability_limit(integrator, limit) / STABILITY_HEADROOM,
+    )
     target > 0 || throw(ArgumentError("target must be positive, got $target"))
     return max(1, ceil(Int, max_transition_rate(b) * dt / target))
 end
 
 """
-    assert_integration_stable(bounds::IntegrationBounds, dt, supersample) -> lambda_h
+    assert_integration_stable(bounds::IntegrationBounds, dt, supersample; integrator = Rk4,
+                              limit = stability_limit(integrator)) -> lambda_h
 
-Error beyond [`RK4_STABILITY_LIMIT`](@ref) and warn beyond [`RK4_WARN_LAMBDA_H`](@ref).
+Error at the integrator's [`stability_limit`](@ref) and warn within [`STABILITY_HEADROOM`](@ref)
+of it. An integrator without a known limit needs `limit`.
 """
-function assert_integration_stable(b::IntegrationBounds, dt::Real, supersample::Integer)
+function assert_integration_stable(
+        b::IntegrationBounds, dt::Real, supersample::Integer; integrator::Type{<:AbstractIntegrator} = Rk4,
+        limit = stability_limit(integrator),
+    )
     supersample >= 1 || throw(ArgumentError("supersample must be >= 1, got $supersample"))
+    limit = _stability_limit(integrator, limit)
     rate = max_transition_rate(b)
     lambda_h = rate * dt / supersample
-    if lambda_h >= RK4_STABILITY_LIMIT
-        needed = max(supersample + 1, required_supersample(b, dt; target = RK4_STABILITY_LIMIT))
+    if lambda_h >= limit
+        needed = max(supersample + 1, required_supersample(b, dt; integrator, limit, target = limit))
         throw(
             ArgumentError(
                 "ODE substep is unstable: the fastest rate is $(round(rate, sigdigits = 3))/day at " *
                     "R_eff <= $(round(b.R_eff_max, sigdigits = 3)) and |lambda*h| = $(round(lambda_h, sigdigits = 3)) " *
-                    "exceeds RK4's limit $RK4_STABILITY_LIMIT. Raise `supersample` to at least $needed " *
+                    "exceeds the integrator's limit $limit. Raise `supersample` to at least $needed " *
                     "(currently $supersample) or lengthen the shortest duration.",
             )
         )
-    elseif lambda_h > RK4_WARN_LAMBDA_H
-        @warn "ODE substep is within 1.4x of RK4's stability limit; raise `supersample` for headroom" lambda_h supersample suggested_supersample =
-            required_supersample(b, dt) b.R_eff_max
+    elseif lambda_h > limit / STABILITY_HEADROOM
+        @warn "ODE substep is within $(STABILITY_HEADROOM)x of the integrator's stability limit; raise `supersample` for headroom" lambda_h supersample suggested_supersample =
+            required_supersample(b, dt; integrator, limit) b.R_eff_max
     end
     return lambda_h
 end
@@ -367,4 +394,56 @@ function _count_seed(ctx::SeedContext)
     count = _seed_input(ctx.first_count, :first_count)
     incidence = initial_infection_state(count, ctx.durations, _ascertainment_at(ctx.ascertainment, 0.0), ctx.bin_days).daily_incidence
     return _stream_seed(ctx, incidence, 0.0, incidence * ctx.bin_days)
+end
+
+"""
+    deterministic_spinup(petri_vf!, layout, x_ode, hyper, latent_at, t_from, t_to;
+                         dt = 1.0, supersample = 2, integrator = Rk4, keep_accumulators = false) -> Vector
+
+Integrate the ODE state from `t_from` to `t_to` in `supersample` substeps per `dt` of a SeeToDee
+explicit `integrator`, the latents held on the path `latent_at(t)` rather than filtered. Reset accumulators are zeroed each `dt` step, as in a filter
+step, and at the end unless `keep_accumulators`, which leaves them holding the last step's flow.
+States are floored at zero, not `STATE_FLOOR`, so an empty compartment stays empty.
+"""
+function deterministic_spinup(
+        petri_vf!, layout::StateLayout, x_ode::AbstractVector, hyper, latent_at, t_from::Real, t_to::Real;
+        dt::Real = 1.0, supersample::Integer = 2, integrator::Type{<:AbstractIntegrator} = Rk4, keep_accumulators::Bool = false,
+    )
+    unified = build_unified_vf(petri_vf!, layout)
+    f(x, u, p, t) = unified(x, u, (p, latent_at(t)), t)
+    return _integrate(f, layout, x_ode, hyper, t_from, t_to; dt, supersample, integrator, keep_accumulators)
+end
+
+# The integrator behind `deterministic_spinup` and `replay_state`: `before_substep(x, t, h)` runs
+# before each of the `supersample` substeps of a `dt` step.
+function _integrate(
+        f, layout::StateLayout, x0::AbstractVector, hyper, t_from::Real, t_to::Real;
+        dt::Real, supersample::Integer, integrator::Type{<:AbstractIntegrator}, keep_accumulators::Bool,
+        before_substep = Returns(nothing),
+    )
+    supersample >= 1 || throw(ArgumentError("supersample must be at least 1, got $supersample"))
+    t_to >= t_from || throw(ArgumentError("the integration ends at $t_to before it starts at $t_from"))
+    n_steps = round(Int, (t_to - t_from) / dt)
+    isapprox(t_from + n_steps * dt, t_to; atol = 1.0e-9) ||
+        throw(ArgumentError("the span $(t_to - t_from) is not a whole number of $dt-day steps"))
+    T = promote_type(eltype(x0), typeof(float(t_from)))
+    h = float(dt) / supersample
+    step = integrator(f, h)
+    function reset!(x)
+        @inbounds for i in layout.accumulator_indices
+            x[i] = zero(T)
+        end
+        return x
+    end
+    x = T.(x0)
+    for k in 0:(n_steps - 1)
+        x = reset!(max.(x, zero(T)))
+        for s in 0:(supersample - 1)
+            t = t_from + k * dt + s * h
+            before_substep(x, t, h)
+            x = step(x, nothing, hyper, t)
+        end
+    end
+    x = Vector{T}(max.(x, zero(T)))
+    return keep_accumulators ? x : reset!(x)
 end

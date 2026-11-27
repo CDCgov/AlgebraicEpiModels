@@ -32,7 +32,8 @@ using LowLevelParticleFilters: AbstractKalmanFilter, AdvancedParticleFilter, Sig
     reset!, sample_measurement, sample_state, state
 import LowLevelParticleFilters as LLPF   # this package adds methods to its generics
 using PositiveFactorizations: Positive, ldlt!, default_tol, default_blocksize, floattype
-using SeeToDee: Rk4
+import SeeToDee
+using SeeToDee: AbstractIntegrator, Rk4, Rk3, Heun, ForwardEuler
 using DataInterpolations: CubicSpline
 import DataInterpolations
 using Statistics: mean, quantile, std, var
@@ -53,7 +54,7 @@ export Durations, SeasonalityConfig, DayOfWeekConfig, NoDayOfWeekConfig, PluginD
     PeakFromHistoryInitialisation, validate_initialisation, normalise_config_dict
 export StateFilter, StateFilterConfig, UKF, PF, EnKF, HyperMethod, HyperMethodConfig, Optimise, LiuWest, EKP,
     DEFAULT_JITTER_FLOOR_FRACTION
-export InferenceConfig, validate_inference_config, resolve_priors, resolve_prior_specs
+export InferenceConfig, integrator_type, validate_inference_config, resolve_priors, resolve_prior_specs
 
 # Model
 export ParameterDistribution, ParameterPriorBundle, prior_name, positive_gaussian, unit_interval_gaussian,
@@ -86,10 +87,14 @@ export DOW_LEARNED_NAMES, DOW_DAY_ABBREVIATIONS, DOW_HELMERT, dow_helmert_prior_
     DayOfWeekDispersion, HyperPhi, validate_day_of_week, estimate_day_of_week_effects,
     prepare_day_of_week_history, build_day_of_week_observation, day_of_week_learned_names,
     assert_day_of_week_learnable, day_of_week_report_rows
-export RK4_STABILITY_LIMIT, RK4_WARN_LAMBDA_H, IntegrationBounds, max_transition_rate, required_supersample,
+export stability_limit, STABILITY_HEADROOM, IntegrationBounds, max_transition_rate, required_supersample,
     assert_integration_stable, initial_infection_state, reporting_delay_days, prevalence_peak_lag_days,
     anchor_is_exact, find_observed_peak, carry_susceptible, peak_anchored_susceptible_fraction,
-    chain_stage_seed, SeedContext, initial_seed
+    chain_stage_seed, SeedContext, initial_seed, deterministic_spinup
+export InfectionRoutes, infection_routes, BinnedIncidence, build_replay_vf, ReplayModel, replay_state,
+    replay_scale_moments
+export log_growth_rate, signal_incidence, splice_incidence, closing_incidence, history_closure,
+    total_infection_rate, matched_transmission_multiplier, closed_loop_start
 export load_radiation_matrix, contact_matrix
 export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likelihood_warmup
 
@@ -121,6 +126,8 @@ include("model/seasonality.jl")
 include("model/ascertainment.jl")
 include("model/day_of_week.jl")
 include("model/initialisation.jl")
+include("model/replay.jl")
+include("model/warm_start.jl")
 include("model/radiation_mixing.jl")
 include("model/epi_model.jl")
 
