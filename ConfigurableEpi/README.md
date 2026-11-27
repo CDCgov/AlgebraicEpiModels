@@ -28,7 +28,8 @@ src/
     initialisation.jl     stability guard, count inversion, seeding strategies, deterministic spin-up
     replay.jl             replaying an incidence history through the net with infection off
     warm_start.jl         recent incidence from the signal and the closed-loop start
-    radiation_mixing.jl   cross-location contact matrix
+    mixing.jl             contact between locations and between age bands
+    school_calendar.jl    daily school-open fraction on model time
     epi_model.jl          EpiModel: the bundle handed to build_inference
   inference/
     engine.jl             shared machinery, build_inference / fit_forecast! contract

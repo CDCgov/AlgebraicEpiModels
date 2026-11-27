@@ -23,7 +23,7 @@ Private = false
 Pages = ["model/priors.jl", "model/layout.jl", "model/processes.jl", "model/dynamics.jl",
          "model/observation.jl", "model/seasonality.jl", "model/ascertainment.jl",
          "model/day_of_week.jl", "model/initialisation.jl", "model/replay.jl", "model/warm_start.jl",
-         "model/radiation_mixing.jl", "model/epi_model.jl"]
+         "model/mixing.jl", "model/school_calendar.jl", "model/epi_model.jl"]
 ```
 
 ## Inference

@@ -95,7 +95,9 @@ export InfectionRoutes, infection_routes, BinnedIncidence, build_replay_vf, Repl
     replay_scale_moments
 export log_growth_rate, signal_incidence, splice_incidence, closing_incidence, history_closure,
     total_infection_rate, matched_transmission_multiplier, closed_loop_start
-export load_radiation_matrix, contact_matrix
+export load_radiation_matrix, contact_matrix, AgeBand, validate_age_bands, AgeMixing, contact_spectral_radius,
+    load_age_mixing, load_setting_contacts
+export SchoolCalendar, load_school_calendar, AnchoredCalendar, assert_calendar_covers
 export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likelihood_warmup
 
 # Inference
@@ -128,7 +130,8 @@ include("model/day_of_week.jl")
 include("model/initialisation.jl")
 include("model/replay.jl")
 include("model/warm_start.jl")
-include("model/radiation_mixing.jl")
+include("model/mixing.jl")
+include("model/school_calendar.jl")
 include("model/epi_model.jl")
 
 include("inference/augmented_enkf.jl")
