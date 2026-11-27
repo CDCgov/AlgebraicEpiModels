@@ -78,12 +78,14 @@ end
 
 """
     build_hyperparam_updater(learned; discount = 0.95, jitter_floor_fraction = DEFAULT_JITTER_FLOOR_FRACTION,
-                             forgetting_memory_days = (;), rng = Random.default_rng(), dt = 1.0) -> update!
+                             forgetting_memory_days = (;), rng = Random.default_rng(), dt = 1.0, moments) -> update!
 
 `update!(particles, weights)` refreshes every particle's learned slots in place by the Liu-West
 kernel `θᵢ ← a θᵢ + (1 - a) θ̄ + ε`, `ε ~ N(0, (1 - a²) V)` with `a = (3δ - 1) / 2δ` and `θ̄, V` the
 weighted cloud moments, which preserves the weighted mean and variance. The jitter variance is
 floored at `jitter_floor_fraction` of each prior's variance so a collapsed cloud can re-expand.
+`moments` is the prior's `(mean, covariance)` in the learned block's order: by default the scalar
+priors' own, and [`prior_moments`](@ref) for a coupled prior.
 Parameters named in `forgetting_memory_days` are additionally pulled toward their prior by Kulhavý
 forgetting with `λ = exp(-dt / memory)`: the marginal `N(m, v)` becomes the geometric mean of
 itself and the prior. Call between `correct!` and `predict!` on `state(pf).xprev` with
@@ -92,7 +94,7 @@ itself and the prior. Call between `correct!` and `predict!` on `state(pf).xprev
 function build_hyperparam_updater(
         learned::LearnedHyperparams{H}; discount::Real = 0.95,
         jitter_floor_fraction::Real = DEFAULT_JITTER_FLOOR_FRACTION, forgetting_memory_days = (;),
-        rng = Random.default_rng(), dt::Real = 1.0,
+        rng = Random.default_rng(), dt::Real = 1.0, moments = _scalar_moments(learned.priors),
     ) where {H}
     1 / 3 <= discount <= 1 ||
         throw(ArgumentError("discount must be in [1/3, 1] so the shrinkage (3δ - 1) / 2δ lies in [0, 1], got $discount"))
@@ -108,8 +110,7 @@ function build_hyperparam_updater(
     h2 = 1 - a^2
     slots = hyper_slots(learned)
     hv = Val(H)
-    prior_var = SVector{H}(ntuple(k -> prior_unconstrained_variance(learned.priors[k]), hv))
-    prior_mean = SVector{H}(ntuple(k -> prior_unconstrained_mean(learned.priors[k]), hv))
+    prior_mean, prior_var = SVector{H}(first(moments)), SVector{H}(diag(last(moments)))
     floor_diag = max.(jitter_floor_fraction .* prior_var, 1.0e-10)
     ridge = SMatrix{H, H, Float64}(I) .* 1.0e-10   # keeps the jitter Cholesky positive definite
     forget = SVector{H}(

@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - ConfigurableEpi: age structure.
   `AgeMixing` holds a population on `AgeBand`s (checked by `validate_age_bands`) and its contact matrices by setting; `load_age_mixing` regroups base-grid tables onto a model's bands and `load_setting_contacts` reads layered contact matrices, and `contact_spectral_radius` is the radius over all settings.
   `SchoolCalendar`, `load_school_calendar`, `AnchoredCalendar` and `assert_calendar_covers` switch a school layer on model time.
+- ConfigurableEpi: joint priors.
+  A `PriorCoupling` (`Independent()` by default) sets how a `ParameterPriorBundle` combines its scalar priors, and `RtNBVariancePrior` couples the Rt scale and the negative-binomial dispersion.
+  `EpiModel(; joint_prior)` and `with_joint_prior` attach one; `prior_moments` and `sample_prior` give the bundle's moments and draws.
+  PF + Liu-West starts its learned slots from the prior and its kernel from `prior_moments`; EKP refuses a coupled prior.
 - ConfigurableEpi: `normalise_config_dict` gives an option table built in Julia string keys for `from_dict`.
 
 ### Changed

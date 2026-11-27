@@ -5,6 +5,7 @@ const TEST_FILES = [
     "aqua.jl",
     "test_param_spec.jl",
     "test_ekp_parameter_distributions.jl",
+    "test_rt_nb_prior.jl",
     "test_config.jl",
     "test_seasonality.jl",
     "test_ascertainment.jl",

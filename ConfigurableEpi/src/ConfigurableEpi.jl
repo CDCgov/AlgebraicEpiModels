@@ -13,7 +13,7 @@ Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Three lay
 """
 module ConfigurableEpi
 
-using LinearAlgebra: BLAS, Diagonal, I, diag, cholesky, eigen, Symmetric
+using LinearAlgebra: BLAS, Diagonal, I, SymTridiagonal, diag, cholesky, dot, eigen, Symmetric
 using Dates, Random
 import TOML
 import Configurations
@@ -22,7 +22,7 @@ using AlgebraicPetri, AlgebraicEpiMech
 using EnsembleKalmanProcesses: DataMisfitController, EnsembleKalmanProcess, SampleSuccGauss,
     TransformInversion, construct_initial_ensemble, get_u_final, get_Δt, get_ϕ_final, update_ensemble!
 using EnsembleKalmanProcesses.ParameterDistributions: ParameterDistribution, combine_distributions,
-    constrained_gaussian, get_all_constraints, get_name,
+    constrained_gaussian, get_all_constraints, get_name, sample,
     transform_constrained_to_unconstrained, transform_unconstrained_to_constrained
 using Distributions: logpdf, Beta, LogNormal, MvNormal, NegativeBinomial, Normal, Poisson
 using LabelledArrays: LArray
@@ -59,7 +59,8 @@ export InferenceConfig, integrator_type, validate_inference_config, resolve_prio
 # Model
 export ParameterDistribution, ParameterPriorBundle, prior_name, positive_gaussian, unit_interval_gaussian,
     unconstrained_gaussian, constrained_values, unconstrained_values, prior_logpdf,
-    prior_unconstrained_mean, prior_unconstrained_variance
+    prior_unconstrained_mean, prior_unconstrained_variance, PriorCoupling, Independent, RtNBVariancePrior,
+    prior_moments, sample_prior, with_joint_prior
 export ParamSpec, ProcessParamSpec, FixedParam, HyperParam, DerivedParam, AR1ParamSpec, RWParamSpec,
     IntegratedParamSpec, ArrivalProcess, get_param_value, step_arrival_probability, beta_mark,
     seed_transition, pool_redistribute!, pro_rata_move!, carries_state, supports_gaussian_filter,
@@ -118,6 +119,7 @@ export ObservationSchema, n_observations, observation_names, build_observation_s
 const COMPARTMENTAL_MODELS = Dict(:SEIRS => SEIRS, :SEIR => SEIR, :SEIS => SEIS, :SEI => SEI)
 
 include("model/priors.jl")
+include("model/rt_nb_prior.jl")
 include("model/config.jl")
 include("model/layout.jl")
 include("model/processes.jl")

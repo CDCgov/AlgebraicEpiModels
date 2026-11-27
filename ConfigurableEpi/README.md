@@ -17,7 +17,8 @@ src/
   ConfigurableEpi.jl      module, imports, exports
   model/                  everything that defines a model
     config.jl             TOML-backed @option types for both axes and InferenceConfig
-    priors.jl             scalar EKP priors, ParameterPriorBundle
+    priors.jl             scalar EKP priors, PriorCoupling, ParameterPriorBundle
+    rt_nb_prior.jl        the joint Rt-scale and NB-dispersion prior
     layout.jl             StateLayout: where compartments, observation states and latents live
     processes.jl          AR1 / random-walk / integrated latents, ArrivalProcess, StochasticUpdate
     dynamics.jl           build_petri_vf, build_full_dynamics (one filter step)

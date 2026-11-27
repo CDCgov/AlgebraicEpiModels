@@ -82,6 +82,8 @@ result.summary       # (parameter, statistic, value) estimates and diagnostics
   Ascertainment trends, day-of-week effects and seasonal forcing plug in here.
   With several observations each slot is a vector, and a `missing` component (a signal absent that slot) is skipped by every filter.
 - **Hyperparameters.** `hyperparams` holds every fixed value and the starting value of each learned one; `priors` names the learned subset.
+  The priors are independent unless `joint_prior` couples some of them: `RtNBVariancePrior` puts a joint prior on the Rt scale and the negative-binomial dispersion through the relative variance they add and the share of it from transmission.
+  `prior_moments` and `sample_prior` give a coupled prior's moments and draws; the particle filter starts its learned slots from the prior and its Liu-West kernel uses those moments, and EKP refuses a coupled prior.
 
 [Inference engines](../examples/inference_engines.md) runs all three engines on simulated data, and [Low-level filtering](../examples/low_level_filtering.md) wires the same building blocks into LowLevelParticleFilters directly.
 
