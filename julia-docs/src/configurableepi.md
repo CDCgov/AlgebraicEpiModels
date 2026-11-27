@@ -32,8 +32,7 @@ Pages = ["model/priors.jl", "model/layout.jl", "model/processes.jl", "model/dyna
 Modules = [ConfigurableEpi]
 Private = false
 Pages = ["inference/engine.jl", "inference/ukf.jl", "inference/particle_filter.jl",
-         "inference/ensemble.jl", "inference/learned_hyperparams.jl", "inference/optimise.jl",
-         "inference/augmented_enkf.jl"]
+         "inference/ensemble.jl", "inference/learned_hyperparams.jl", "inference/optimise.jl"]
 ```
 
 ## Output

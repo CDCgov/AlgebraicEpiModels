@@ -1971,18 +1971,6 @@ optimize_hyperparams(neg_logposterior, initial::NamedTuple, bundle::ParameterPri
 
 Minimise `neg_logposterior(u, _)` over the bundle's unconstrained coordinates from the constrained `initial` values. `options` (such as `maxiters`) are merged over each stage's own; a stage whose result is non-finite or worse than the incumbent is discarded.
 
-<a id='ConfigurableEpi.AugmentedEnsembleKalmanFilter'></a>
-<a id='ConfigurableEpi.AugmentedEnsembleKalmanFilter-1'></a>
-**`ConfigurableEpi.AugmentedEnsembleKalmanFilter`** &mdash; *Type*.
-
-```julia
-AugmentedEnsembleKalmanFilter(dynamics, measurement, R1, R2, d0, N; nu, ny = size(R2, 1),
-                              p = nothing, Ts = 1.0, inflation = 1.0, rng = Xoshiro(),
-                              threads = false, names = nothing)
-```
-
-Ensemble Kalman filter with `N` members drawn from `d0`, process noise `w ~ N(0, R1)` applied inside `dynamics` and measurement noise `v ~ N(0, R2)` inside `measurement`. `inflation >= 1` multiplies the ensemble spread after each propagation; `threads` parallelises member propagation.
-
 
 ## Output {#Output}
 

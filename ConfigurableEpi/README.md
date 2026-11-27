@@ -34,7 +34,7 @@ src/
   inference/
     engine.jl             shared machinery, build_inference / fit_forecast! contract
     ukf.jl, particle_filter.jl, ensemble.jl   the three engines
-    learned_hyperparams.jl, optimise.jl, augmented_enkf.jl
+    learned_hyperparams.jl, optimise.jl
   output/
     forecast.jl           forecast rolls, quantiles, latent diagnostics, backtest tables
     samples.jl            routine-forecasting samples.parquet output

@@ -13,7 +13,7 @@ Configurable compartmental forecasting on AlgebraicEpiMech Petri nets. Three lay
 """
 module ConfigurableEpi
 
-using LinearAlgebra: BLAS, Diagonal, I, diag, cholesky, eigen, Symmetric, dot, isdiag, issuccess, logdet, mul!
+using LinearAlgebra: BLAS, Diagonal, I, diag, cholesky, eigen, Symmetric
 using Dates, Random
 import TOML
 import Configurations
@@ -27,7 +27,7 @@ using EnsembleKalmanProcesses.ParameterDistributions: ParameterDistribution, com
 using Distributions: logpdf, Beta, LogNormal, MvNormal, NegativeBinomial, Normal, Poisson
 using LabelledArrays: LArray
 using StaticArrays: SVector, SMatrix, setindex
-using LowLevelParticleFilters: AbstractKalmanFilter, AdvancedParticleFilter, SignalNames, TrivialParams,
+using LowLevelParticleFilters: AbstractKalmanFilter, AdvancedParticleFilter, EnsembleKalmanFilter, TrivialParams,
     UnscentedKalmanFilter, correct!, covariance, expweights, forward_trajectory, particles, predict!,
     reset!, sample_measurement, sample_state, state
 import LowLevelParticleFilters as LLPF   # this package adds methods to its generics
@@ -101,7 +101,6 @@ export SchoolCalendar, load_school_calendar, AnchoredCalendar, assert_calendar_c
 export COMPARTMENTAL_MODELS, EpiModel, initial_state, learned_names, with_likelihood_warmup
 
 # Inference
-export AugmentedEnsembleKalmanFilter
 export LearnedHyperparams, build_learned_hyperparams, build_hyperparam_updater, n_learned, hyper_range
 export DEFAULT_OPTIMISER_STAGES, optimiser_stages, optimize_hyperparams, positive_cholesky!, marginal_loglik
 export InferenceEngine, EngineSettings, ForecastResult, UKFOptimiseEngine, PFLiuWestEngine, EnKFEKPEngine,
@@ -134,7 +133,6 @@ include("model/mixing.jl")
 include("model/school_calendar.jl")
 include("model/epi_model.jl")
 
-include("inference/augmented_enkf.jl")
 include("inference/learned_hyperparams.jl")
 include("inference/optimise.jl")
 include("inference/engine.jl")

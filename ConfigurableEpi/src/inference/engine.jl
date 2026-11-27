@@ -293,7 +293,7 @@ function _candidate_from_checkpoint(cp::LLPF.AbstractUnscentedKalmanFilter, buil
     candidate.t = LLPF.index(cp)
     return candidate
 end
-function _candidate_from_checkpoint(cp::AugmentedEnsembleKalmanFilter, _build, _T, p)
+function _candidate_from_checkpoint(cp::EnsembleKalmanFilter, _build, _T, p)
     candidate = deepcopy(cp)
     candidate.p = p
     return candidate
@@ -322,6 +322,27 @@ function _correct!(ukf::UnscentedKalmanFilter, y, p, t)
         nx = length(ukf.x), ny = length(observed), weight_params = mm.weight_params, static = false,
     )
     return correct!(ukf, sub, _NO_INPUT, y[observed], p, t)
+end
+
+# The EnKF engine's measurement, narrowed in place to a slot's observed components while that slot
+# is corrected: the ensemble filter sizes its update by its `ny` and corrects every component.
+mutable struct _ObservedComponents{H}
+    const measurement::H
+    components::Union{Colon, Vector{Int}}
+end
+_ObservedComponents(measurement) = _ObservedComponents(measurement, Colon())
+(m::_ObservedComponents)(x, u, p, t, v) = m.measurement(x, u, p, t, v)[m.components]
+
+function _correct!(enkf::EnsembleKalmanFilter{true, true, <:Any, <:_ObservedComponents}, y, p, t)
+    observed = findall(!isnan, y)
+    length(observed) == length(y) && return correct!(enkf, _NO_INPUT, y, p, t)
+    ny = enkf.ny
+    enkf.ny, enkf.measurement.components = length(observed), observed
+    try
+        return correct!(enkf, _NO_INPUT, y[observed], p, t)
+    finally
+        enkf.ny, enkf.measurement.components = ny, Colon()
+    end
 end
 
 # Fitted observation means `[slot, observation]`: each filtered state mean through its spec's
