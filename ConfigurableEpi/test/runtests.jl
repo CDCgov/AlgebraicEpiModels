@@ -11,6 +11,8 @@ const TEST_FILES = [
     "test_day_of_week.jl",
     "test_ascertainment_trend.jl",
     "test_radiation_mixing.jl",
+    "test_age_mixing.jl",
+    "test_school_calendar.jl",
     "test_state_layout.jl",
     "test_latent_dynamics.jl",
     "test_measurement_model.jl",

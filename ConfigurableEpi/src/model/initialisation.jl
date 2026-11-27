@@ -321,9 +321,9 @@ end
 function initial_seed(::PeakFromHistoryInitialisation, ctx::SeedContext)
     R0 = _seed_input(ctx.R0, :R0)
     anchor = ctx.history === nothing ? nothing : peak_anchored_susceptible_fraction(
-        ctx.history, ctx.durations, ctx.n_obs, ctx.ascertainment, ctx.population, ctx.bin_days, ctx.chi_at, R0;
-        ctx.n_E, ctx.n_I,
-    )
+            ctx.history, ctx.durations, ctx.n_obs, ctx.ascertainment, ctx.population, ctx.bin_days, ctx.chi_at, R0;
+            ctx.n_E, ctx.n_I,
+        )
     susceptible_fraction = anchor === nothing ? 1 / max(R0, 1.0) : anchor.susceptible_fraction
     return (; susceptible_fraction, _count_seed(ctx)..., anchor)
 end

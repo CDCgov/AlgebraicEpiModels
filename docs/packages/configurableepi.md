@@ -115,6 +115,19 @@ Every integration, from the filter step (`build_full_dynamics`) to the spin-up, 
 The substep must resolve the fastest rate the model can reach: `assert_integration_stable(IntegrationBounds(durations; n_E, n_I, R_eff_max, extra_rates), dt, supersample; integrator)` errors past the integrator's `stability_limit` and warns within `STABILITY_HEADROOM` of it.
 An integrator without a known limit needs `limit` passed.
 
+## Contact structure
+
+Contact between groups comes from tables the caller owns; the package ships no data.
+
+- `load_radiation_matrix(locations; path)` reads an `origin,destination,flow` table into a row-normalised matrix of contact between locations, and `contact_matrix(M, a_com)` mixes it with within-location contact.
+- An `AgeMixing` holds a population on `AgeBand`s, given in months so the first year of life can be banded finely, with a matrix of mean daily contacts per setting, such as `(; school, other)`.
+  `contact_spectral_radius` is the spectral radius of all settings together.
+- `load_age_mixing(location, bands; distribution_path, contact_path)` regroups an age distribution and contact tables from a base grid onto any bands that partition it, keeping the total contacts between two bands symmetric when the base tables are.
+  A `contact_path` NamedTuple reads one table per setting.
+- `load_setting_contacts(location, bands; matrix_path, population_path)` reads layered contact matrices and populations on the tables' own age groups.
+
+A `SchoolCalendar` (`load_school_calendar`) gives the daily fraction of school contact active, and an `AnchoredCalendar` reads it on model time.
+
 ## Inference configuration
 
 The engine pairing and its cadence can be read from TOML: `build_inference(validate_inference_config(from_toml(InferenceConfig, "inference.toml")), model)`.
@@ -166,7 +179,7 @@ src/
   model/                  everything that defines a model: TOML-backed options and InferenceConfig,
                           priors, state layout, latent processes,
                           dynamics, observation, seasonality, ascertainment, day-of-week effects,
-                          initialisation, radiation mixing, and EpiModel itself
+                          initialisation, contact structure, and EpiModel itself
   inference/              the shared engine machinery (build_inference / fit_forecast!) and the
                           UKF, particle filter and ensemble engines
   output/                 forecast rolls and quantiles, backtest tables, sample output, data linkage

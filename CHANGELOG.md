@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `deterministic_spinup` integrates a model along a given latent path.
 - ConfigurableEpi: warm start from the signal before the fit.
   `signal_incidence`, `splice_incidence`, `closing_incidence`, `history_closure` and `log_growth_rate` build and check the recent incidence; `total_infection_rate`, `matched_transmission_multiplier` and `closed_loop_start` set the transmission multiplier and infected compartments that continue it.
+- ConfigurableEpi: age structure.
+  `AgeMixing` holds a population on `AgeBand`s (checked by `validate_age_bands`) and its contact matrices by setting; `load_age_mixing` regroups base-grid tables onto a model's bands and `load_setting_contacts` reads layered contact matrices, and `contact_spectral_radius` is the radius over all settings.
+  `SchoolCalendar`, `load_school_calendar`, `AnchoredCalendar` and `assert_calendar_covers` switch a school layer on model time.
 - ConfigurableEpi: `normalise_config_dict` gives an option table built in Julia string keys for `from_dict`.
 
 ### Changed
@@ -24,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `build_inference`, `resolve_priors` and `resolve_prior_specs` take an `InferenceConfig`.
 - ConfigurableEpi: `StateFilter` and `HyperMethod` are abstract supertypes of the option structs; `StateFilterConfig` and `HyperMethodConfig` are the `Union`s for `@option` fields.
 - ConfigurableEpi: `config.jl` moved to `src/model/config.jl`.
+- ConfigurableEpi: `radiation_mixing.jl` became `src/model/mixing.jl`, which also holds the age loaders, and `load_radiation_matrix` reads its table with the same reader.
 - ConfigurableEpi: `forecast_ensemble` always returns `samples[horizon, draw, observation]`, keeping the observation axis for one observation.
   `ForecastResult` still drops it for a one-observation model.
 - ConfigurableEpi: UKF + Optimise forecasts by drawing `n_draws` states jointly from the filtered origin Gaussian and simulating each through the model's own process and observation noise, as the PF and EnKF engines do.

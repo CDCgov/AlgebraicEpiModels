@@ -1591,6 +1591,26 @@ total_infection_rate(model::ReplayModel, x, hyper, latent, t; per_infection = no
 
 Hosts entering infection per day at ODE state `x`: what `model.vf!` takes from the routes' source compartments beyond what `model.replay_vf!` does. With `per_infection` by cell the rate is in the signal's units, so a source compartment must feed cells of one level.
 
+<a id='ConfigurableEpi.AgeBand'></a>
+<a id='ConfigurableEpi.AgeBand-1'></a>
+**`ConfigurableEpi.AgeBand`** &mdash; *Type*.
+
+```julia
+AgeBand(name, lower_months, upper_months)
+```
+
+One age class, `[lower_months, upper_months)` in months of age, so the first year of life can be banded finely. The oldest band of a model is open-ended (`upper_months = Inf`).
+
+<a id='ConfigurableEpi.AgeMixing'></a>
+<a id='ConfigurableEpi.AgeMixing-1'></a>
+**`ConfigurableEpi.AgeMixing`** &mdash; *Type*.
+
+```julia
+AgeMixing(bands, populations, contacts)
+```
+
+A population on age `bands` ([`AgeBand`](configurableepi.md#ConfigurableEpi.AgeBand)s partitioning `[0, Inf)`): `populations[g]`, absolute or as shares, and `contacts`, a NamedTuple of matrices by setting such as `(; school, other)`, where `contacts.school[g, h]` is the mean daily number of school contacts one person in band `g` has with people in band `h`. The settings are disjoint parts of contact; a single matrix is the one setting `all`.
+
 <a id='ConfigurableEpi.contact_matrix-Tuple{AbstractMatrix, Real}'></a>
 <a id='ConfigurableEpi.contact_matrix-Tuple{AbstractMatrix, Real}-1'></a>
 **`ConfigurableEpi.contact_matrix`** &mdash; *Method*.
@@ -1601,6 +1621,26 @@ contact_matrix(M, a_com) -> Matrix{Float64}
 
 `(1 - a_com) I + a_com M`: within-location contact at `a_com = 0`, the radiation matrix at 1.
 
+<a id='ConfigurableEpi.contact_spectral_radius-Tuple{AgeMixing}'></a>
+<a id='ConfigurableEpi.contact_spectral_radius-Tuple{AgeMixing}-1'></a>
+**`ConfigurableEpi.contact_spectral_radius`** &mdash; *Method*.
+
+Spectral radius of the contacts over all settings together.
+
+<a id='ConfigurableEpi.load_age_mixing-Tuple{Any, Any}'></a>
+<a id='ConfigurableEpi.load_age_mixing-Tuple{Any, Any}-1'></a>
+**`ConfigurableEpi.load_age_mixing`** &mdash; *Method*.
+
+```julia
+load_age_mixing(location, bands; distribution_path, contact_path, population = 1.0) -> AgeMixing
+```
+
+The [`AgeMixing`](configurableepi.md#ConfigurableEpi.AgeMixing) of `location` on the model's `bands`, regrouped from two tables on a common base grid: `location,age_band,lower_months,upper_months,share` and `location,contactor,contactee,contacts_per_day`. `contact_path` is one table, the setting `all`, or a NamedTuple of tables by setting. The populations are the shares times `population`.
+
+A model band is any union of base bands or any part of a finite one. Within a finite base band ages are taken as evenly spread and every member is given the band's per-capita contact rates, so a divided band's contacts with a part are in proportion to the part. The regrouping keeps the total contacts between two bands symmetric whenever the base tables are.
+
+Errors when the location is absent, a base band is missing, or the bands do not partition `[0, Inf)` on the base grid.
+
 <a id='ConfigurableEpi.load_radiation_matrix-Tuple{Any}'></a>
 <a id='ConfigurableEpi.load_radiation_matrix-Tuple{Any}-1'></a>
 **`ConfigurableEpi.load_radiation_matrix`** &mdash; *Method*.
@@ -1609,7 +1649,67 @@ contact_matrix(M, a_com) -> Matrix{Float64}
 load_radiation_matrix(locations; path) -> Matrix{Float64}
 ```
 
-Row-normalised contact matrix for `locations` (in order) from an `origin,destination,flow` table. Errors when a location is absent, has a self-flow, or retains no flow to the others.
+Row-normalised contact matrix for `locations` (in order) from an `origin,destination,flow` table: `M[x, y]` is the share of location `x`'s out-of-location contact that is with `y`, re-normalised over the selected locations. Errors when a location is absent, has a self-flow, or retains no flow to the others.
+
+<a id='ConfigurableEpi.load_setting_contacts-Tuple{Any, Any}'></a>
+<a id='ConfigurableEpi.load_setting_contacts-Tuple{Any, Any}-1'></a>
+**`ConfigurableEpi.load_setting_contacts`** &mdash; *Method*.
+
+```julia
+load_setting_contacts(location, bands; matrix_path, population_path, settings = (:school, :other)) -> AgeMixing
+```
+
+The [`AgeMixing`](configurableepi.md#ConfigurableEpi.AgeMixing) of `location` read on the tables' own age groups, named by `bands`: the contact layers `settings` from `location,layer,row_age,col_age,value` and the populations from `location,age_group,population`. Every age pair must be present in every layer.
+
+<a id='ConfigurableEpi.validate_age_bands-Tuple{Any}'></a>
+<a id='ConfigurableEpi.validate_age_bands-Tuple{Any}-1'></a>
+**`ConfigurableEpi.validate_age_bands`** &mdash; *Method*.
+
+```julia
+validate_age_bands(bands) -> bands
+```
+
+Check that `bands` partition `[0, Inf)` in order: the first starts at 0, each starts where the last ended, the last is open-ended, and the names are distinct.
+
+<a id='ConfigurableEpi.AnchoredCalendar'></a>
+<a id='ConfigurableEpi.AnchoredCalendar-1'></a>
+**`ConfigurableEpi.AnchoredCalendar`** &mdash; *Type*.
+
+```julia
+AnchoredCalendar(cal, start_date)
+```
+
+The calendar on model time, `t` days after `start_date`, piecewise constant per day and held at its first and last values outside its range.
+
+<a id='ConfigurableEpi.SchoolCalendar'></a>
+<a id='ConfigurableEpi.SchoolCalendar-1'></a>
+**`ConfigurableEpi.SchoolCalendar`** &mdash; *Type*.
+
+```julia
+SchoolCalendar(first_date, values)
+```
+
+Daily fraction of school contacts active, from `first_date`, each in `[0, 1]`.
+
+<a id='ConfigurableEpi.assert_calendar_covers-Tuple{SchoolCalendar, Dates.Date, Dates.Date}'></a>
+<a id='ConfigurableEpi.assert_calendar_covers-Tuple{SchoolCalendar, Dates.Date, Dates.Date}-1'></a>
+**`ConfigurableEpi.assert_calendar_covers`** &mdash; *Method*.
+
+```julia
+assert_calendar_covers(cal, from::Date, to::Date)
+```
+
+Error unless the calendar has a value for every day in `[from, to]`.
+
+<a id='ConfigurableEpi.load_school_calendar-Tuple{AbstractString}'></a>
+<a id='ConfigurableEpi.load_school_calendar-Tuple{AbstractString}-1'></a>
+**`ConfigurableEpi.load_school_calendar`** &mdash; *Method*.
+
+```julia
+load_school_calendar(path) -> SchoolCalendar
+```
+
+Read `date,school_open_fraction` rows, which must be consecutive days.
 
 <a id='ConfigurableEpi.EpiModel'></a>
 <a id='ConfigurableEpi.EpiModel-1'></a>
