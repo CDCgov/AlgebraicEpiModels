@@ -38,11 +38,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `InferenceConfig` names one with `integrator = "Heun"`, say, resolved by `integrator_type`.
 - ConfigurableEpi: `assert_integration_stable` and `required_supersample` take an `integrator` and check it against its `stability_limit`, or a `limit` passed for an integrator without a known one.
   `stability_limit(Rk4)` and `STABILITY_HEADROOM` replace `RK4_STABILITY_LIMIT` and `RK4_WARN_LAMBDA_H`, so RK4's warning starts at `2.785 / 1.4 ≈ 1.99` rather than 2.
+- ConfigurableEpi: the EnKF engine runs LowLevelParticleFilters' augmented `EnsembleKalmanFilter{true, true}`, which needs LowLevelParticleFilters 3.32.
+  A slot with absent components still corrects on the observed ones only.
 - ConfigurableEpi: `max_transition_rate`, `required_supersample` and `assert_integration_stable` take an `IntegrationBounds` (durations, stage counts, `R_eff_max` and any `extra_rates` outside the durations) in place of `(dur, n_E, n_I; R_eff_max)`.
 
 ### Removed
 
 - ConfigurableEpi: `observation_gaussian_moments` and `forecast_states`, the analytic UKF forecast.
+- ConfigurableEpi: `AugmentedEnsembleKalmanFilter`; use LowLevelParticleFilters' `EnsembleKalmanFilter{true, true}`.
 - ConfigurableEpi: `RunConfig`, `RunIO`, `InputConfig`, `CountInput`, `PercentInput`, `validate_run_config` and `submodel_name`.
   Use `validate_inference_config` for the inference settings; run settings (data paths, input scale, burn-in, origin mode, schedule) belong to the run script.
 

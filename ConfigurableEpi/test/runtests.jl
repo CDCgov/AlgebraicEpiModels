@@ -24,7 +24,7 @@ const TEST_FILES = [
     "test_arrival_process.jl",
     "test_redistribute_jumps.jl",
     "test_backtest.jl",
-    "test_augmented_enkf.jl",
+    "test_enkf.jl",
     "test_ukf_covariance_factor.jl",
     "test_initialisation.jl",
     "test_deterministic_spinup.jl",

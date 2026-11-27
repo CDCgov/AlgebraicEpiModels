@@ -4,7 +4,7 @@ using DataFramesMeta: DataFrame, names
 using Dates: Date, Day
 using LinearAlgebra: BLAS, I, diag
 using Distributions: MvNormal, NegativeBinomial
-using LowLevelParticleFilters: AdvancedParticleFilter, UnscentedKalmanFilter, forward_trajectory,
+using LowLevelParticleFilters: AdvancedParticleFilter, EnsembleKalmanFilter, UnscentedKalmanFilter, forward_trajectory,
     TrivialParams, correct!, covariance, expweights, index, particles, predict!, reset!, state, weights
 using StaticArrays: SVector
 import Random
@@ -455,9 +455,9 @@ estimate(df, name, statistic = "estimate") =
 
         engine = make_engine(11)
         @test engine isa EnKFEKPEngine
-        @test engine.filter isa AugmentedEnsembleKalmanFilter
+        @test engine.filter isa EnsembleKalmanFilter{true, true}
         # One latent slot plus one accumulator whisker against four state slots: `nw != nx`.
-        @test (engine.filter.nw, engine.filter.nx) == (2, 4)
+        @test (size(engine.filter.R1, 1), engine.filter.nx) == (2, 4)
 
         @testset "deepcopy preserves complete ensemble state and RNG" begin
             ys = CE._observation_vectors(counts3)
@@ -857,12 +857,19 @@ end
     @test state(partial) ≈ state(reference) rtol = 1.0e-12
     @test covariance(partial) ≈ covariance(reference) rtol = 1.0e-12
 
-    enkf(measure, ny) = AugmentedEnsembleKalmanFilter(dynamics, measure, R1, R2, d0, 50; nu = 0, ny, rng = Random.Xoshiro(3))
+    enkf(measure, ny) = EnsembleKalmanFilter{true, true}(
+        dynamics, CE._ObservedComponents(measure), R1, R2, d0, 50; nu = 0, ny, rng = Random.Xoshiro(3),
+    )
     partial, reference = enkf(both, 2), enkf(first_only, 1)
     got = CE._correct!(partial, [3.5, NaN], nothing, 0.0)
     want = correct!(reference, Float64[], [3.5], nothing, 0.0)
     @test got.ll ≈ want.ll rtol = 1.0e-12
     @test partial.ensemble ≈ reference.ensemble
+    # The filter measures every component again afterwards, and after a failed correction too.
+    @test partial.ny == 2 && partial.measurement.components === Colon()
+    @test length(partial.measurement(state(partial), Float64[], nothing, 0.0, zeros(2))) == 2
+    @test_throws BoundsError CE._correct!(partial, [3.5, NaN, 1.0], nothing, 0.0)
+    @test partial.ny == 2 && partial.measurement.components === Colon()
 end
 
 function mock_two_signal_vf!(du, u, p, t)
