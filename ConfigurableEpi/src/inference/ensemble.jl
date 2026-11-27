@@ -81,6 +81,8 @@ function build_inference(
     )
     model.stochastic.n_jumps == 0 ||
         throw(ArgumentError("a Gaussian filter cannot propagate the model's jump drivers; use PF"))
+    model.joint_prior isa Independent ||
+        throw(ArgumentError("EKP's ensemble starts from independent priors; use UKF + Optimise or PF + LiuWest for a joint prior"))
     core = EngineCore(model, EngineSettings(; dt, supersample, integrator, n_ahead, n_draws), 0.0)
     _check_ensemble_rank(filter, hyper, model)
     # Three streams off the caller's rng: the outer ensemble, the inner replays (a seed re-used

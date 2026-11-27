@@ -347,11 +347,22 @@ Check what the schema cannot: a slow-mode boundary interval inside `[0, 1]` and 
 **`ConfigurableEpi.ParameterPriorBundle`** &mdash; *Type*.
 
 ```julia
-ParameterPriorBundle(priors::NamedTuple)
+ParameterPriorBundle(priors::NamedTuple; joint = Independent())
 ParameterPriorBundle(priors::ParameterDistribution...)
 ```
 
-Ordered scalar priors combined into one EKP distribution. [`constrained_values`](configurableepi.md#ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}), [`unconstrained_values`](configurableepi.md#ConfigurableEpi.unconstrained_values-Tuple{ParameterPriorBundle, NamedTuple}) and [`prior_logpdf`](configurableepi.md#ConfigurableEpi.prior_logpdf-Tuple{ParameterPriorBundle, AbstractVector}) map between the optimiser's unconstrained vector and constrained `NamedTuple`s. NamedTuple keys must equal the prior names.
+Ordered scalar priors combined into one EKP distribution, coupled by `joint` ([`PriorCoupling`](configurableepi.md#ConfigurableEpi.PriorCoupling)). [`constrained_values`](configurableepi.md#ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}), [`unconstrained_values`](configurableepi.md#ConfigurableEpi.unconstrained_values-Tuple{ParameterPriorBundle, NamedTuple}) and [`prior_logpdf`](configurableepi.md#ConfigurableEpi.prior_logpdf-Tuple{ParameterPriorBundle, AbstractVector}) map between the optimiser's unconstrained vector and constrained `NamedTuple`s. NamedTuple keys must equal the prior names.
+
+<a id='ConfigurableEpi.PriorCoupling'></a>
+<a id='ConfigurableEpi.PriorCoupling-1'></a>
+**`ConfigurableEpi.PriorCoupling`** &mdash; *Type*.
+
+```julia
+PriorCoupling
+Independent()
+```
+
+How a [`ParameterPriorBundle`](configurableepi.md#ConfigurableEpi.ParameterPriorBundle) combines its scalar priors. `Independent()` takes their product; a coupling such as [`RtNBVariancePrior`](configurableepi.md#ConfigurableEpi.RtNBVariancePrior) replaces the scalar densities of the parameters it names with a joint one.
 
 <a id='ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}'></a>
 <a id='ConfigurableEpi.constrained_values-Tuple{ParameterPriorBundle, AbstractVector}-1'></a>
@@ -372,6 +383,16 @@ prior_logpdf(bundle, unconstrained) -> Real
 ```
 
 Evaluate the combined prior density in the optimiser's unconstrained coordinates.
+
+<a id='ConfigurableEpi.prior_moments-Tuple{ParameterPriorBundle}'></a>
+<a id='ConfigurableEpi.prior_moments-Tuple{ParameterPriorBundle}-1'></a>
+**`ConfigurableEpi.prior_moments`** &mdash; *Method*.
+
+```julia
+prior_moments(bundle) -> (mean, covariance)
+```
+
+Mean and covariance of the bundle's prior in the optimiser's unconstrained coordinates.
 
 <a id='ConfigurableEpi.prior_name-Tuple{ParameterDistribution}'></a>
 <a id='ConfigurableEpi.prior_name-Tuple{ParameterDistribution}-1'></a>
@@ -394,6 +415,16 @@ prior_unconstrained_variance(prior) -> Float64
 
 Mean and variance of a scalar prior in its unconstrained coordinate, the chart that learned hyperparameters and latent coefficients are stored in.
 
+<a id='ConfigurableEpi.sample_prior-Tuple{Random.AbstractRNG, ParameterPriorBundle}'></a>
+<a id='ConfigurableEpi.sample_prior-Tuple{Random.AbstractRNG, ParameterPriorBundle}-1'></a>
+**`ConfigurableEpi.sample_prior`** &mdash; *Method*.
+
+```julia
+sample_prior(rng, bundle) -> Vector
+```
+
+A draw from the bundle's prior in the optimiser's unconstrained coordinates.
+
 <a id='ConfigurableEpi.unconstrained_gaussian-Tuple{Any, Real, Real}'></a>
 <a id='ConfigurableEpi.unconstrained_gaussian-Tuple{Any, Real, Real}-1'></a>
 **`ConfigurableEpi.unconstrained_gaussian`** &mdash; *Method*.
@@ -415,6 +446,20 @@ unconstrained_values(bundle, constrained) -> Vector
 ```
 
 Transform named model-scale parameter values to the optimiser's unconstrained coordinates.
+
+<a id='ConfigurableEpi.RtNBVariancePrior'></a>
+<a id='ConfigurableEpi.RtNBVariancePrior-1'></a>
+**`ConfigurableEpi.RtNBVariancePrior`** &mdash; *Type*.
+
+```julia
+RtNBVariancePrior(; transmission_weight, window_days = 30, log_sd_mean = log(0.2),
+                  log_sd_std = log(2) / 1.6448536269514722, logit_rt_mean = log(9),
+                  logit_rt_std = 1, rt_scale = :Rt_sigma_stat, dispersion = :phi)
+```
+
+A [`PriorCoupling`](configurableepi.md#ConfigurableEpi.PriorCoupling) with independent normal priors on `log(sqrt(T))` and `logit(f)`, where `T = transmission_weight * rt_scale^2 + 1/dispersion` is a local relative variance and `f = transmission_weight * rt_scale^2 / T` the share of it from transmission. `rt_scale` and `dispersion` name the learned Rt scale and negative-binomial dispersion, whose scalar priors it replaces; their constraints must be logs.
+
+`transmission_weight` is the conditional response variance at the horizon of interest per unit squared Rt scale, and the dispersion adds the relative variance of the negative binomial's gamma multiplier. `T` is a proxy: it leaves out Poisson variation and ascertainment drift.
 
 <a id='ConfigurableEpi.StateLayout'></a>
 <a id='ConfigurableEpi.StateLayout-1'></a>
@@ -1720,7 +1765,8 @@ EpiModel(; vectorfield!, layout, stochastic, observation, hyperparams, priors, i
          initial_latent_variance = (;), initial_learned_variance = (;),
          initial_accumulator_variance = (;), forgetting_memory_days = (;),
          derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
-         initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0)
+         initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0,
+         joint_prior = Independent())
 ```
 
 Everything [`build_inference`](configurableepi.md#ConfigurableEpi.build_inference-Tuple{StateFilter, HyperMethod, EpiModel}) needs to fit and forecast one model:
@@ -1737,6 +1783,7 @@ Everything [`build_inference`](configurableepi.md#ConfigurableEpi.build_inferenc
 - `initial_covariance(hyper, x0, P)`: the Gaussian filters' initial state covariance, given the default `P` built from the variances above.
 - `initial_particle(rng, hyper, x)`: a particle's initial model state, given `x`, the initial state with the per-slot noise added (to clamp or renormalise it, say).
 - `likelihood_warmup_days`: the first days of observations that the filter corrects on but that a marginal log-likelihood leaves out, so the transient from an approximate start does not inform the hyperparameters.
+- `joint_prior`: the [`PriorCoupling`](configurableepi.md#ConfigurableEpi.PriorCoupling) of the `priors`, such as an [`RtNBVariancePrior`](configurableepi.md#ConfigurableEpi.RtNBVariancePrior).
 
 <a id='ConfigurableEpi.initial_state'></a>
 <a id='ConfigurableEpi.initial_state-1'></a>
@@ -1753,6 +1800,16 @@ The model-state vector at `t = 0` under `hyperparams`.
 **`ConfigurableEpi.learned_names`** &mdash; *Method*.
 
 The names of the learned hyperparameters.
+
+<a id='ConfigurableEpi.with_joint_prior-Tuple{EpiModel, PriorCoupling}'></a>
+<a id='ConfigurableEpi.with_joint_prior-Tuple{EpiModel, PriorCoupling}-1'></a>
+**`ConfigurableEpi.with_joint_prior`** &mdash; *Method*.
+
+```julia
+with_joint_prior(model::EpiModel, joint_prior::PriorCoupling) -> EpiModel
+```
+
+`model` with its priors coupled by `joint_prior`; `Independent()` uncouples them.
 
 <a id='ConfigurableEpi.with_likelihood_warmup-Tuple{EpiModel, Real}'></a>
 <a id='ConfigurableEpi.with_likelihood_warmup-Tuple{EpiModel, Real}-1'></a>
@@ -1924,10 +1981,10 @@ A block of `H` hyperparameters carried per particle in the tail after the model 
 
 ```julia
 build_hyperparam_updater(learned; discount = 0.95, jitter_floor_fraction = DEFAULT_JITTER_FLOOR_FRACTION,
-                         forgetting_memory_days = (;), rng = Random.default_rng(), dt = 1.0) -> update!
+                         forgetting_memory_days = (;), rng = Random.default_rng(), dt = 1.0, moments) -> update!
 ```
 
-`update!(particles, weights)` refreshes every particle's learned slots in place by the Liu-West kernel `θᵢ ← a θᵢ + (1 - a) θ̄ + ε`, `ε ~ N(0, (1 - a²) V)` with `a = (3δ - 1) / 2δ` and `θ̄, V` the weighted cloud moments, which preserves the weighted mean and variance. The jitter variance is floored at `jitter_floor_fraction` of each prior's variance so a collapsed cloud can re-expand. Parameters named in `forgetting_memory_days` are additionally pulled toward their prior by Kulhavý forgetting with `λ = exp(-dt / memory)`: the marginal `N(m, v)` becomes the geometric mean of itself and the prior. Call between `correct!` and `predict!` on `state(pf).xprev` with `expweights(pf)`.
+`update!(particles, weights)` refreshes every particle's learned slots in place by the Liu-West kernel `θᵢ ← a θᵢ + (1 - a) θ̄ + ε`, `ε ~ N(0, (1 - a²) V)` with `a = (3δ - 1) / 2δ` and `θ̄, V` the weighted cloud moments, which preserves the weighted mean and variance. The jitter variance is floored at `jitter_floor_fraction` of each prior's variance so a collapsed cloud can re-expand. `moments` is the prior's `(mean, covariance)` in the learned block's order: by default the scalar priors' own, and [`prior_moments`](configurableepi.md#ConfigurableEpi.prior_moments-Tuple{ParameterPriorBundle}) for a coupled prior. Parameters named in `forgetting_memory_days` are additionally pulled toward their prior by Kulhavý forgetting with `λ = exp(-dt / memory)`: the marginal `N(m, v)` becomes the geometric mean of itself and the prior. Call between `correct!` and `predict!` on `state(pf).xprev` with `expweights(pf)`.
 
 <a id='ConfigurableEpi.build_learned_hyperparams-Tuple{NamedTuple, StateLayout}'></a>
 <a id='ConfigurableEpi.build_learned_hyperparams-Tuple{NamedTuple, StateLayout}-1'></a>

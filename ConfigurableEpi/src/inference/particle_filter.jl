@@ -128,9 +128,10 @@ function build_inference(
     learned = build_learned_hyperparams(model.priors, layout)
     as_days(entries) = Dict{Symbol, Float64}(Symbol(k) => Float64(v) for (k, v) in entries)
     forgetting = merge(as_days(pairs(model.forgetting_memory_days)), as_days(hyper.forgetting_memory_days))
+    _check_liu_west_coupling(model.joint_prior, model, forgetting)
     update! = build_hyperparam_updater(
         learned; discount = hyper.discount, jitter_floor_fraction = hyper.jitter_floor_fraction,
-        forgetting_memory_days = forgetting, rng, dt = settings.dt,
+        forgetting_memory_days = forgetting, rng, dt = settings.dt, moments = prior_moments(core.bundle),
     )
     pf_dynamics = build_pf_dynamics(assembly.dynamics, layout; rng, learned, threads = filter.threads)
     pf_measure = build_pf_measurement(layout, model.observation, model.stochastic; rng, learned)
@@ -144,8 +145,8 @@ function build_inference(
     P0 = _initial_state_covariance(layout, initial_state(model), learned_variance; latent_variance = model.initial_latent_variance)
     d = layout.total_dim
     d0 = ParameterDependentInitial(
-        model.build_x0, MvNormal(θ0, Matrix(Diagonal(diag(P0)[(d + 1):end]))), learned, base, sqrt.(diag(P0)[1:d]),
-        model.initial_particle,
+        model.build_x0, _initial_learned(model.joint_prior, core.bundle, θ0, diag(P0)[(d + 1):end]), learned, base,
+        sqrt.(diag(P0)[1:d]), model.initial_particle,
     )
     pf = AdvancedParticleFilter(
         filter.n_particles, pf_dynamics, pf_measure, logpdf, nothing, d0;
@@ -153,6 +154,23 @@ function build_inference(
     )
     reset!(pf)
     return PFLiuWestEngine(core, filter, hyper, pf, learned, update!, rng)
+end
+
+# The learned slots start around their starting values with independent priors, and are drawn
+# from the prior itself when it is coupled.
+_initial_learned(::Independent, _bundle, θ0, variance) = MvNormal(θ0, Matrix(Diagonal(variance)))
+_initial_learned(::PriorCoupling, bundle, _θ0, _variance) = _PriorSampler(bundle)
+
+# Liu-West keeps a coupled prior's moments, not its shape: per-parameter initial variances and the
+# marginal Gaussian forgetting would treat the coupled parameters as independent.
+_check_liu_west_coupling(::Independent, _model, _forgetting) = nothing
+function _check_liu_west_coupling(coupling::PriorCoupling, model, forgetting)
+    coupled = joint_prior_parameters(coupling)
+    isempty(intersect(keys(model.initial_learned_variance), keys(model.priors))) ||
+        throw(ArgumentError("a joint prior starts the learned slots from the prior; drop initial_learned_variance overrides"))
+    all(n -> !isfinite(get(forgetting, n, Inf)), coupled) ||
+        throw(ArgumentError("forgetting is unsupported for the parameters $coupled under a joint prior; use Inf"))
+    return nothing
 end
 
 function fit_forecast!(
@@ -219,9 +237,10 @@ function fit_forecast!(
     # `sd_ratio` is the filtered cloud's sd over the prior's (unconstrained): a collapsed cloud
     # reads far below 1 while its quantiles merely look precise.
     _, V = _weighted_theta_moments(_theta_block(final_particles, learned), final_weights)
+    prior_variance = diag(last(prior_moments(e.core.bundle)))
     for (slot, name) in enumerate(learned.names)
         summarise!(name, [learned.extract(p)[name] for p in initial_states])
-        push!(summary, (string(name), "sd_ratio", sqrt(max(V[slot, slot], 0.0) / prior_unconstrained_variance(learned.priors[slot]))))
+        push!(summary, (string(name), "sd_ratio", sqrt(max(V[slot, slot], 0.0) / prior_variance[slot])))
     end
     derived = model.derived_hyperparameters
     if derived !== nothing && !isempty(initial_states)

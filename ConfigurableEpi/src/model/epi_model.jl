@@ -5,7 +5,8 @@
              initial_latent_variance = (;), initial_learned_variance = (;),
              initial_accumulator_variance = (;), forgetting_memory_days = (;),
              derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
-             initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0)
+             initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days = 0,
+             joint_prior = Independent())
 
 Everything [`build_inference`](@ref) needs to fit and forecast one model:
 
@@ -31,8 +32,9 @@ Everything [`build_inference`](@ref) needs to fit and forecast one model:
 - `likelihood_warmup_days`: the first days of observations that the filter corrects on but that
   a marginal log-likelihood leaves out, so the transient from an approximate start does not
   inform the hyperparameters.
+- `joint_prior`: the [`PriorCoupling`](@ref) of the `priors`, such as an [`RtNBVariancePrior`](@ref).
 """
-struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: NamedTuple, P <: NamedTuple, X, D, C, Q}
+struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: NamedTuple, P <: NamedTuple, X, D, C, Q, J <: PriorCoupling}
     vectorfield!::VF
     layout::L
     stochastic::SU
@@ -48,6 +50,7 @@ struct EpiModel{VF, L <: StateLayout, SU <: StochasticUpdate, O <: Tuple, H <: N
     initial_covariance::C
     initial_particle::Q
     likelihood_warmup_days::Float64
+    joint_prior::J
 end
 
 function EpiModel(;
@@ -57,6 +60,7 @@ function EpiModel(;
         initial_accumulator_variance::NamedTuple = (;), forgetting_memory_days::NamedTuple = (;),
         derived_hyperparameters = nothing, initial_covariance = (hyper, x0, P) -> P,
         initial_particle = (rng, hyper, x0) -> x0, likelihood_warmup_days::Real = 0,
+        joint_prior::PriorCoupling = Independent(),
     )
     isempty(observation) && throw(ArgumentError("observation must hold at least one spec"))
     isempty(priors) && throw(ArgumentError("priors must name at least one hyperparameter to learn"))
@@ -70,11 +74,12 @@ function EpiModel(;
     x0 = build_x0(hyperparams)
     length(x0) == layout.total_dim ||
         throw(DimensionMismatch("initial state has length $(length(x0)); the layout has $(layout.total_dim) slots"))
+    ParameterPriorBundle(priors; joint = joint_prior)
     return EpiModel(
         vectorfield!, layout, stochastic, observation, hyperparams, priors, build_x0,
         initial_latent_variance, initial_learned_variance, initial_accumulator_variance,
         forgetting_memory_days, derived_hyperparameters, initial_covariance, initial_particle,
-        _warmup_days(likelihood_warmup_days),
+        _warmup_days(likelihood_warmup_days), joint_prior,
     )
 end
 
@@ -97,7 +102,17 @@ The model-state vector at `t = 0` under `hyperparams`.
 """
 initial_state(model::EpiModel, hyperparams = model.hyperparams) = model.build_x0(hyperparams)
 
-ParameterPriorBundle(model::EpiModel) = ParameterPriorBundle(model.priors)
+ParameterPriorBundle(model::EpiModel) = ParameterPriorBundle(model.priors; joint = model.joint_prior)
+
+"""
+    with_joint_prior(model::EpiModel, joint_prior::PriorCoupling) -> EpiModel
+
+`model` with its priors coupled by `joint_prior`; `Independent()` uncouples them.
+"""
+function with_joint_prior(model::EpiModel, joint_prior::PriorCoupling)
+    ParameterPriorBundle(model.priors; joint = joint_prior)
+    return _rebuild(model; joint_prior)
+end
 
 "The names of the learned hyperparameters."
 learned_names(model::EpiModel) = keys(model.priors)
